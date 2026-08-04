@@ -1,0 +1,169 @@
+/**
+ * Merge-ready schema: every business table carries org_id even though the
+ * standalone runs single-tenant. Retrofitting org scoping is the most painful
+ * merge task — a column we ignore today costs nothing.
+ */
+import {
+  boolean,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
+import { createId } from "@paralleldrive/cuid2";
+
+const id = () => text("id").primaryKey().$defaultFn(createId);
+const ts = (name: string) => timestamp(name, { withTimezone: true });
+
+// ── Identity ──────────────────────────────────────────────────────────
+/** Org-level knobs. enrichLimit caps how many people ONE enrichment run may
+ *  process ("all" = only bounded by the daily cap) — the API-cost guardrail. */
+export interface OrgSettings {
+  enrichLimit: number | "all";
+}
+export const DEFAULT_ORG_SETTINGS: OrgSettings = { enrichLimit: 10 };
+
+export const org = pgTable("org", {
+  id: id(),
+  name: text("name").notNull(),
+  settingsJson: jsonb("settings_json").$type<OrgSettings>().notNull().default(DEFAULT_ORG_SETTINGS),
+  createdAt: ts("created_at").notNull().defaultNow(),
+});
+
+export const appUser = pgTable("app_user", {
+  id: id(),
+  orgId: text("org_id").notNull().references(() => org.id),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  name: text("name").notNull(),
+  createdAt: ts("created_at").notNull().defaultNow(),
+});
+
+// ── Channel (Unipile) ────────────────────────────────────────────────
+export const channelAccount = pgTable("channel_account", {
+  id: id(),
+  orgId: text("org_id").notNull().references(() => org.id),
+  provider: text("provider").notNull().default("linkedin"),
+  unipileAccountId: text("unipile_account_id").notNull().unique(),
+  displayName: text("display_name"),
+  status: text("status").notNull().default("operational"), // operational | needs_reauth | disconnected
+  lastSyncedAt: ts("last_synced_at"),
+  createdAt: ts("created_at").notNull().defaultNow(),
+});
+
+// ── Services (the six TTC solutions, editable) ───────────────────────
+export interface IcpPersona {
+  slug: string;
+  name: string;
+  title_include: string[];
+  title_exclude: string[];
+  seniority: string[];       // cxo | vp | head | director | manager | founder | ic
+  function_tags: string[];
+}
+export interface IcpJson {
+  summary: string;
+  fit_signals: string[];
+  pain_points: string[];
+  personas: IcpPersona[];
+  disqualifiers: string[];
+}
+export const service = pgTable("service", {
+  id: id(),
+  orgId: text("org_id").notNull().references(() => org.id),
+  slug: text("slug").notNull(),
+  name: text("name").notNull(),
+  status: text("status").notNull().default("active"), // active | archived
+  icpJson: jsonb("icp_json").$type<IcpJson>().notNull(),
+  createdAt: ts("created_at").notNull().defaultNow(),
+}, (t) => [uniqueIndex("service_org_slug_uq").on(t.orgId, t.slug)]);
+
+// ── Connections pipeline ─────────────────────────────────────────────
+export const connectionBatch = pgTable("connection_batch", {
+  id: id(),
+  orgId: text("org_id").notNull().references(() => org.id),
+  source: text("source").notNull(), // csv | sync
+  label: text("label").notNull(),
+  statsJson: jsonb("stats_json").$type<Record<string, number>>().default({}),
+  createdAt: ts("created_at").notNull().defaultNow(),
+});
+
+export interface ScoreBreakdown {
+  seniority: number;
+  function_fit: number;
+  confidence: number;
+  founder_bonus: number;
+  company_present: number;
+  total: number;
+}
+export const connection = pgTable("connection", {
+  id: id(),
+  orgId: text("org_id").notNull().references(() => org.id),
+  batchId: text("batch_id").notNull().references(() => connectionBatch.id, { onDelete: "cascade" }),
+
+  // Raw (from CSV or relations sync)
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name").notNull().default(""),
+  companyRaw: text("company_raw"),
+  positionRaw: text("position_raw"),
+  headlineRaw: text("headline_raw"),
+  linkedinUrl: text("linkedin_url"),
+  publicIdentifier: text("public_identifier"),
+  connectedOn: text("connected_on"),
+
+  // Stage A — service fit + rank
+  bucket: text("bucket"), // pitchable | off_icp | peer_competitor | excluded
+  serviceSlug: text("service_slug"),
+  matchConfidence: integer("match_confidence"),
+  matchWhy: text("match_why"),
+  matchMethod: text("match_method"), // rule | llm
+  score: integer("score"),
+  scoreBreakdownJson: jsonb("score_breakdown_json").$type<ScoreBreakdown>(),
+  tier: integer("tier"),
+  rank: integer("rank"),
+
+  // Stage B — deep enrichment (the amber columns)
+  selectedForEnrich: boolean("selected_for_enrich").notNull().default(false),
+  enrichStatus: text("enrich_status").notNull().default("pending"), // pending | queued | running | done | failed | skipped
+  aboutSummary: text("about_summary"),
+  activityUrl: text("activity_url"),
+  postsSummary: text("posts_summary"),
+  painPoints: text("pain_points"),
+  painInferred: boolean("pain_inferred"),
+  serviceConfirmed: text("service_confirmed"),
+  correctionReason: text("correction_reason"),
+  flag: text("flag"),
+  outreachMessage: text("outreach_message"),
+  enrichError: text("enrich_error"),
+  enrichedAt: ts("enriched_at"),
+
+  createdAt: ts("created_at").notNull().defaultNow(),
+}, (t) => [
+  index("connection_batch_idx").on(t.batchId),
+  index("connection_bucket_idx").on(t.batchId, t.bucket),
+]);
+
+// ── DB-backed jobs (no Redis in the standalone) ──────────────────────
+export const job = pgTable("job", {
+  id: id(),
+  orgId: text("org_id").notNull().references(() => org.id),
+  kind: text("kind").notNull(), // classify | deep_enrich | sync_relations
+  payloadJson: jsonb("payload_json").$type<Record<string, unknown>>().notNull(),
+  status: text("status").notNull().default("queued"), // queued | running | done | failed
+  progress: integer("progress").notNull().default(0),
+  total: integer("total").notNull().default(0),
+  error: text("error"),
+  createdAt: ts("created_at").notNull().defaultNow(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+});
+
+export const activityLog = pgTable("activity_log", {
+  id: id(),
+  orgId: text("org_id").notNull().references(() => org.id),
+  actor: text("actor").notNull(),
+  action: text("action").notNull(),
+  detailJson: jsonb("detail_json").$type<Record<string, unknown>>().default({}),
+  createdAt: ts("created_at").notNull().defaultNow(),
+});

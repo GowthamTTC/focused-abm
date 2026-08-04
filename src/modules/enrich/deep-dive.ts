@@ -1,0 +1,119 @@
+/**
+ * Stage B — one connection at a time: fetch profile + posts through the
+ * connected LinkedIn seat, run the deep-dive prompt, then draft the message.
+ * Degrades gracefully: no channel account, or no LinkedIn identifier →
+ * profile/posts are NONE and the prompt infers from role + company (marked).
+ */
+import { and, eq } from "drizzle-orm";
+import { z } from "zod";
+import { db, channelAccount, connection, service } from "@/db";
+import { complete } from "@/llm/client";
+import { getChannelProvider } from "@/providers/channel";
+import { servicesDigest } from "@/modules/matching/service-fit";
+
+const SENDER_CONTEXT =
+  "toss the coin — a B2B marketing services firm (demand gen + ABM + content, CMO office, GTM office, Marketeroid for founders, branding/rebranding, sales enablement). Warm, specific, senior voice.";
+
+const deepDiveOut = z.object({
+  about_summary: z.string(),
+  posts_summary: z.string(),
+  pain_points: z.string(),
+  pain_inferred: z.boolean(),
+  service_to_pitch: z.string(),
+  correction_reason: z.string().nullable(),
+  flag: z.string().nullable(),
+});
+const messageOut = z.object({ message: z.string().min(20) });
+
+export async function deepEnrichOne(orgId: string, connectionId: string): Promise<void> {
+  const [c] = await db.select().from(connection)
+    .where(and(eq(connection.id, connectionId), eq(connection.orgId, orgId)));
+  if (!c) throw new Error("Connection not found");
+  await db.update(connection).set({ enrichStatus: "running", enrichError: null })
+    .where(eq(connection.id, c.id));
+
+  try {
+    // 1 — fetch through the connected seat (both fetches optional).
+    const [seat] = await db.select().from(channelAccount)
+      .where(and(eq(channelAccount.orgId, orgId), eq(channelAccount.status, "operational")));
+    const identifier = c.publicIdentifier ?? c.linkedinUrl;
+    let headline = c.headlineRaw ?? "";
+    let about = "";
+    let postsBlock = "NONE";
+    if (seat && identifier) {
+      const provider = getChannelProvider();
+      const profile = await provider.fetchProfile({ accountId: seat.unipileAccountId, identifier });
+      if (profile) { headline = profile.headline ?? headline; about = profile.about ?? ""; }
+      const posts = await provider.fetchRecentPosts({ accountId: seat.unipileAccountId, identifier, limit: 5 });
+      if (posts.length > 0) {
+        postsBlock = posts.map((p, i) =>
+          `[${i + 1}] (${p.postedAt ?? "undated"}) ${p.text.slice(0, 600)}`).join("\n\n");
+      }
+    }
+
+    const activityUrl = c.linkedinUrl
+      ? `${c.linkedinUrl.replace(/\/+$/, "")}/recent-activity/all/` : null;
+
+    // 2 — deep-dive analysis.
+    const services = (await db.select().from(service)
+      .where(and(eq(service.orgId, orgId), eq(service.status, "active"))))
+      .map((s) => ({ slug: s.slug, name: s.name, icp: s.icpJson }));
+    const dive = await complete({
+      stage: "deepdive",
+      prompt: "connection-deep-dive",
+      vars: {
+        provisional_service: c.serviceSlug ?? "none",
+        provisional_why: c.matchWhy ?? "",
+        full_name: `${c.firstName} ${c.lastName}`.trim(),
+        company: c.companyRaw ?? "unknown",
+        position: c.positionRaw ?? c.headlineRaw ?? "unknown",
+        linkedin_url: c.linkedinUrl ?? "unknown",
+        headline: headline || "(not available)",
+        about: about || "(not available)",
+        posts_block: postsBlock,
+      },
+      cachedContext: servicesDigest(services),
+      schema: deepDiveOut,
+      maxTokens: 1600,
+    });
+
+    // 3 — outreach draft.
+    const msg = await complete({
+      stage: "deepdive",
+      prompt: "outreach-message",
+      vars: {
+        sender_context: SENDER_CONTEXT,
+        target_block: [
+          `${c.firstName} ${c.lastName} — ${c.positionRaw ?? headline} at ${c.companyRaw ?? "?"}`,
+          `About: ${dive.about_summary}`,
+          `Posts: ${dive.posts_summary}`,
+        ].join("\n"),
+        service_to_pitch: dive.service_to_pitch,
+        pain_points: dive.pain_points,
+        flag: dive.flag ?? "none",
+      },
+      schema: messageOut,
+      maxTokens: 500,
+    });
+
+    await db.update(connection).set({
+      enrichStatus: "done",
+      aboutSummary: dive.about_summary,
+      activityUrl,
+      postsSummary: dive.posts_summary,
+      painPoints: dive.pain_points,
+      painInferred: dive.pain_inferred,
+      serviceConfirmed: dive.service_to_pitch,
+      correctionReason: dive.correction_reason,
+      flag: dive.flag,
+      outreachMessage: msg.message,
+      enrichedAt: new Date(),
+    }).where(eq(connection.id, c.id));
+  } catch (e) {
+    await db.update(connection).set({
+      enrichStatus: "failed",
+      enrichError: e instanceof Error ? e.message.slice(0, 500) : "unknown error",
+    }).where(eq(connection.id, c.id));
+    throw e;
+  }
+}
