@@ -50,7 +50,11 @@ Goal: know the data model cold; ICPs editable.
 
 1. Read `src/db/schema.ts` top to bottom — `connection` is the spine
    (raw fields → Stage A fields → Stage B amber fields).
-2. Open **Services**: the six TTC solutions from `src/modules/services/seed-data.ts`.
+2. Open **Services**: the six TTC solutions from `src/modules/services/seed-data.ts`
+   (v2 — derived from the Batch-1 ground truth: GTM Office is the deliberate
+   catch-all at ~56%). Peer detection is company-name-driven and off-ICP is
+   coach-title-driven; both run as pre-signals in `src/modules/matching/rule-pass.ts`
+   (`PEER_COMPANY_SIGNALS`, `OFF_ICP_TITLE_SIGNALS`) BEFORE title matching.
    Edit one ICP in the JSON editor, save, confirm it persists. These
    `title_include` patterns are what make the free rule-pass strong — invest here:
    every pattern you add removes people from the paid LLM pass.

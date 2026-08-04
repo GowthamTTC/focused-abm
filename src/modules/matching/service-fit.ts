@@ -9,7 +9,7 @@ import { z } from "zod";
 import { db, connection, service } from "@/db";
 import type { IcpJson } from "@/db/schema";
 import { complete } from "@/llm/client";
-import { rulePass } from "./rule-pass";
+import { companyPeerSignal, offIcpTitleSignal, rulePass } from "./rule-pass";
 
 const BATCH = 25;
 const OWN_COMPANY = "toss the coin"; // TODO: move to org settings
@@ -61,6 +61,18 @@ export async function classifyBatch(
     }
     if (company.includes(OWN_COMPANY)) {
       await setFit(c.id, { bucket: "excluded", service_slug: null, confidence: 100, why: "Works at our own company.", method: "rule" });
+      done += 1; continue;
+    }
+    // Company-based peer signal BEFORE title matching — a founder at an agency
+    // is a peer, and title patterns alone would misroute them to Marketeroid.
+    const peerSig = companyPeerSignal(c.companyRaw ?? "");
+    if (peerSig) {
+      await setFit(c.id, { bucket: "peer_competitor", service_slug: null, confidence: 85, why: `Company name signals an agency/studio ("${peerSig}") — peer, not buyer.`, method: "rule" });
+      done += 1; continue;
+    }
+    const offSig = offIcpTitleSignal(title);
+    if (offSig) {
+      await setFit(c.id, { bucket: "off_icp", service_slug: null, confidence: 85, why: `Title signals coach/personal-brand ("${offSig}") — audience, not buyer.`, method: "rule" });
       done += 1; continue;
     }
     const rule = rulePass(title, services);
