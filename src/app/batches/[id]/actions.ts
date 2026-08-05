@@ -13,6 +13,14 @@ export async function runClassify(batchId: string) {
   redirect(`/batches/${batchId}`);
 }
 
+/** Deliberate fresh pass: wipes nothing up front, but re-runs Stage A on EVERY
+ *  row (overwriting verdicts). Use after editing ICPs or prompt versions. */
+export async function reclassifyAllAction(batchId: string) {
+  const user = await requireUser();
+  await enqueue(user.orgId, "classify", { batchId, reclassifyAll: true });
+  redirect(`/batches/${batchId}`);
+}
+
 export async function selectTopN(batchId: string, formData: FormData) {
   const user = await requireUser();
   const { enrichLimit } = await getOrgSettings(user.orgId);

@@ -36,7 +36,8 @@ export async function processNext(): Promise<boolean> {
   try {
     if (next.kind === "classify") {
       const batchId = String(next.payloadJson.batchId);
-      await classifyBatch(next.orgId, batchId, (done, total) => setProgress(next.id, done, total));
+      const reclassifyAll = Boolean(next.payloadJson.reclassifyAll);
+      await classifyBatch(next.orgId, batchId, { reclassifyAll }, (done, total) => setProgress(next.id, done, total));
       await rankBatch(next.orgId, batchId);
     } else if (next.kind === "deep_enrich") {
       const ids = (next.payloadJson.connectionIds as string[]) ?? [];

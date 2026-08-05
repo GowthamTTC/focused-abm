@@ -5,7 +5,7 @@ import { db, connection, connectionBatch, job } from "@/db";
 import { Shell, requirePage } from "@/app/shell";
 import { AutoRefresh } from "@/app/auto-refresh";
 import { bucketCounts } from "@/modules/matching/service-fit";
-import { runClassify, runDeepEnrich, selectTopN } from "./actions";
+import { reclassifyAllAction, runClassify, runDeepEnrich, selectTopN } from "./actions";
 import { getOrgSettings } from "@/modules/settings/org-settings";
 
 const BUCKET_LABEL: Record<string, string> = {
@@ -25,6 +25,8 @@ export default async function BatchPage(props: {
   if (!batch) notFound();
 
   const counts = await bucketCounts(id);
+  const totalRows = Object.values(counts).reduce((a, b) => a + b, 0);
+  const classifiedRows = totalRows - counts.unclassified;
   const { enrichLimit } = await getOrgSettings(user.orgId);
   const defaultN = enrichLimit === "all" ? 30 : Math.min(30, enrichLimit);
   const [activeJob] = await db.select().from(job)
@@ -58,6 +60,14 @@ export default async function BatchPage(props: {
             <form action={runClassify.bind(null, id)}>
               <button className="rounded bg-neutral-900 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-700">
                 Run matching ({counts.unclassified})
+              </button>
+            </form>
+          )}
+          {classifiedRows > 0 && (
+            <form action={reclassifyAllAction.bind(null, id)}>
+              <button title="Re-run Stage A on every row, overwriting verdicts — use after editing ICPs or prompts."
+                className="rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-600 hover:bg-neutral-100">
+                Reclassify all
               </button>
             </form>
           )}

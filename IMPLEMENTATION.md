@@ -112,7 +112,7 @@ Goal: the full pool classified into four buckets with service + why.
    - wrong bucket rules → edit `prompts/service-fit/v1.md` → save as **v2**, bump the
      version in `service-fit.ts`;
    - wrong service pick → sharpen that service's `fit_signals`/`title_include` in the
-     Services screen; then re-run matching (idempotent — it overwrites Stage A fields).
+     Services screen; then press **Reclassify all** (Run matching only continues on unclassified rows; Reclassify all deliberately overwrites every verdict).
 4. ✅ **Accept:** bucket distribution roughly resembles the TTC ground truth
    (~90% pitchable, small off-ICP and peers piles, ~5% excluded).
 

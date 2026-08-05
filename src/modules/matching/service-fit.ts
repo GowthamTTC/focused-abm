@@ -4,7 +4,7 @@
  * of 25 with the services digest as CACHED context (one cache write, ~200
  * cheap reads across a 5k-connection batch).
  */
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { db, connection, service } from "@/db";
 import type { IcpJson } from "@/db/schema";
@@ -39,6 +39,7 @@ export function servicesDigest(services: { slug: string; name: string; icp: IcpJ
 export async function classifyBatch(
   orgId: string,
   batchId: string,
+  opts: { reclassifyAll?: boolean } = {},
   onProgress?: (done: number, total: number) => Promise<void>,
 ): Promise<{ classified: number; ruleHits: number; llmCalls: number }> {
   const services = (await db.select().from(service)
@@ -46,8 +47,12 @@ export async function classifyBatch(
     .map((s) => ({ slug: s.slug, name: s.name, icp: s.icpJson }));
   if (services.length === 0) throw new Error("No active services — seed or create services first.");
 
-  const rows = await db.select().from(connection)
-    .where(and(eq(connection.batchId, batchId), eq(connection.orgId, orgId)));
+  // Default: touch ONLY unclassified rows, so repeated runs genuinely continue
+  // from where the guardrail stopped (and never re-bill the same people).
+  // reclassifyAll wipes that filter for a deliberate fresh pass after ICP/prompt edits.
+  const conditions = [eq(connection.batchId, batchId), eq(connection.orgId, orgId)];
+  if (!opts.reclassifyAll) conditions.push(isNull(connection.bucket));
+  const rows = await db.select().from(connection).where(and(...conditions));
 
   let done = 0; let ruleHits = 0; let llmCalls = 0;
   const needLlm: typeof rows = [];
