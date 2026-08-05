@@ -131,7 +131,7 @@ export async function buildWorkbook(
     const opsHeaders = [
       "Rank", "First Name", "Last Name", "Company", "Position", "Bucket",
       "Service (slug)", "Confidence", "Method", "Score",
-      "Seniority", "Function", "Conf pts", "Founder", "Company pts", "Tier",
+      "Seniority", "Function", "Conf pts", "Founder", "Company pts", "Svc bonus", "Tier",
       "Selected", "Enrich status", "Enrich error", "Flag", "Pain inferred",
       "Correction reason", "LinkedIn URL",
     ];
@@ -147,7 +147,7 @@ export async function buildWorkbook(
         c.rank, c.firstName, c.lastName, c.companyRaw, c.positionRaw ?? c.headlineRaw,
         c.bucket, c.serviceSlug, c.matchConfidence, c.matchMethod, c.score,
         b?.seniority ?? null, b?.function_fit ?? null, b?.confidence ?? null,
-        b?.founder_bonus ?? null, b?.company_present ?? null,
+        b?.founder_bonus ?? null, b?.company_present ?? null, b?.service_bonus ?? null,
         c.tier ? `T${c.tier}` : null,
         c.selectedForEnrich ? "yes" : "", c.selectedForEnrich ? c.enrichStatus : "",
         c.enrichError, c.flag, c.painInferred == null ? "" : c.painInferred ? "yes" : "no",
@@ -155,9 +155,9 @@ export async function buildWorkbook(
       ]);
       row.alignment = { vertical: "top", wrapText: true };
       if (c.enrichStatus === "failed")
-        row.getCell(18).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFDE2E0" } };
+        row.getCell(19).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFDE2E0" } };
       if (c.flag)
-        row.getCell(20).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFDE2E0" } };
+        row.getCell(21).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFDE2E0" } };
     }
     ops.views = [{ state: "frozen", ySplit: 1 }];
   }

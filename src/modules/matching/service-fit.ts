@@ -7,6 +7,7 @@
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, connection, service } from "@/db";
+import { env } from "@/lib/env";
 import type { IcpJson } from "@/db/schema";
 import { complete } from "@/llm/client";
 import { companyPeerSignal, offIcpTitleSignal, rulePass } from "./rule-pass";
@@ -128,7 +129,7 @@ export async function classifyBatch(
     const out = await complete({
       stage: "classify",
       prompt: "service-fit",
-      version: "v2",
+      version: env.CLASSIFY_PROMPT_VERSION,
       vars: { people_json: peopleJson, own_company: OWN_COMPANY },
       cachedContext: digest,
       schema: fitArray,

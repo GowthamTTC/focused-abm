@@ -10,6 +10,7 @@ const schema = z.object({
   OPENROUTER_API_KEY: z.string().min(10),
   LLM_BASE_URL: z.string().url().default("https://openrouter.ai/api/v1"),
   LLM_MODEL_CLASSIFY: z.string().default("anthropic/claude-haiku-4.5"),
+  CLASSIFY_PROMPT_VERSION: z.string().default("v2"),
   LLM_MODEL_DEEPDIVE: z.string().default("anthropic/claude-sonnet-4.6"),
 
   UNIPILE_API_KEY: z.string().optional().or(z.literal("")),

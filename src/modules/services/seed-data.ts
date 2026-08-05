@@ -43,7 +43,7 @@ export const SEED_SERVICES: { slug: string; name: string; icp: IcpJson }[] = [
             "brand manager",
           ],
           title_exclude: ["chief marketing officer", "intern", "student", "aspiring", "freelance"],
-          seniority: ["vp", "head", "director", "manager", "ic"],
+          seniority: ["cxo", "vp", "head", "director", "manager", "ic"],
           function_tags: ["marketing", "demand", "growth", "content"],
         },
       ],
@@ -105,7 +105,7 @@ export const SEED_SERVICES: { slug: string; name: string; icp: IcpJson }[] = [
           slug: "business-professional",
           name: "Senior business professional (catch-all)",
           title_include: [
-            "managing director", "partner", "president", "general manager",
+            "managing director", "partner", "general manager",
             "product", "engineer", "operations", "project", "analyst",
             "human resources", "software", "data", "account", "consultant",
             "management", "principal", "delivery",

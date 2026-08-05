@@ -28,8 +28,8 @@ export function detectSeniority(titleRaw: string): Seniority {
   const t = normalizeTitle(titleRaw);
   if (/\b(intern|trainee|student|fresher|aspiring|apprentice)\b/.test(t)) return "junior";
   if (/\b(founder|co founder|cofounder|founding partner|proprietor|owner)\b/.test(t)) return "founder";
+  if (/vice president/.test(t)) return "vp"; // MUST precede cxo: "vice president" contains "president"
   if (/chief \w+ officer|managing director|managing partner|\bpresident\b/.test(t)) return "cxo";
-  if (/vice president/.test(t)) return "vp";
   if (/\bhead\b/.test(t)) return "head";
   if (/director/.test(t)) return "director";
   if (/general manager|manager|\blead\b/.test(t)) return "manager";

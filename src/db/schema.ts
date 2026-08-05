@@ -100,6 +100,7 @@ export interface ScoreBreakdown {
   confidence: number;
   founder_bonus: number;
   company_present: number;
+  service_bonus: number;
   total: number;
 }
 export const connection = pgTable("connection", {
