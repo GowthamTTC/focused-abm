@@ -1,8 +1,9 @@
 /**
- * Deterministic person-level scoring → tier → rank. Every number explains
- * itself: the breakdown is stored and shown in the UI popover.
+ * Deterministic person-level scoring → tier → rank.
+ * v10: set-based SQL — score/tier land in chunked bulk updates and rank is ONE
+ * window-function statement, replacing ~7,400 sequential row updates per run.
  */
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db, connection } from "@/db";
 import type { ScoreBreakdown } from "@/db/schema";
 import { normalizeTitle } from "@/modules/matching/normalize";
@@ -20,7 +21,7 @@ export function scoreConnection(input: {
   position: string | null; company: string | null; confidence: number | null;
 }): ScoreBreakdown {
   const title = normalizeTitle(input.position ?? "");
-  let seniority = 8; // baseline IC
+  let seniority = 8;
   for (const [re, pts] of SENIORITY) { if (re.test(title)) { seniority = pts; break; } }
   const function_fit = FUNCTION_TERMS.test(title) ? 12 : 0;
   const confidence = Math.round((input.confidence ?? 50) * 0.3);
@@ -36,33 +37,52 @@ export function tierFor(total: number): 1 | 2 | 3 {
   return 3;
 }
 
-/** Score + tier + rank every PITCHABLE connection in a batch. */
 export async function rankBatch(orgId: string, batchId: string): Promise<number> {
-  const rows = await db.select().from(connection)
+  const rows = await db.select({
+    id: connection.id,
+    positionRaw: connection.positionRaw,
+    headlineRaw: connection.headlineRaw,
+    companyRaw: connection.companyRaw,
+    matchConfidence: connection.matchConfidence,
+  }).from(connection)
     .where(and(eq(connection.orgId, orgId), eq(connection.batchId, batchId), eq(connection.bucket, "pitchable")));
 
-  for (const c of rows) {
-    const b = scoreConnection({
-      position: c.positionRaw ?? c.headlineRaw,
-      company: c.companyRaw,
-      confidence: c.matchConfidence,
-    });
-    await db.update(connection)
-      .set({ score: b.total, scoreBreakdownJson: b, tier: tierFor(b.total) })
-      .where(eq(connection.id, c.id));
+  // Score/tier in chunked bulk updates.
+  const CHUNK = 500;
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    const chunk = rows.slice(i, i + CHUNK);
+    const values = sql.join(chunk.map((c) => {
+      const b = scoreConnection({
+        position: c.positionRaw ?? c.headlineRaw,
+        company: c.companyRaw,
+        confidence: c.matchConfidence,
+      });
+      return sql`(${c.id}::text, ${b.total}::int, ${tierFor(b.total)}::int, ${JSON.stringify(b)}::jsonb)`;
+    }), sql`, `);
+    await db.execute(sql`
+      update connection as c
+      set score = v.score, tier = v.tier, score_breakdown_json = v.breakdown
+      from (values ${values}) as v(id, score, tier, breakdown)
+      where c.id = v.id
+    `);
   }
 
-  // Dense rank by score desc, stable by created order.
-  const ranked = await db.select({ id: connection.id }).from(connection)
-    .where(and(eq(connection.batchId, batchId), eq(connection.bucket, "pitchable")))
-    .orderBy(desc(connection.score), asc(connection.createdAt));
-  let r = 0;
-  for (const row of ranked) {
-    r += 1;
-    await db.update(connection).set({ rank: r }).where(eq(connection.id, row.id));
-  }
-  // Clear rank on non-pitchable (idempotent re-runs).
-  await db.update(connection).set({ rank: null, tier: null, score: null })
-    .where(and(eq(connection.batchId, batchId), sql`${connection.bucket} <> 'pitchable'`));
-  return r;
+  // Dense rank in ONE statement.
+  await db.execute(sql`
+    with ranked as (
+      select id, row_number() over (order by score desc nulls last, created_at asc) as rn
+      from connection
+      where batch_id = ${batchId} and bucket = 'pitchable'
+    )
+    update connection as c set rank = ranked.rn
+    from ranked where c.id = ranked.id
+  `);
+
+  // Clear stale rank/tier/score on anything not pitchable (incl. NULL buckets).
+  await db.execute(sql`
+    update connection set rank = null, tier = null, score = null, score_breakdown_json = null
+    where batch_id = ${batchId} and bucket is distinct from 'pitchable'
+  `);
+
+  return rows.length;
 }

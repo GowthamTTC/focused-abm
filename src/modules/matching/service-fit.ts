@@ -4,7 +4,7 @@
  * of 25 with the services digest as CACHED context (one cache write, ~200
  * cheap reads across a 5k-connection batch).
  */
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, connection, service } from "@/db";
 import type { IcpJson } from "@/db/schema";
@@ -58,60 +58,66 @@ export async function classifyBatch(
 
   let done = 0; let ruleHits = 0; let llmCalls = 0;
   const needLlm: typeof rows = [];
+  const ruleVerdicts: Verdict[] = [];
 
-  // Pass 1 — rules (also hard-excludes blanks and own-company rows).
+  // Pass 1 — rules (collected in memory, written in bulk below).
   for (const c of rows) {
     const title = c.positionRaw ?? c.headlineRaw ?? "";
     const company = (c.companyRaw ?? "").toLowerCase();
     if (!title.trim() && !company.trim()) {
-      await setFit(c.id, { bucket: "excluded", service_slug: null, confidence: 100, why: "Blank row — no position and no company.", method: "rule" });
+      ruleVerdicts.push({ id: c.id, bucket: "excluded", slug: null, conf: 100, why: "Blank row — no position and no company.", method: "rule" });
       done += 1; continue;
     }
     if (company.includes(OWN_COMPANY)) {
-      await setFit(c.id, { bucket: "excluded", service_slug: null, confidence: 100, why: "Works at our own company.", method: "rule" });
+      ruleVerdicts.push({ id: c.id, bucket: "excluded", slug: null, conf: 100, why: "Works at our own company.", method: "rule" });
       done += 1; continue;
     }
-    // Junior gate first: interns/students/freshers are excluded by rule (free),
-    // matching the ground truth's treatment — before any other signal can claim them.
     if (detectSeniority(title) === "junior") {
-      await setFit(c.id, { bucket: "excluded", service_slug: null, confidence: 95, why: "Title signals student/intern/fresher — excluded.", method: "rule" });
+      ruleVerdicts.push({ id: c.id, bucket: "excluded", slug: null, conf: 95, why: "Title signals student/intern/fresher — excluded.", method: "rule" });
       done += 1; continue;
     }
-    // Company-based peer signal BEFORE title matching — a founder at an agency
-    // is a peer, and title patterns alone would misroute them to Marketeroid.
     const peerSig = companyPeerSignal(c.companyRaw ?? "");
     if (peerSig) {
-      await setFit(c.id, { bucket: "peer_competitor", service_slug: null, confidence: 85, why: `Company name signals an agency/studio ("${peerSig}") — peer, not buyer.`, method: "rule" });
+      ruleVerdicts.push({ id: c.id, bucket: "peer_competitor", slug: null, conf: 85, why: `Company name signals an agency/studio ("${peerSig}") — peer, not buyer.`, method: "rule" });
       done += 1; continue;
     }
     const offSig = offIcpTitleSignal(title);
     if (offSig) {
-      await setFit(c.id, { bucket: "off_icp", service_slug: null, confidence: 85, why: `Title signals coach/personal-brand ("${offSig}") — audience, not buyer.`, method: "rule" });
+      ruleVerdicts.push({ id: c.id, bucket: "off_icp", slug: null, conf: 85, why: `Title signals coach/personal-brand ("${offSig}") — audience, not buyer.`, method: "rule" });
       done += 1; continue;
     }
     const rule = rulePass(title, services);
     if (rule.hit) {
       ruleHits += 1;
-      await setFit(c.id, {
-        bucket: "pitchable", service_slug: rule.hit.serviceSlug, confidence: 90,
+      ruleVerdicts.push({
+        id: c.id, bucket: "pitchable", slug: rule.hit.serviceSlug, conf: 90,
         why: `Title matched pattern "${rule.hit.pattern}" for ${rule.hit.serviceSlug} · seniority ${rule.hit.seniority}.`, method: "rule",
       });
       done += 1; continue;
     }
     needLlm.push(c);
   }
+  await bulkSetFit(ruleVerdicts);
   if (onProgress) await onProgress(done, rows.length);
 
-  // Pass 2 — LLM in batches of 25, capped by the matching guardrail.
+  // Pass 2 — LLM in batches of 25, capped by the matching guardrail,
+  // v10: 3 calls in flight at once; each call's 25 verdicts land in one bulk write.
   const { classifyLlmPeopleCap } = await getOrgSettings(orgId);
-  let llmPeople = 0;
   const digest = servicesDigest(services);
+  const slices: (typeof rows)[] = [];
+  let planned = 0;
   for (let i = 0; i < needLlm.length; i += BATCH) {
     const slice = needLlm.slice(i, i + BATCH);
-    if (classifyLlmPeopleCap !== "all" && llmPeople + slice.length > classifyLlmPeopleCap) {
-      break; // guardrail hit — remaining rows stay unclassified; next run continues
-    }
-    llmPeople += slice.length;
+    if (classifyLlmPeopleCap !== "all" && planned + slice.length > classifyLlmPeopleCap) break;
+    planned += slice.length;
+    slices.push(slice);
+  }
+
+  const CONCURRENCY = 3;
+  const failures: string[] = [];
+  let next = 0;
+
+  const runSlice = async (slice: typeof rows) => {
     const peopleJson = JSON.stringify(slice.map((c) => ({
       id: c.id,
       name: `${c.firstName} ${c.lastName}`.trim(),
@@ -131,13 +137,12 @@ export async function classifyBatch(
     llmCalls += 1;
 
     const byId = new Map(out.map((o) => [o.id, o]));
+    const verdicts: Verdict[] = [];
     for (const c of slice) {
       const o = byId.get(c.id);
       if (!o) {
-        await setFit(c.id, { bucket: "off_icp", service_slug: null, confidence: 0, why: "Classifier returned no verdict — review manually.", method: "llm" });
+        verdicts.push({ id: c.id, bucket: "off_icp", slug: null, conf: 0, why: "Classifier returned no verdict — review manually.", method: "llm" });
       } else {
-        // Safety net: the model occasionally writes a service slug into the
-        // bucket field. Auto-correct instead of failing the whole run.
         let bucket = o.bucket;
         let slug = o.service_slug;
         let why = o.why;
@@ -155,15 +160,34 @@ export async function classifyBatch(
           why = `Unknown service slug "${slug}" — service cleared, review. ${why}`;
           slug = null;
         }
-        await setFit(c.id, {
-          bucket,
-          service_slug: bucket === "pitchable" ? slug : null,
-          confidence: o.confidence, why, method: "llm",
+        verdicts.push({
+          id: c.id, bucket,
+          slug: bucket === "pitchable" ? slug : null,
+          conf: o.confidence, why, method: "llm",
         });
       }
-      done += 1;
     }
+    await bulkSetFit(verdicts);
+    done += slice.length;
     if (onProgress) await onProgress(done, rows.length);
+  };
+
+  await Promise.all(Array.from({ length: CONCURRENCY }, async () => {
+    for (;;) {
+      const i = next; next += 1;
+      if (i >= slices.length) return;
+      try {
+        await runSlice(slices[i]);
+      } catch (e) {
+        failures.push(e instanceof Error ? e.message.slice(0, 200) : "unknown error");
+      }
+    }
+  }));
+
+  if (failures.length > 0) {
+    throw new Error(
+      `${failures.length} of ${slices.length} model calls failed (first: ${failures[0]}). Their rows stay unclassified — press Run matching to retry them.`,
+    );
   }
   return { classified: done, ruleHits, llmCalls };
 }
@@ -175,6 +199,27 @@ async function setFit(id: string, fit: {
     bucket: fit.bucket, serviceSlug: fit.service_slug,
     matchConfidence: fit.confidence, matchWhy: fit.why, matchMethod: fit.method,
   }).where(eq(connection.id, id));
+}
+
+interface Verdict { id: string; bucket: string; slug: string | null; conf: number; why: string; method: "rule" | "llm" }
+
+/** v10: verdicts land in chunked bulk updates — one statement per 500 rows
+ *  instead of one round-trip per person. */
+async function bulkSetFit(items: Verdict[]) {
+  const CHUNK = 500;
+  for (let i = 0; i < items.length; i += CHUNK) {
+    const chunk = items.slice(i, i + CHUNK);
+    const values = sql.join(chunk.map((it) =>
+      sql`(${it.id}::text, ${it.bucket}::text, ${it.slug}::text, ${it.conf}::int, ${it.why}::text, ${it.method}::text)`,
+    ), sql`, `);
+    await db.execute(sql`
+      update connection as c
+      set bucket = v.bucket, service_slug = v.service_slug,
+          match_confidence = v.match_confidence, match_why = v.match_why, match_method = v.match_method
+      from (values ${values}) as v(id, bucket, service_slug, match_confidence, match_why, match_method)
+      where c.id = v.id
+    `);
+  }
 }
 
 export async function bucketCounts(batchId: string): Promise<Record<string, number>> {
