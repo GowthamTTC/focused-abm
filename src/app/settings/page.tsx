@@ -2,8 +2,8 @@ import { eq } from "drizzle-orm";
 import { db, channelAccount } from "@/db";
 import { unipileConfigured } from "@/lib/env";
 import { Shell, requirePage } from "@/app/shell";
-import { disconnect, refreshStatus, saveEnrichLimit, startConnect } from "./actions";
-import { ENRICH_LIMIT_OPTIONS, getOrgSettings } from "@/modules/settings/org-settings";
+import { disconnect, refreshStatus, saveClassifyCap, saveEnrichLimit, startConnect } from "./actions";
+import { CLASSIFY_CAP_OPTIONS, ENRICH_LIMIT_OPTIONS, getOrgSettings } from "@/modules/settings/org-settings";
 import { env } from "@/lib/env";
 
 export default async function SettingsPage() {
@@ -77,6 +77,26 @@ export default async function SettingsPage() {
             pool means multi-week processing and real model spend. Intended for the endgame, not week one.
           </p>
         )}
+      </section>
+
+      <section className="mt-6 rounded-lg border border-neutral-200 bg-white p-5">
+        <h2 className="font-medium">Matching guardrail</h2>
+        <p className="mt-1 text-sm text-neutral-500">
+          Maximum people ONE matching run may send to the AI. Rule-matched people are
+          free and uncapped — this only limits the model pass (~25 people per small
+          call). When the cap is reached, the rest stay unclassified and the next
+          "Run matching" continues from where it stopped.
+        </p>
+        <form action={saveClassifyCap} className="mt-4 flex flex-wrap items-center gap-2">
+          {CLASSIFY_CAP_OPTIONS.map((opt) => (
+            <label key={String(opt)} className={`cursor-pointer rounded border px-3 py-1.5 text-sm has-[:checked]:border-neutral-900 has-[:checked]:bg-neutral-900 has-[:checked]:text-white ${"border-neutral-300"}`}>
+              <input type="radio" name="cap" value={String(opt)} className="sr-only"
+                defaultChecked={settings.classifyLlmPeopleCap === opt} />
+              {opt === "all" ? "Full pool" : opt}
+            </label>
+          ))}
+          <button className="ml-2 rounded bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-700">Save</button>
+        </form>
       </section>
     </Shell>
   );

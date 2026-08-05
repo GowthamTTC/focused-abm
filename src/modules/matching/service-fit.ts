@@ -10,6 +10,7 @@ import { db, connection, service } from "@/db";
 import type { IcpJson } from "@/db/schema";
 import { complete } from "@/llm/client";
 import { companyPeerSignal, offIcpTitleSignal, rulePass } from "./rule-pass";
+import { getOrgSettings } from "@/modules/settings/org-settings";
 
 const BATCH = 25;
 const OWN_COMPANY = "toss the coin"; // TODO: move to org settings
@@ -88,10 +89,16 @@ export async function classifyBatch(
   }
   if (onProgress) await onProgress(done, rows.length);
 
-  // Pass 2 — LLM in batches of 25.
+  // Pass 2 — LLM in batches of 25, capped by the matching guardrail.
+  const { classifyLlmPeopleCap } = await getOrgSettings(orgId);
+  let llmPeople = 0;
   const digest = servicesDigest(services);
   for (let i = 0; i < needLlm.length; i += BATCH) {
     const slice = needLlm.slice(i, i + BATCH);
+    if (classifyLlmPeopleCap !== "all" && llmPeople + slice.length > classifyLlmPeopleCap) {
+      break; // guardrail hit — remaining rows stay unclassified; next run continues
+    }
+    llmPeople += slice.length;
     const peopleJson = JSON.stringify(slice.map((c) => ({
       id: c.id,
       name: `${c.firstName} ${c.lastName}`.trim(),

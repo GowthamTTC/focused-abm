@@ -8,9 +8,13 @@ import { z } from "zod";
 import { db, org, DEFAULT_ORG_SETTINGS, type OrgSettings } from "@/db";
 
 export const ENRICH_LIMIT_OPTIONS = [5, 10, 15, 25, 50, "all"] as const;
+export const CLASSIFY_CAP_OPTIONS = [250, 500, 1000, 2500, "all"] as const;
 
 const settingsSchema = z.object({
   enrichLimit: z.union([z.literal("all"), z.number().int().positive().max(10000)]),
+  classifyLlmPeopleCap: z
+    .union([z.literal("all"), z.number().int().positive().max(100000)])
+    .default(1000),
 });
 
 export async function getOrgSettings(orgId: string): Promise<OrgSettings> {

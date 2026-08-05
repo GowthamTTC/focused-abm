@@ -39,3 +39,11 @@ export async function saveEnrichLimit(formData: FormData) {
   await updateOrgSettings(user.orgId, { enrichLimit });
   redirect("/settings?saved=1");
 }
+
+export async function saveClassifyCap(formData: FormData) {
+  const user = await requireUser();
+  const raw = String(formData.get("cap") ?? "1000");
+  const classifyLlmPeopleCap = raw === "all" ? ("all" as const) : Math.max(1, Number(raw) || 1000);
+  await updateOrgSettings(user.orgId, { classifyLlmPeopleCap });
+  redirect("/settings?saved=1");
+}

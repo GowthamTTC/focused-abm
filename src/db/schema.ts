@@ -19,12 +19,16 @@ const id = () => text("id").primaryKey().$defaultFn(createId);
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 
 // ── Identity ──────────────────────────────────────────────────────────
-/** Org-level knobs. enrichLimit caps how many people ONE enrichment run may
- *  process ("all" = only bounded by the daily cap) — the API-cost guardrail. */
+/** Org-level knobs — the API-cost guardrails.
+ *  enrichLimit: max people ONE deep-enrichment run may process ("all" = daily cap only).
+ *  classifyLlmPeopleCap: max people ONE matching run may send to the model
+ *  (rule-matched people are free and uncapped); remainder stays unclassified
+ *  and the next matching run continues from there. */
 export interface OrgSettings {
   enrichLimit: number | "all";
+  classifyLlmPeopleCap: number | "all";
 }
-export const DEFAULT_ORG_SETTINGS: OrgSettings = { enrichLimit: 10 };
+export const DEFAULT_ORG_SETTINGS: OrgSettings = { enrichLimit: 10, classifyLlmPeopleCap: 1000 };
 
 export const org = pgTable("org", {
   id: id(),
