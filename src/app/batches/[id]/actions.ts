@@ -13,11 +13,17 @@ export async function runClassify(batchId: string) {
   redirect(`/batches/${batchId}`);
 }
 
-/** Deliberate fresh pass: wipes nothing up front, but re-runs Stage A on EVERY
- *  row (overwriting verdicts). Use after editing ICPs or prompt versions. */
+/** Deliberate fresh pass after ICP/prompt edits: CLEAR every Stage-A verdict,
+ *  then run a normal continuation classify. Clearing first is what makes the
+ *  matching guardrail compose correctly — each subsequent run advances through
+ *  the now-unclassified pool instead of redoing the same first slice. */
 export async function reclassifyAllAction(batchId: string) {
   const user = await requireUser();
-  await enqueue(user.orgId, "classify", { batchId, reclassifyAll: true });
+  await db.update(connection).set({
+    bucket: null, serviceSlug: null, matchConfidence: null, matchWhy: null,
+    matchMethod: null, score: null, scoreBreakdownJson: null, tier: null, rank: null,
+  }).where(and(eq(connection.orgId, user.orgId), eq(connection.batchId, batchId)));
+  await enqueue(user.orgId, "classify", { batchId });
   redirect(`/batches/${batchId}`);
 }
 

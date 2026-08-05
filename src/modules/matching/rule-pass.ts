@@ -1,7 +1,7 @@
 import type { IcpJson } from "@/db/schema";
-import { normalizeTitle } from "./normalize";
+import { detectSeniority, normalizeTitle, type Seniority } from "./normalize";
 
-export interface RuleHit { serviceSlug: string; personaSlug: string; pattern: string }
+export interface RuleHit { serviceSlug: string; personaSlug: string; pattern: string; seniority: Seniority }
 export interface RuleExclusion { serviceSlug: string; pattern: string }
 
 /**
@@ -50,10 +50,15 @@ export function rulePass(
 ): { hit: RuleHit | null; ambiguous: boolean; excluded: RuleExclusion | null } {
   const title = normalizeTitle(titleRaw);
   if (!title) return { hit: null, ambiguous: false, excluded: null };
+  const seniority = detectSeniority(titleRaw);
 
   const hits: RuleHit[] = [];
   for (const s of services) {
     for (const p of s.icp.personas) {
+      // Seniority gate: a persona with a non-empty seniority list only
+      // rule-matches titles inside that band; everything else goes to the
+      // model for judgment instead of a blind pattern hit.
+      if (p.seniority && p.seniority.length > 0 && !p.seniority.includes(seniority)) continue;
       for (const pat of p.title_exclude) {
         if (pat && title.includes(normalizeTitle(pat))) {
           return { hit: null, ambiguous: false, excluded: { serviceSlug: s.slug, pattern: pat } };
@@ -61,7 +66,7 @@ export function rulePass(
       }
       for (const pat of p.title_include) {
         if (pat && title.includes(normalizeTitle(pat))) {
-          hits.push({ serviceSlug: s.slug, personaSlug: p.slug, pattern: pat });
+          hits.push({ serviceSlug: s.slug, personaSlug: p.slug, pattern: pat, seniority });
           break; // one hit per persona is enough
         }
       }

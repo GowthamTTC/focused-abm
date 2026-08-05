@@ -29,12 +29,13 @@ export default async function BatchPage(props: {
   const classifiedRows = totalRows - counts.unclassified;
   const { enrichLimit } = await getOrgSettings(user.orgId);
   const defaultN = enrichLimit === "all" ? 30 : Math.min(30, enrichLimit);
-  const [activeJob] = await db.select().from(job)
-    .where(and(eq(job.orgId, user.orgId), eq(job.status, "running")))
+  // Only the LATEST job's state matters: a failure that a newer run has
+  // since superseded should not haunt the page as a red banner.
+  const [latestJob] = await db.select().from(job)
+    .where(eq(job.orgId, user.orgId))
     .orderBy(desc(job.createdAt)).limit(1);
-  const [failedJob] = await db.select().from(job)
-    .where(and(eq(job.orgId, user.orgId), eq(job.status, "failed")))
-    .orderBy(desc(job.createdAt)).limit(1);
+  const activeJob = latestJob && (latestJob.status === "running" || latestJob.status === "queued") ? latestJob : undefined;
+  const failedJob = latestJob && latestJob.status === "failed" ? latestJob : undefined;
 
   const rows = await db.select().from(connection)
     .where(and(eq(connection.batchId, id),

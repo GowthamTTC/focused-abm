@@ -10,6 +10,7 @@ import { db, connection, service } from "@/db";
 import type { IcpJson } from "@/db/schema";
 import { complete } from "@/llm/client";
 import { companyPeerSignal, offIcpTitleSignal, rulePass } from "./rule-pass";
+import { detectSeniority } from "./normalize";
 import { getOrgSettings } from "@/modules/settings/org-settings";
 
 const BATCH = 25;
@@ -70,6 +71,12 @@ export async function classifyBatch(
       await setFit(c.id, { bucket: "excluded", service_slug: null, confidence: 100, why: "Works at our own company.", method: "rule" });
       done += 1; continue;
     }
+    // Junior gate first: interns/students/freshers are excluded by rule (free),
+    // matching the ground truth's treatment — before any other signal can claim them.
+    if (detectSeniority(title) === "junior") {
+      await setFit(c.id, { bucket: "excluded", service_slug: null, confidence: 95, why: "Title signals student/intern/fresher — excluded.", method: "rule" });
+      done += 1; continue;
+    }
     // Company-based peer signal BEFORE title matching — a founder at an agency
     // is a peer, and title patterns alone would misroute them to Marketeroid.
     const peerSig = companyPeerSignal(c.companyRaw ?? "");
@@ -87,7 +94,7 @@ export async function classifyBatch(
       ruleHits += 1;
       await setFit(c.id, {
         bucket: "pitchable", service_slug: rule.hit.serviceSlug, confidence: 90,
-        why: `Title matched pattern "${rule.hit.pattern}" for ${rule.hit.serviceSlug}.`, method: "rule",
+        why: `Title matched pattern "${rule.hit.pattern}" for ${rule.hit.serviceSlug} · seniority ${rule.hit.seniority}.`, method: "rule",
       });
       done += 1; continue;
     }
