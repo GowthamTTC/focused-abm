@@ -10,7 +10,7 @@ import { normalizeTitle } from "@/modules/matching/normalize";
 
 const SENIORITY: [RegExp, number, string][] = [
   [/vice president/, 34, "vp"], // MUST precede cxo: "vice president" contains "president"
-  [/chief\s+\w+\s+officer|founder|managing director|president\b/, 40, "cxo/founder"],
+  [/chief\s+\w+\s+officer|founder\b|managing director|president\b/, 40, "cxo/founder"],
   [/\bhead of|\bhead\b|director/, 28, "head/director"],
   [/general manager|lead\b/, 22, "gm/lead"],
   [/manager/, 16, "manager"],
@@ -37,7 +37,7 @@ export function scoreConnection(input: {
   for (const [re, pts] of SENIORITY) { if (re.test(title)) { seniority = pts; break; } }
   const function_fit = FUNCTION_TERMS.test(title) ? 12 : 0;
   const confidence = Math.round((input.confidence ?? 50) * 0.3);
-  const founder_bonus = /founder|chief executive officer/.test(title) && !FUNCTION_TERMS.test(title) ? 8 : 0;
+  const founder_bonus = /founder\b|chief executive officer/.test(title) && !FUNCTION_TERMS.test(title) ? 8 : 0;
   const company_present = input.company ? 5 : 0;
   const service_bonus = SERVICE_BONUS[input.serviceSlug ?? ""] ?? 0;
   const total = seniority + function_fit + confidence + founder_bonus + company_present + service_bonus;

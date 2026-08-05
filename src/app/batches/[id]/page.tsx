@@ -64,6 +64,14 @@ export default async function BatchPage(props: {
               </button>
             </form>
           )}
+          {counts.unclassified === 0 && classifiedRows > 0 && (
+            <form action={runClassify.bind(null, id)}>
+              <button title="Recompute scores, tiers and ranks without any model calls — use after scoring or ICP changes."
+                className="rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-600 hover:bg-neutral-100">
+                Re-rank
+              </button>
+            </form>
+          )}
           {classifiedRows > 0 && (
             <form action={reclassifyAllAction.bind(null, id)}>
               <button title="Re-run Stage A on every row, overwriting verdicts — use after editing ICPs or prompts."
