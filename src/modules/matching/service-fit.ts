@@ -15,9 +15,10 @@ import { getOrgSettings } from "@/modules/settings/org-settings";
 const BATCH = 25;
 const OWN_COMPANY = "toss the coin"; // TODO: move to org settings
 
+const KNOWN_BUCKETS = new Set(["pitchable", "off_icp", "peer_competitor", "excluded"]);
 const fitItem = z.object({
   id: z.string(),
-  bucket: z.enum(["pitchable", "off_icp", "peer_competitor", "excluded"]),
+  bucket: z.string().min(1), // loose on purpose — coerced below so one bad word can't kill a run
   service_slug: z.string().nullable(),
   confidence: z.number().int().min(0).max(100),
   why: z.string().min(1),
@@ -114,6 +115,7 @@ export async function classifyBatch(
     const out = await complete({
       stage: "classify",
       prompt: "service-fit",
+      version: "v2",
       vars: { people_json: peopleJson, own_company: OWN_COMPANY },
       cachedContext: digest,
       schema: fitArray,
@@ -127,10 +129,29 @@ export async function classifyBatch(
       if (!o) {
         await setFit(c.id, { bucket: "off_icp", service_slug: null, confidence: 0, why: "Classifier returned no verdict — review manually.", method: "llm" });
       } else {
+        // Safety net: the model occasionally writes a service slug into the
+        // bucket field. Auto-correct instead of failing the whole run.
+        let bucket = o.bucket;
+        let slug = o.service_slug;
+        let why = o.why;
+        if (!KNOWN_BUCKETS.has(bucket)) {
+          if (services.some((s) => s.slug === bucket)) {
+            slug = bucket;
+            bucket = "pitchable";
+          } else {
+            why = `Classifier returned unknown bucket "${o.bucket}" — review. ${why}`;
+            bucket = "off_icp";
+            slug = null;
+          }
+        }
+        if (bucket === "pitchable" && slug && !services.some((s) => s.slug === slug)) {
+          why = `Unknown service slug "${slug}" — service cleared, review. ${why}`;
+          slug = null;
+        }
         await setFit(c.id, {
-          bucket: o.bucket,
-          service_slug: o.bucket === "pitchable" ? o.service_slug : null,
-          confidence: o.confidence, why: o.why, method: "llm",
+          bucket,
+          service_slug: bucket === "pitchable" ? slug : null,
+          confidence: o.confidence, why, method: "llm",
         });
       }
       done += 1;
