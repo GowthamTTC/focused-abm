@@ -19,7 +19,7 @@ export default async function SettingsPage() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="font-medium">LinkedIn account</h2>
-            <p className="mt-1 text-sm text-[#16191E]/55">
+            <p className="mt-1 text-sm text-white/55">
               The connected account is used to sync your connections and read the Top-N profiles.
               {!unipileConfigured && " Running in MOCK mode — add UNIPILE keys to go live."}
             </p>
@@ -31,7 +31,7 @@ export default async function SettingsPage() {
           </form>
         </div>
         <ul className="mt-4 divide-y divide-white/5">
-          {accounts.length === 0 && <li className="py-3 text-sm text-[#16191E]/55">No account connected yet.</li>}
+          {accounts.length === 0 && <li className="py-3 text-sm text-white/55">No account connected yet.</li>}
           {accounts.map((a) => (
             <li key={a.id} className="flex items-center justify-between py-3 text-sm">
               <div>
@@ -39,11 +39,11 @@ export default async function SettingsPage() {
                 <span className={`ml-3 rounded-full px-2 py-0.5 text-xs ${
                   a.status === "operational" ? "bg-[#B6FF2E]/15 text-[#B6FF2E]"
                   : a.status === "needs_reauth" ? "bg-[#B6FF2E]/15 text-[#CFFF66]"
-                  : "bg-[#1F2329]/15 text-[#16191E]/70"}`}>{a.status}</span>
+                  : "bg-white/15 text-white/70"}`}>{a.status}</span>
               </div>
               <div className="flex gap-2">
                 <form action={refreshStatus.bind(null, a.unipileAccountId)}>
-                  <button className="text-xs text-[#16191E]/55 hover:text-[#E8EAF0]">Refresh</button>
+                  <button className="text-xs text-white/55 hover:text-[#E8EAF0]">Refresh</button>
                 </form>
                 <form action={disconnect.bind(null, a.unipileAccountId)}>
                   <button className="text-xs text-red-400 hover:text-red-300">Disconnect</button>
@@ -56,7 +56,7 @@ export default async function SettingsPage() {
 
       <section className="mt-6 rounded-[18px] border border-white/10 bg-[#1F2329] p-5">
         <h2 className="font-medium">Enrichment guardrail</h2>
-        <p className="mt-1 text-sm text-[#16191E]/55">
+        <p className="mt-1 text-sm text-white/55">
           Maximum people ONE deep-enrichment run may process. Each person costs two model
           calls and ~40s of paced LinkedIn reads — this cap is your spend brake.
           The hard daily ceiling of {env.DEEP_ENRICH_DAILY_CAP}/day always applies on top.
@@ -81,7 +81,7 @@ export default async function SettingsPage() {
 
       <section className="mt-6 rounded-[18px] border border-white/10 bg-[#1F2329] p-5">
         <h2 className="font-medium">Matching guardrail</h2>
-        <p className="mt-1 text-sm text-[#16191E]/55">
+        <p className="mt-1 text-sm text-white/55">
           Maximum people ONE matching run may send to the AI. Rule-matched people are
           free and uncapped — this only limits the model pass (~25 people per small
           call). When the cap is reached, the rest stay unclassified and the next

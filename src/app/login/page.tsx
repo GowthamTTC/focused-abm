@@ -13,7 +13,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-6 px-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Focused ABM</h1>
-        <p className="mt-1 text-sm text-[#16191E]/55">Connections → ranked batches → workbook.</p>
+        <p className="mt-1 text-sm text-white/55">Connections → ranked batches → workbook.</p>
       </div>
       <form action={doLogin} className="flex flex-col gap-3 rounded-[18px] border border-white/10 bg-[#1F2329] p-5 shadow-sm">
         {err && <p className="text-sm text-red-400">Wrong email or password.</p>}

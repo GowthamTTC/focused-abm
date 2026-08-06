@@ -25,14 +25,14 @@ export function Shell({ user, active, children }: { user: Ctx; active: string; c
             <nav className="flex gap-4 text-sm">
               {tabs.map(([slug, label]) => (
                 <Link key={slug} href={`/${slug}`}
-                  className={active === slug ? "font-medium text-[#E8EAF0]" : "text-[#16191E]/55 hover:text-[#E8EAF0]"}>
+                  className={active === slug ? "font-medium text-[#E8EAF0]" : "text-white/55 hover:text-[#E8EAF0]"}>
                   {label}
                 </Link>
               ))}
             </nav>
           </div>
           <form action={doLogout}>
-            <button className="text-xs text-[#16191E]/55 hover:text-[#E8EAF0]">{user.email} · sign out</button>
+            <button className="text-xs text-white/55 hover:text-[#E8EAF0]">{user.email} · sign out</button>
           </form>
         </div>
       </header>

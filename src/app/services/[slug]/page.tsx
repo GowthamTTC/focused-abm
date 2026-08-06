@@ -23,7 +23,7 @@ export default async function ServiceDetail({ params }: { params: Promise<{ slug
   return (
     <Shell user={user} active="services">
       <h1 className="text-xl font-semibold">{s.name}</h1>
-      <p className="mt-1 text-sm text-[#16191E]/55">ICP JSON — summary, fit signals, pains, persona title patterns, disqualifiers.</p>
+      <p className="mt-1 text-sm text-white/55">ICP JSON — summary, fit signals, pains, persona title patterns, disqualifiers.</p>
       <form action={save.bind(null, s.slug)} className="mt-4">
         <textarea name="icp" rows={26} defaultValue={JSON.stringify(s.icpJson, null, 2)}
           className="w-full rounded border border-white/15 bg-[#1F2329] p-3 font-mono text-xs" />
