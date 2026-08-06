@@ -5,6 +5,7 @@ import { Shell, requirePage } from "@/app/shell";
 import { LedgerStrip } from "@/components/ledger";
 import { bucketCounts } from "@/modules/matching/service-fit";
 import { syncRelations, uploadCsv } from "./actions";
+import { RecentRuns } from "@/components/recent-runs";
 
 export default async function ConnectionsPage({ searchParams }: { searchParams: Promise<{ err?: string }> }) {
   const user = await requirePage();
@@ -79,6 +80,8 @@ export default async function ConnectionsPage({ searchParams }: { searchParams: 
           );
         })}
       </ul>
+
+      <RecentRuns orgId={user.orgId} />
     </Shell>
   );
 }

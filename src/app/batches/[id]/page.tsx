@@ -9,6 +9,8 @@ import { CopyButton } from "@/components/copy-button";
 import { bucketCounts } from "@/modules/matching/service-fit";
 import { moveToPitchable, reclassifyAllAction, retryPerson, runClassify, runDeepEnrich, selectTopN } from "./actions";
 import { getOrgSettings } from "@/modules/settings/org-settings";
+import { getDailyEnrichUsage } from "@/modules/enrich/usage";
+import { UsageMeter } from "@/components/usage-meter";
 
 const BUCKET_LABEL: Record<string, string> = {
   pitchable: "Pitchable", off_icp: "Off-ICP", peer_competitor: "Peers", excluded: "Excluded",
@@ -38,6 +40,7 @@ export default async function BatchPage(props: {
   const totalRows = Object.values(counts).reduce((a, b) => a + b, 0);
   const classifiedRows = totalRows - counts.unclassified;
   const { enrichLimit } = await getOrgSettings(user.orgId);
+  const usage = await getDailyEnrichUsage(user.orgId);
 
   // Selection status (batch-wide, independent of the current tab).
   const selAgg = await db.select({ s: connection.enrichStatus, n: sql<number>`count(*)::int` })
@@ -55,7 +58,7 @@ export default async function BatchPage(props: {
     .orderBy(asc(connection.rank), asc(connection.createdAt))
     .limit(400);
 
-  const nOptions = [10, 20, 30, 50].filter((o) => enrichLimit === "all" || o <= enrichLimit);
+  const nOptions = [10, 20, 30, 50, 80].filter((o) => enrichLimit === "all" || o <= enrichLimit);
   const defaultN = nOptions.includes(30) ? 30 : (nOptions[nOptions.length - 1] ?? 10);
   const person = view === "enriched" ? (rows.find((r) => r.id === p) ?? rows[0]) : undefined;
 
@@ -106,10 +109,14 @@ export default async function BatchPage(props: {
           )}
           {selTotal > 0 && (
             <form action={runDeepEnrich.bind(null, id)}>
-              <button className={selQueued > 0
-                ? "rounded-lg bg-[#B6FF2E] px-3 py-2 text-sm font-semibold text-[#16191E] hover:bg-[#9FE51F]"
-                : "rounded-lg border border-[#B6FF2E]/40 bg-[#B6FF2E]/10 px-3 py-2 text-sm font-medium text-[#D9FF8A] hover:bg-[#B6FF2E]/15"}>
-                Deep enrich queued
+              <button disabled={selQueued === 0}
+                title={selQueued === 0
+                  ? "Nothing queued — everyone selected is already enriched. Pick a larger top N to queue the next tranche."
+                  : `Run enrichment for the ${selQueued} queued people`}
+                className={selQueued > 0
+                  ? "rounded-lg bg-[#B6FF2E] px-3 py-2 text-sm font-semibold text-[#16191E] hover:bg-[#9FE51F]"
+                  : "cursor-not-allowed rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/30"}>
+                Deep enrich queued{selQueued > 0 ? ` (${selQueued})` : ""}
               </button>
             </form>
           )}
@@ -126,11 +133,14 @@ export default async function BatchPage(props: {
           peers: counts.peer_competitor, offIcp: counts.off_icp,
           excluded: counts.excluded, unclassified: counts.unclassified,
         }} />
-        <div className="mt-1.5 flex items-baseline justify-between text-xs">
+        <div className="mt-1.5 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 text-xs">
           <span className="text-white/35">One tick per connection, rank order — lime Top-N ignites as enrichment completes.</span>
-          {selTotal > 0 && (
-            <span className="text-[#B6FF2E]">Top {selTotal} selected — {selQueued} queued · {selDone} done</span>
-          )}
+          <span className="flex items-baseline gap-5">
+            <UsageMeter used={usage.used} cap={usage.cap} resetsAt={usage.resetsAt} />
+            {selTotal > 0 && (
+              <span className="text-[#B6FF2E]">Top {selTotal} selected — {selQueued} queued · {selDone} done</span>
+            )}
+          </span>
         </div>
       </div>
 

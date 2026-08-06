@@ -4,6 +4,8 @@ import { unipileConfigured } from "@/lib/env";
 import { Shell, requirePage } from "@/app/shell";
 import { disconnect, refreshStatus, saveClassifyCap, saveEnrichLimit, startConnect } from "./actions";
 import { CLASSIFY_CAP_OPTIONS, ENRICH_LIMIT_OPTIONS, getOrgSettings } from "@/modules/settings/org-settings";
+import { getDailyEnrichUsage } from "@/modules/enrich/usage";
+import { UsageMeter } from "@/components/usage-meter";
 import { env } from "@/lib/env";
 
 function Segmented({ name, options, current, allLabel }: {
@@ -28,6 +30,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const accounts = await db.select().from(channelAccount)
     .where(eq(channelAccount.orgId, user.orgId));
   const settings = await getOrgSettings(user.orgId);
+  const usage = await getDailyEnrichUsage(user.orgId);
 
   return (
     <Shell user={user} active="settings">
@@ -49,6 +52,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             Runs bounded only by the daily cap — intended for the endgame, not week one.
           </p>
         )}
+        <p className="mt-4"><UsageMeter used={usage.used} cap={usage.cap} resetsAt={usage.resetsAt} bar /></p>
         <p className="mt-3 text-xs text-white/35">
           Echoed in the batch toolbar as a "guardrail {settings.enrichLimit === "all" ? "off" : settings.enrichLimit}" tag beside Select top N — links here.
         </p>

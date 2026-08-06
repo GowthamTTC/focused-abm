@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db, org, DEFAULT_ORG_SETTINGS, type OrgSettings } from "@/db";
 
-export const ENRICH_LIMIT_OPTIONS = [5, 10, 15, 25, 50, "all"] as const;
+export const ENRICH_LIMIT_OPTIONS = [5, 10, 15, 25, 50, 80, "all"] as const;
 export const CLASSIFY_CAP_OPTIONS = [250, 500, 1000, 2500, "all"] as const;
 
 const settingsSchema = z.object({
