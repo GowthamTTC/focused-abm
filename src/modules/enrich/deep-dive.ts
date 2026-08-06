@@ -44,11 +44,17 @@ export async function deepEnrichOne(orgId: string, connectionId: string): Promis
       const provider = getChannelProvider();
       const profile = await provider.fetchProfile({ accountId: seat.unipileAccountId, identifier });
       if (profile) { headline = profile.headline ?? headline; about = profile.about ?? ""; }
-      const posts = await provider.fetchRecentPosts({ accountId: seat.unipileAccountId, identifier, limit: 5 });
-      if (posts.length > 0) {
-        postsBlock = posts.map((p, i) =>
-          `[${i + 1}] (${p.postedAt ?? "undated"}) ${p.text.slice(0, 600)}`).join("\n\n");
-      }
+      // Unipile's posts endpoint requires the provider-internal id, not the
+      // public identifier the profile endpoint accepts. Degrade to the
+      // "no posts" reality on any posts hiccup — never kill the person for it.
+      try {
+        const postsId = profile?.providerId ?? identifier;
+        const posts = await provider.fetchRecentPosts({ accountId: seat.unipileAccountId, identifier: postsId, limit: 5 });
+        if (posts.length > 0) {
+          postsBlock = posts.map((p, i) =>
+            `[${i + 1}] (${p.postedAt ?? "undated"}) ${p.text.slice(0, 600)}`).join("\n\n");
+        }
+      } catch { /* postsBlock stays NONE — the prompt infers and marks it */ }
     }
 
     const activityUrl = c.linkedinUrl

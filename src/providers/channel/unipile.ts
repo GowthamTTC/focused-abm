@@ -44,6 +44,7 @@ const relationsPage = z.object({
 }).passthrough();
 
 const profileShape = z.object({
+  provider_id: z.string().nullish(),
   headline: z.string().nullish(),
   summary: z.string().nullish(),
   location: z.string().nullish(),
@@ -84,12 +85,16 @@ export class UnipileChannelProvider implements ChannelProvider {
   }
 
   async getAccountStatus(accountId: string) {
-    const acc = await uni<{ name?: string; sources?: { status?: string }[] }>(`/accounts/${accountId}`);
+    const acc = await uni<{
+      name?: string;
+      sources?: { status?: string }[];
+      connection_params?: { im?: { username?: string } };
+    }>(`/accounts/${accountId}`);
     const raw = acc.sources?.[0]?.status ?? "OK";
     const status = raw === "OK" ? "operational" as const
       : raw === "CREDENTIALS" ? "needs_reauth" as const
       : "disconnected" as const;
-    return { status, displayName: acc.name ?? null };
+    return { status, displayName: acc.name ?? acc.connection_params?.im?.username ?? null };
   }
 
   async fetchRelations(input: { accountId: string; cursor: string | null; limit: number }) {
@@ -118,6 +123,7 @@ export class UnipileChannelProvider implements ChannelProvider {
       about: p.summary ?? null,
       company: p.work_experience?.[0]?.company ?? null,
       location: p.location ?? null,
+      providerId: p.provider_id ?? null,
     };
   }
 

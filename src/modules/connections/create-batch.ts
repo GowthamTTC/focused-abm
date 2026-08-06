@@ -15,7 +15,7 @@ export async function createBatchFromCsv(orgId: string, label: string, rows: Par
       firstName: r.firstName, lastName: r.lastName,
       companyRaw: r.company, positionRaw: r.position,
       linkedinUrl: r.linkedinUrl,
-      publicIdentifier: r.linkedinUrl?.split("/in/")[1]?.replace(/\/+$/, "") ?? null,
+      publicIdentifier: r.linkedinUrl?.split("/in/")[1]?.split(/[?#]/)[0]?.replace(/\/+$/, "") ?? null,
       connectedOn: r.connectedOn,
     })));
   }

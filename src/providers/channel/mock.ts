@@ -62,6 +62,7 @@ export class MockChannelProvider implements ChannelProvider {
         : null,
       company: COS[(i * 7) % COS.length],
       location: "Chennai, India",
+      providerId: `mock:${i}`,
     };
   }
 

@@ -18,6 +18,8 @@ export interface FetchedProfile {
   about: string | null;
   company: string | null;
   location: string | null;
+  /** Provider-internal id (e.g. LinkedIn ACoAAA…) — required by the posts endpoint. */
+  providerId: string | null;
 }
 
 export interface FetchedPost {
