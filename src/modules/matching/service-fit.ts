@@ -233,6 +233,12 @@ export async function bucketCounts(batchId: string): Promise<Record<string, numb
 
 export async function markSelection(batchId: string, ids: string[], selected: boolean) {
   if (ids.length === 0) return;
-  await db.update(connection).set({ selectedForEnrich: selected, enrichStatus: selected ? "queued" : "pending" })
-    .where(and(eq(connection.batchId, batchId), inArray(connection.id, ids)));
+  // Never reset finished or in-flight people: extending a selection queues only
+  // the new/failed rows, so already-paid enrichment is preserved.
+  await db.update(connection).set({
+    selectedForEnrich: selected,
+    enrichStatus: selected
+      ? sql`case when ${connection.enrichStatus} in ('done','running') then ${connection.enrichStatus} else 'queued' end`
+      : sql`case when ${connection.enrichStatus} in ('done','running') then ${connection.enrichStatus} else 'pending' end`,
+  }).where(and(eq(connection.batchId, batchId), inArray(connection.id, ids)));
 }
