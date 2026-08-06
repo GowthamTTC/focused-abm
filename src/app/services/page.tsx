@@ -19,14 +19,14 @@ export default async function ServicesPage() {
         )}
         {services.map((s) => (
           <Link key={s.id} href={`/services/${s.slug}`}
-            className="rounded-[18px] border border-white/10 bg-[#1F2329] p-4 hover:border-white/30">
+            className="rounded-[18px] border border-white/10 bg-[#1F2329] p-5 transition hover:border-[#B6FF2E]/30">
             <div className="flex items-center justify-between">
-              <h2 className="font-medium">{s.name}</h2>
+              <h2 className="font-medium text-[#B6FF2E]">{s.name}</h2>
               <span className="text-xs text-white/40">{s.status}</span>
             </div>
             <p className="mt-2 line-clamp-2 text-sm text-white/55">{s.icpJson.summary}</p>
-            <p className="mt-2 text-xs text-white/40">
-              {s.icpJson.personas.length} persona(s) · {s.icpJson.pain_points.length} pains
+            <p className="tnum mt-3 text-xs text-white/40">
+              {s.icpJson.personas.length} personas · {s.icpJson.pain_points.length} pains
             </p>
           </Link>
         ))}

@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { db, service } from "@/db";
 import { Shell, requirePage } from "@/app/shell";
 import { requireUser } from "@/auth/session";
+import { IcpEditor } from "@/components/icp-editor";
 
 async function save(slug: string, formData: FormData) {
   "use server";
@@ -13,22 +14,30 @@ async function save(slug: string, formData: FormData) {
   redirect(`/services/${slug}?saved=1`);
 }
 
-export default async function ServiceDetail({ params }: { params: Promise<{ slug: string }> }) {
+export default async function ServiceDetail(props: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ saved?: string }>;
+}) {
   const user = await requirePage();
-  const { slug } = await params;
+  const { slug } = await props.params;
+  const { saved } = await props.searchParams;
   const [s] = await db.select().from(service)
     .where(and(eq(service.orgId, user.orgId), eq(service.slug, slug)));
   if (!s) notFound();
 
   return (
     <Shell user={user} active="services">
-      <h1 className="text-xl font-semibold">{s.name}</h1>
-      <p className="mt-1 text-sm text-white/55">ICP JSON — summary, fit signals, pains, persona title patterns, disqualifiers.</p>
-      <form action={save.bind(null, s.slug)} className="mt-4">
-        <textarea name="icp" rows={26} defaultValue={JSON.stringify(s.icpJson, null, 2)}
-          className="w-full rounded border border-white/15 bg-[#1F2329] p-3 font-mono text-xs" />
-        <button className="mt-3 rounded bg-[#B6FF2E] px-3 py-2 text-sm font-medium text-[#16191E] hover:bg-[#9FE51F]">Save ICP</button>
-      </form>
+      <h1 className="text-2xl font-semibold">{s.name} <span className="text-white/30">— ICP</span></h1>
+      {saved && <p className="mt-2 text-sm text-[#B6FF2E]">ICP saved — re-run matching to apply.</p>}
+      <div className="mt-5 flex flex-col gap-5 lg:flex-row">
+        <div className="min-w-0 flex-1 rounded-[18px] border border-white/10 bg-[#1F2329] p-6">
+          <IcpEditor initialJson={JSON.stringify(s.icpJson)} action={save.bind(null, s.slug)} />
+        </div>
+        <aside className="w-full shrink-0 self-start rounded-[18px] border border-white/10 bg-[#1F2329] p-5 text-sm text-white/70 lg:w-72">
+          These patterns drive the free rule pass — every pattern you add removes people
+          from the paid model pass.
+        </aside>
+      </div>
     </Shell>
   );
 }

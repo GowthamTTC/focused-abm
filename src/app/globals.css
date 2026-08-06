@@ -37,3 +37,7 @@ input::placeholder, textarea::placeholder { color: rgba(232, 234, 240, 0.35); }
 
 /* data cells in mono where marked */
 .tnum { font-family: var(--font-mono), ui-monospace, monospace; font-size: 0.8rem; }
+
+/* v1.1 component-sheet rules (design 1i) */
+:focus-visible { outline: 2px solid var(--lime); outline-offset: 2px; border-radius: 8px; }
+::selection { background: rgba(182, 255, 46, 0.25); }

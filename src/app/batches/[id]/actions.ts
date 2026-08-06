@@ -1,6 +1,6 @@
 "use server";
 import { redirect } from "next/navigation";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { db, connection } from "@/db";
 import { requireUser } from "@/auth/session";
 import { enqueue } from "@/jobs/runner";
@@ -53,4 +53,26 @@ export async function runDeepEnrich(batchId: string) {
     await enqueue(user.orgId, "deep_enrich", { connectionIds: capped });
   }
   redirect(`/batches/${batchId}`);
+}
+
+/** Quiet rescue action on Off-ICP / Peers rows (design 1d footer): promote a
+ *  wrongly-demoted person back into the pool. Rank stays empty until the next
+ *  free Re-rank. */
+export async function moveToPitchable(batchId: string, connId: string) {
+  const user = await requireUser();
+  await db.update(connection).set({
+    bucket: "pitchable",
+    matchMethod: "manual",
+    matchWhy: sql`concat('Manually moved to pitchable. ', coalesce(${connection.matchWhy}, ''))`,
+  }).where(and(eq(connection.orgId, user.orgId), eq(connection.batchId, batchId), eq(connection.id, connId)));
+  redirect(`/batches/${batchId}?view=pitchable`);
+}
+
+/** Per-person retry from the enrichment pane (design 1e). */
+export async function retryPerson(batchId: string, connId: string) {
+  const user = await requireUser();
+  await db.update(connection).set({ enrichStatus: "queued", enrichError: null })
+    .where(and(eq(connection.orgId, user.orgId), eq(connection.id, connId)));
+  await enqueue(user.orgId, "deep_enrich", { connectionIds: [connId] });
+  redirect(`/batches/${batchId}?view=enriched&p=${connId}`);
 }
