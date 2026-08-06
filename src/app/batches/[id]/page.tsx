@@ -98,8 +98,9 @@ export default async function BatchPage(props: {
                 className="rounded-lg border border-white/15 bg-black/30 px-2 py-2 text-sm">
                 {nOptions.map((o) => <option key={o} value={o}>{o}</option>)}
               </select>
-              <button className="rounded-lg bg-[#B6FF2E] px-3 py-2 text-sm font-semibold text-[#16191E] hover:bg-[#9FE51F]">
-                Select top N
+              <button title="Queue the next N un-enriched people by rank — already-enriched people are never re-taken."
+                className="rounded-lg bg-[#B6FF2E] px-3 py-2 text-sm font-semibold text-[#16191E] hover:bg-[#9FE51F]">
+                Select next N
               </button>
               <Link href="/settings" className="text-xs text-white/40 underline decoration-white/20 hover:text-white/80"
                 title="Per-run enrichment cap — change in Settings">
@@ -111,7 +112,7 @@ export default async function BatchPage(props: {
             <form action={runDeepEnrich.bind(null, id)}>
               <button disabled={selQueued === 0}
                 title={selQueued === 0
-                  ? "Nothing queued — everyone selected is already enriched. Pick a larger top N to queue the next tranche."
+                  ? "Nothing queued — press Select next N to queue the next tranche of the pool."
                   : `Run enrichment for the ${selQueued} queued people`}
                 className={selQueued > 0
                   ? "rounded-lg bg-[#B6FF2E] px-3 py-2 text-sm font-semibold text-[#16191E] hover:bg-[#9FE51F]"
@@ -138,7 +139,7 @@ export default async function BatchPage(props: {
           <span className="flex items-baseline gap-5">
             <UsageMeter used={usage.used} cap={usage.cap} resetsAt={usage.resetsAt} />
             {selTotal > 0 && (
-              <span className="text-[#B6FF2E]">Top {selTotal} selected — {selQueued} queued · {selDone} done</span>
+              <span className="text-[#B6FF2E]">{selTotal} selected — {selQueued} queued · {selDone} done</span>
             )}
           </span>
         </div>

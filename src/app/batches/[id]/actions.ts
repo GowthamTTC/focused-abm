@@ -27,14 +27,22 @@ export async function reclassifyAllAction(batchId: string) {
   redirect(`/batches/${batchId}`);
 }
 
+/** "Select NEXT N": advance the enrichment frontier through the pool.
+ *  Takes the next N pitchable people by rank who are NOT yet selected —
+ *  already-enriched (and already-queued) people are untouched, so each click
+ *  queues a fresh tranche and the Batch tab stays the cumulative roster.
+ *  N is clamped by the enrichment guardrail; the daily 80 cap rules above. */
 export async function selectTopN(batchId: string, formData: FormData) {
   const user = await requireUser();
   const { enrichLimit } = await getOrgSettings(user.orgId);
   const n = clampToLimit(Number(formData.get("n") ?? 30), enrichLimit);
-  const top = await db.select({ id: connection.id }).from(connection)
-    .where(and(eq(connection.orgId, user.orgId), eq(connection.batchId, batchId), eq(connection.bucket, "pitchable")))
+  const next = await db.select({ id: connection.id }).from(connection)
+    .where(and(
+      eq(connection.orgId, user.orgId), eq(connection.batchId, batchId),
+      eq(connection.bucket, "pitchable"), eq(connection.selectedForEnrich, false),
+    ))
     .orderBy(asc(connection.rank)).limit(n);
-  await markSelection(batchId, top.map((t) => t.id), true);
+  await markSelection(batchId, next.map((t) => t.id), true);
   redirect(`/batches/${batchId}`);
 }
 
