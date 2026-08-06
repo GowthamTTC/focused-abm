@@ -18,21 +18,21 @@ export function Shell({ user, active, children }: { user: Ctx; active: string; c
   ] as const;
   return (
     <div className="min-h-screen">
-      <header className="border-b border-neutral-200 bg-white">
+      <header className="border-b border-white/10 bg-[#1F2329]">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
           <div className="flex items-center gap-8">
             <span className="text-sm font-semibold tracking-tight">Focused ABM</span>
             <nav className="flex gap-4 text-sm">
               {tabs.map(([slug, label]) => (
                 <Link key={slug} href={`/${slug}`}
-                  className={active === slug ? "font-medium text-neutral-900" : "text-neutral-500 hover:text-neutral-900"}>
+                  className={active === slug ? "font-medium text-[#E8EAF0]" : "text-[#16191E]/55 hover:text-[#E8EAF0]"}>
                   {label}
                 </Link>
               ))}
             </nav>
           </div>
           <form action={doLogout}>
-            <button className="text-xs text-neutral-500 hover:text-neutral-900">{user.email} · sign out</button>
+            <button className="text-xs text-[#16191E]/55 hover:text-[#E8EAF0]">{user.email} · sign out</button>
           </form>
         </div>
       </header>

@@ -1,4 +1,39 @@
 @import "tailwindcss";
 
-:root { color-scheme: light; }
-body { @apply bg-neutral-50 text-neutral-900 antialiased; }
+/* Focused ABM v1 — carbon + lime design system (from Focused_ABM_Glass_dc) */
+:root {
+  color-scheme: dark;
+  --bg: #14171C;
+  --panel: #1F2329;
+  --ink: #E8EAF0;
+  --lime: #B6FF2E;
+  --lime-hover: #9FE51F;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body), system-ui, sans-serif;
+  @apply antialiased;
+}
+
+h1, h2, h3 { font-family: var(--font-display), var(--font-body), sans-serif; letter-spacing: -0.01em; }
+
+/* bare links pick up the accent; classed links style themselves */
+a:not([class]) { color: var(--lime); }
+a:not([class]):hover { color: var(--lime-hover); }
+
+/* form controls on carbon */
+input, select, textarea {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--ink);
+}
+input::placeholder, textarea::placeholder { color: rgba(232, 234, 240, 0.35); }
+
+/* panel shadow rides on the 18px-radius cards */
+[class*="rounded-[18px]"] {
+  box-shadow: 16px 16px 36px rgba(0, 0, 0, 0.55), -8px -8px 22px rgba(255, 255, 255, 0.03);
+}
+
+/* data cells in mono where marked */
+.tnum { font-family: var(--font-mono), ui-monospace, monospace; font-size: 0.8rem; }
