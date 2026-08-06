@@ -36,9 +36,9 @@ export async function Shell({ user, active, children }: { user: Ctx; active: str
   ] as const;
 
   return (
-    <div className="min-h-screen">
+    <div className="flex h-dvh flex-col overflow-hidden">
       {running && <AutoRefresh />}
-      <header className="border-b border-white/10 bg-[#1F2329]/80 backdrop-blur">
+      <header className="shrink-0 border-b border-white/10 bg-[#1F2329]/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
           <div className="flex items-center gap-8">
             <span className="text-sm font-semibold tracking-tight text-[#B6FF2E]" style={{ fontFamily: "var(--font-display)" }}>
@@ -62,7 +62,7 @@ export async function Shell({ user, active, children }: { user: Ctx; active: str
       </header>
 
       {running && (
-        <div className="border-b border-white/5 bg-black/30 backdrop-blur">
+        <div className="shrink-0 border-b border-white/5 bg-black/30 backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center gap-4 px-6 py-2">
             <span className="tnum whitespace-nowrap text-white/80">
               {KIND_LABEL[running.kind] ?? running.kind} · {(running.progress ?? 0).toLocaleString()} / {(running.total ?? 0).toLocaleString()}
@@ -74,7 +74,7 @@ export async function Shell({ user, active, children }: { user: Ctx; active: str
         </div>
       )}
       {failed && (
-        <div className="border-b border-red-500/20 bg-red-500/10 backdrop-blur">
+        <div className="shrink-0 border-b border-red-500/20 bg-red-500/10 backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center gap-4 px-6 py-2">
             <span className="tnum flex-1 truncate text-red-300">
               {KIND_LABEL[failed.kind] ?? failed.kind} failed — {failed.error}
@@ -88,7 +88,9 @@ export async function Shell({ user, active, children }: { user: Ctx; active: str
         </div>
       )}
 
-      <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>
+      <main className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto w-full max-w-6xl px-6 py-8">{children}</div>
+      </main>
     </div>
   );
 }

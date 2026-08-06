@@ -156,7 +156,7 @@ export default async function BatchPage(props: {
           </div>
         ) : (
           <div className="mt-6 flex flex-col gap-5 lg:flex-row">
-            <ul className="w-full shrink-0 self-start rounded-[18px] border border-white/10 bg-[#1F2329] lg:w-72">
+            <ul className="w-full shrink-0 self-start rounded-[18px] border border-white/10 bg-[#1F2329] lg:sticky lg:top-0 lg:max-h-[calc(100dvh-14rem)] lg:w-72 lg:overflow-y-auto">
               {rows.map((c, i) => (
                 <li key={c.id} className={`border-b border-white/5 last:border-0 ${person?.id === c.id ? "border-l-2 border-l-[#B6FF2E] bg-white/5" : ""}`}>
                   <Link href={`/batches/${id}?view=enriched&p=${c.id}`}
