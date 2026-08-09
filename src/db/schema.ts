@@ -143,6 +143,11 @@ export const connection = pgTable("connection", {
   outreachMessage: text("outreach_message"),
   enrichError: text("enrich_error"),
   enrichedAt: ts("enriched_at"),
+  // v1.3 sales-dashboard primitives
+  outreachStatus: text("outreach_status"), // null/ready → sent (→ replied later)
+  sentAt: ts("sent_at"),
+  flagVerdict: text("flag_verdict"),       // null → dropped | verify | variant
+  lastPostAt: ts("last_post_at"),          // most recent post seen at enrichment time
 
   createdAt: ts("created_at").notNull().defaultNow(),
 }, (t) => [

@@ -30,7 +30,8 @@ export async function Shell({ user, active, children }: { user: Ctx; active: str
   const pct = running && running.total ? Math.min(100, Math.round(((running.progress ?? 0) / running.total) * 100)) : 0;
 
   const tabs = [
-    ["connections", "Connections"],
+    ["dashboard", "Dashboard"],
+    ["connections", "Data"],
     ["services", "Services"],
     ["settings", "Settings"],
   ] as const;

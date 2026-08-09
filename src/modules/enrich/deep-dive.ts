@@ -40,6 +40,7 @@ export async function deepEnrichOne(orgId: string, connectionId: string): Promis
     let headline = c.headlineRaw ?? "";
     let about = "";
     let postsBlock = "NONE";
+    let lastPostAt: Date | null = null;
     if (seat && identifier) {
       const provider = getChannelProvider();
       const profile = await provider.fetchProfile({ accountId: seat.unipileAccountId, identifier });
@@ -50,6 +51,10 @@ export async function deepEnrichOne(orgId: string, connectionId: string): Promis
       try {
         const postsId = profile?.providerId ?? identifier;
         const posts = await provider.fetchRecentPosts({ accountId: seat.unipileAccountId, identifier: postsId, limit: 5 });
+        for (const post of posts) {
+          const d = post.postedAt ? new Date(post.postedAt) : null;
+          if (d && !Number.isNaN(d.getTime()) && (!lastPostAt || d > lastPostAt)) lastPostAt = d;
+        }
         if (posts.length > 0) {
           postsBlock = posts.map((p, i) =>
             `[${i + 1}] (${p.postedAt ?? "undated"}) ${p.text.slice(0, 600)}`).join("\n\n");
@@ -114,6 +119,7 @@ export async function deepEnrichOne(orgId: string, connectionId: string): Promis
       flag: dive.flag,
       outreachMessage: msg.message,
       enrichedAt: new Date(),
+      lastPostAt,
     }).where(eq(connection.id, c.id));
   } catch (e) {
     await db.update(connection).set({

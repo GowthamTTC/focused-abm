@@ -8,6 +8,13 @@
       "when": 1785831152707,
       "tag": "0000_dapper_imperial_guard",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786275753680,
+      "tag": "0001_gigantic_bullseye",
+      "breakpoints": true
     }
   ]
 }
