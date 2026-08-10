@@ -203,6 +203,11 @@ export default async function DashboardPage({ searchParams }: {
                 <div className="mt-3 flex items-center gap-3">
                   <CopyButton text={p.outreachMessage ?? ""} />
                   {p.linkedinUrl && <a href={p.linkedinUrl} target="_blank" className="text-sm text-[#B6FF2E] underline decoration-[#B6FF2E]/40">Open profile</a>}
+                  <Link href={`/batches/${batch.id}?view=enriched&p=${p.id}`}
+                    className="rounded-lg border border-white/15 px-3 py-1.5 text-sm text-white/70 hover:bg-white/5"
+                    title="Full record — activities, pain points, Stage A/B analysis">
+                    View record
+                  </Link>
                   <form action={markSent.bind(null, batch.id, p.id)}>
                     <button className="rounded-lg border border-[#B6FF2E]/40 px-3 py-1.5 text-sm text-[#D9FF8A] hover:bg-[#B6FF2E]/10">Mark sent</button>
                   </form>
