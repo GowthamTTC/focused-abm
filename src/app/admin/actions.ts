@@ -2,9 +2,10 @@
 import { redirect } from "next/navigation";
 import { and, eq, ne } from "drizzle-orm";
 import bcrypt from "bcryptjs";
-import { db, appUser } from "@/db";
+import { db, appUser, org, service } from "@/db";
 import { requireUser } from "@/auth/session";
 import { env } from "@/lib/env";
+import { SEED_SERVICES } from "@/modules/services/seed-data";
 
 async function requireAdmin() {
   const user = await requireUser();
@@ -12,8 +13,12 @@ async function requireAdmin() {
   return user;
 }
 
+/** Each new user gets their OWN isolated workspace: a fresh org (default
+ *  guardrail settings), the six TTC services seeded into it, and zero access
+ *  to anyone else's data. Every query in the app is org-scoped, so isolation
+ *  is structural, not cosmetic. */
 export async function addUser(formData: FormData) {
-  const admin = await requireAdmin();
+  await requireAdmin();
   const name = String(formData.get("name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
@@ -21,19 +26,26 @@ export async function addUser(formData: FormData) {
   if (password.length < 8) redirect("/admin?err=Password must be at least 8 characters.");
   const [existing] = await db.select().from(appUser).where(eq(appUser.email, email));
   if (existing) redirect("/admin?err=That email already has an account.");
+
+  const [newOrg] = await db.insert(org).values({ name: `${name} — workspace` }).returning();
+  await db.insert(service).values(SEED_SERVICES.map((s) => ({
+    orgId: newOrg.id, slug: s.slug, name: s.name, icpJson: s.icp,
+  })));
   await db.insert(appUser).values({
-    orgId: admin.orgId, email, name,
+    orgId: newOrg.id, email, name,
     passwordHash: await bcrypt.hash(password, 10),
   });
   redirect("/admin?ok=1");
 }
 
+/** Platform-wide removal (never the admin, never yourself). The user's
+ *  workspace data is retained but unreachable once its only user is gone. */
 export async function removeUser(userId: string) {
   const admin = await requireAdmin();
-  // Never the admin account, never yourself.
   await db.delete(appUser).where(and(
-    eq(appUser.id, userId), eq(appUser.orgId, admin.orgId),
-    ne(appUser.email, (env.ADMIN_EMAIL ?? "").toLowerCase()), ne(appUser.id, admin.userId),
+    eq(appUser.id, userId),
+    ne(appUser.email, (env.ADMIN_EMAIL ?? "").toLowerCase()),
+    ne(appUser.id, admin.userId),
   ));
   redirect("/admin");
 }
