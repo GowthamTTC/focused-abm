@@ -24,9 +24,9 @@ export default async function ServicesPage() {
               <h2 className="font-medium text-[#B6FF2E]">{s.name}</h2>
               <span className="text-xs text-white/40">{s.status}</span>
             </div>
-            <p className="mt-2 line-clamp-2 text-sm text-white/55">{s.icpJson.summary}</p>
+            <p className="mt-2 line-clamp-2 text-sm text-white/55">{s.icpJson?.summary ?? "No ICP yet — open to define."}</p>
             <p className="tnum mt-3 text-xs text-white/40">
-              {s.icpJson.personas.length} personas · {s.icpJson.pain_points.length} pains
+              {(s.icpJson?.personas ?? []).length} personas · {(s.icpJson?.pain_points ?? []).length} pains
             </p>
           </Link>
         ))}

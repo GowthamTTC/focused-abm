@@ -31,7 +31,7 @@ export default async function ServiceDetail(props: {
       {saved && <p className="mt-2 text-sm text-[#B6FF2E]">ICP saved — re-run matching to apply.</p>}
       <div className="mt-5 flex flex-col gap-5 lg:flex-row">
         <div className="min-w-0 flex-1 rounded-[18px] border border-white/10 bg-[#1F2329] p-6">
-          <IcpEditor initialJson={JSON.stringify(s.icpJson)} action={save.bind(null, s.slug)} />
+          <IcpEditor key={s.slug} initialJson={JSON.stringify(s.icpJson)} action={save.bind(null, s.slug)} />
         </div>
         <aside className="w-full shrink-0 self-start rounded-[18px] border border-white/10 bg-[#1F2329] p-5 text-sm text-white/70 lg:w-72">
           These patterns drive the free rule pass — every pattern you add removes people

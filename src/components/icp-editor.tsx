@@ -77,7 +77,22 @@ export function IcpEditor({ initialJson, action }: {
   initialJson: string;
   action: (fd: FormData) => Promise<void>;
 }) {
-  const [icp, setIcp] = useState<Icp>(() => JSON.parse(initialJson));
+  const [icp, setIcp] = useState<Icp>(() => {
+    // Normalize whatever is stored — a partial or empty ICP must never crash the editor.
+    const raw = (() => { try { return JSON.parse(initialJson); } catch { return {}; } })() as Partial<Icp>;
+    return {
+      summary: raw.summary ?? "",
+      fit_signals: raw.fit_signals ?? [],
+      pain_points: raw.pain_points ?? [],
+      disqualifiers: raw.disqualifiers ?? [],
+      personas: (raw.personas ?? []).map((pp) => ({
+        slug: pp.slug ?? "persona", name: pp.name ?? "Persona",
+        title_include: pp.title_include ?? [], title_exclude: pp.title_exclude ?? [],
+        seniority: pp.seniority ?? [], function_tags: pp.function_tags ?? [],
+      })),
+    };
+  });
+  const [savedFlash, setSavedFlash] = useState(false);
   const [jsonMode, setJsonMode] = useState(false);
   const [raw, setRaw] = useState("");
   const [err, setErr] = useState("");
@@ -104,7 +119,15 @@ export function IcpEditor({ initialJson, action }: {
     setSaving(true);
     const fd = new FormData();
     fd.set("icp", JSON.stringify(payload));
-    await action(fd);
+    try {
+      await action(fd);
+    } finally {
+      // The redirect lands on this same page, so the component instance
+      // survives — reset the button and flash confirmation ourselves.
+      setSaving(false);
+      setSavedFlash(true);
+      setTimeout(() => setSavedFlash(false), 2500);
+    }
   }
 
   return (
@@ -186,6 +209,7 @@ export function IcpEditor({ initialJson, action }: {
           className="rounded-lg bg-[#B6FF2E] px-5 py-2 text-sm font-semibold text-[#16191E] hover:bg-[#9FE51F] disabled:opacity-50">
           {saving ? "Saving…" : "Save"}
         </button>
+        {savedFlash && <span className="text-sm text-[#B6FF2E]">Saved ✓ — re-run matching to apply.</span>}
         <button type="button"
           onClick={() => {
             if (!jsonMode) { setRaw(JSON.stringify(icp, null, 2)); setErr(""); }
