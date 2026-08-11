@@ -1,232 +1,161 @@
 /**
- * The six TTC solutions as editable starting ICPs — v2, derived from the actual
- * TTC Batch-1 ground truth (4,502 classified rows) rather than assumptions.
+ * The TTC catalog as editable starting ICPs — v3, encoding the LIVE site
+ * (tossthe.co.in, Aug 2026): GMO Office, GMO for PE, GTM for Manufacturing,
+ * Hire a Marketeroid, Demand Gen + ABM, Branding + Before the Bell, and
+ * Leadership Branding (etch). Senior decision-makers only — every persona is
+ * gated to founder/cxo/vp/head/director; no manager/ic bands.
  *
- * The ground truth's routing logic, faithfully encoded:
- *   CMO title            → cmo-office            (33 · 0.7%)
- *   other marketing/comms→ demand-gen-abm-content (497 · 11%)
- *   sales / BD / revenue → sales-enablement       (291 · 6.5%)
- *   founder / CEO / owner→ marketeroid            (1,003 · 22.3%)
- *   designers            → branding-rebranding    (150 · 3.3%)
- *   everyone else employed → gtm-office           (2,528 · 56.2% — the catch-all)
- *
- * Peer detection is COMPANY-driven and off-ICP is coach-TITLE-driven; both live
- * as pre-signals in matching/rule-pass.ts, not here.
+ * Existing workspaces keep their own copies (isolation by design); Admin →
+ * "Sync catalog to all workspaces" pushes the admin org's current catalog out.
  */
 import type { IcpJson } from "@/db/schema";
 
 export const SEED_SERVICES: { slug: string; name: string; icp: IcpJson }[] = [
   {
-    slug: "demand-gen-abm-content",
-    name: "Demand Gen + ABM + Content",
+    slug: "gmo-office",
+    name: "GMO Office",
     icp: {
-      summary: "Pipeline programs (demand gen, ABM, content) pitched to marketing-function people at B2B companies — from CMO-minus-one down to hands-on marketers who influence or feel the pipeline problem daily.",
-      fit_signals: [
-        "Any marketing-function title below CMO: VP/AVP/GM/DGM/Head/Director/Manager/Specialist/Executive of Marketing",
-        "Growth, demand generation, digital marketing, performance marketing, SEO, social media roles",
-        "Content and communications roles (content writer, content head, communications manager)",
-        "Works at a B2B company (not an agency — agencies are peers)",
-      ],
-      pain_points: [
-        "Pipeline attribution gaps",
-        "Content volume vs. quality squeeze",
-        "Marketing-to-sales handoff friction",
-        "Proving marketing's pipeline contribution to leadership",
-      ],
+      summary: "B2B companies (IT services, SaaS, consulting; ~50-1000 headcount) whose CEO/founder runs revenue without a true marketing leader, or whose lone marketing head needs a full office behind them. Decision-maker: the person who owns growth.",
+      fit_signals: ["b2b", "it services", "saas", "technology services", "consulting", "sales-led", "no cmo in seat", "founder-led growth"],
+      pain_points: ["no marketing leadership", "marketing is ad-hoc", "pipeline depends on referrals", "sales without marketing support", "cannot justify full-time cmo cost"],
+      disqualifiers: ["students", "interns", "recruiters", "professors", "career coaches"],
       personas: [
-        {
-          slug: "marketing-function",
-          name: "Marketing-function professional (non-CMO)",
-          title_include: [
-            "marketing", "growth", "demand", "content", "communications",
-            "digital marketing", "performance marketing", "seo", "social media",
-            "brand manager",
-          ],
-          title_exclude: ["chief marketing officer", "intern", "student", "aspiring", "freelance"],
-          seniority: ["cxo", "vp", "head", "director", "manager", "ic"],
-          function_tags: ["marketing", "demand", "growth", "content"],
-        },
-      ],
-      disqualifiers: [
-        "CMO title-holders (route to cmo-office)",
-        "Works at a marketing/creative/digital agency (peer)",
-        "Marketing coaches and personal-brand consultants (off-ICP)",
+        { slug: "ceo-founder-no-cmo", name: "CEO / Founder owning growth",
+          title_include: ["chief executive", "ceo", "founder", "co-founder", "managing director", "managing partner"],
+          title_exclude: ["assistant", "associate", "office of the"],
+          seniority: ["founder", "cxo"], function_tags: ["general management", "growth"] },
+        { slug: "revenue-leader", name: "CRO / Revenue head needing a marketing office",
+          title_include: ["chief revenue", "cro", "chief growth", "chief business officer", "president", "head of business"],
+          title_exclude: ["vice president", "assistant"],
+          seniority: ["cxo", "head"], function_tags: ["revenue", "sales"] },
+        { slug: "lone-marketing-head", name: "Marketing head who needs an office behind them",
+          title_include: ["chief marketing", "cmo", "vp marketing", "head of marketing", "marketing director"],
+          title_exclude: ["assistant", "associate", "executive - marketing"],
+          seniority: ["cxo", "vp", "head", "director"], function_tags: ["marketing"] },
       ],
     },
   },
   {
-    slug: "cmo-office",
-    name: "CMO Office",
+    slug: "gmo-for-pe",
+    name: "GMO for PE",
     icp: {
-      summary: "Embedded senior marketing leadership support pitched specifically to sitting CMOs — the strategy capacity and sounding board a stretched CMO lacks.",
-      fit_signals: [
-        "Holds the Chief Marketing Officer title (or Group CMO)",
-        "At a company where the CMO visibly stretches across strategy AND execution",
-      ],
-      pain_points: [
-        "No time for strategy — everything is execution firefighting",
-        "No senior marketing peer to pressure-test decisions with",
-        "Board expectations rising faster than team capacity",
-      ],
+      summary: "PE/VC operating teams and leadership of PE-backed IT services & B2B portfolio companies looking to cut marketing SG&A ~65% via an offshore pod without losing pipeline. Buyers: Operating Partners, CEOs, CFOs.",
+      fit_signals: ["private equity", "pe-backed", "portfolio company", "it services", "growth equity", "operating partner", "value creation", "ebitda focus"],
+      pain_points: ["bloated us execution costs", "high agency dependence with unclear roi", "activities instead of pipeline contribution", "sg&a pressure", "fragmented marketing across portfolio"],
+      disqualifiers: ["students", "interns", "recruiters", "professors", "early-stage angel-only investors"],
       personas: [
-        {
-          slug: "sitting-cmo",
-          name: "Sitting CMO",
-          title_include: ["chief marketing officer", "group chief marketing officer"],
-          title_exclude: ["assistant to", "office of", "intern", "student"],
-          seniority: ["cxo"],
-          function_tags: ["marketing"],
-        },
-      ],
-      disqualifiers: [
-        "CMO of a marketing agency (peer)",
-        "Fractional-CMO providers selling the same service (peer)",
+        { slug: "pe-operating-partner", name: "Operating Partner / Value-creation lead at a PE firm",
+          title_include: ["operating partner", "operations partner", "value creation", "portfolio operations", "principal", "managing director"],
+          title_exclude: ["assistant", "analyst", "associate"],
+          seniority: ["cxo", "head", "director", "vp"], function_tags: ["private equity", "operations"] },
+        { slug: "portfolio-cfo-ceo", name: "CFO / CEO of a PE-backed company",
+          title_include: ["chief financial", "cfo", "chief executive", "ceo", "president"],
+          title_exclude: ["vice president", "assistant", "deputy"],
+          seniority: ["cxo", "founder"], function_tags: ["finance", "general management"] },
       ],
     },
   },
   {
-    slug: "gtm-office",
-    name: "GTM Office",
+    slug: "gtm-manufacturing",
+    name: "GTM for Manufacturing",
     icp: {
-      summary: "Go-to-market strategy and motion building — the default pitch for senior business professionals at B2B companies who lack a marketing/sales/founder signature: MDs, partners, product, operations, engineering, HR, analysts, consultants. Their company has a GTM problem even when their title doesn't say so.",
-      fit_signals: [
-        "Employed professionals at B2B companies without a marketing, sales, or founder title",
-        "Managing Directors, Partners, Presidents (non-founder)",
-        "Product, engineering, operations, project, data, analyst, HR, finance, account roles",
-        "Consultants and general management",
-      ],
-      pain_points: [
-        "Company's category has no shared language yet",
-        "No repeatable GTM motion; growth depends on referrals and heroics",
-        "Strategy exists on slides but not in weekly execution",
-      ],
+      summary: "Owners and senior leadership of manufacturing, industrial, engineering and hardware B2B companies modernizing go-to-market — moving beyond dealer networks and trade shows into digital demand.",
+      fit_signals: ["manufacturing", "industrial", "engineering", "factory", "oem", "b2b hardware", "exports", "machinery", "auto components", "chemicals"],
+      pain_points: ["dependent on dealer network", "no digital pipeline", "trade-show-only marketing", "undifferentiated positioning", "export markets untapped"],
+      disqualifiers: ["students", "interns", "recruiters", "professors", "shop-floor operators"],
       personas: [
-        {
-          slug: "business-professional",
-          name: "Senior business professional (catch-all)",
-          title_include: [
-            "managing director", "partner", "general manager",
-            "product", "engineer", "operations", "project", "analyst",
-            "human resources", "software", "data", "account", "consultant",
-            "management", "principal", "delivery",
-          ],
-          title_exclude: ["intern", "student", "fresher", "trainee", "aspiring"],
-          seniority: ["cxo", "vp", "head", "director", "manager", "ic"],
-          function_tags: ["gtm", "product", "operations", "general"],
-        },
-      ],
-      disqualifiers: [
-        "Anyone with a marketing, sales, founder/CEO, or designer signature (other services fit better)",
-        "Students, interns, job-seekers",
-        "GTM consultants selling GTM services themselves (peer)",
+        { slug: "mfg-owner-md", name: "Promoter / MD / CEO of a manufacturing firm",
+          title_include: ["managing director", "chief executive", "ceo", "founder", "promoter", "chairman", "president", "business head", "plant head", "general manager"],
+          title_exclude: ["vice president", "deputy general manager", "assistant", "dgm"],
+          seniority: ["founder", "cxo", "head", "director"], function_tags: ["general management", "manufacturing"] },
+        { slug: "mfg-commercial-head", name: "Sales / Commercial head in industrial B2B",
+          title_include: ["director sales", "vp sales", "head of sales", "sales head", "commercial director", "chief commercial", "head of exports", "business development head"],
+          title_exclude: ["assistant", "executive", "representative"],
+          seniority: ["cxo", "vp", "head", "director"], function_tags: ["sales", "business development"] },
       ],
     },
   },
   {
     slug: "marketeroid",
-    name: "Marketeroid",
+    name: "Hire a Marketeroid",
     icp: {
-      summary: "Senior marketing strategy + execution from day one, pitched to founders, CEOs, and owners of B2B companies with no senior in-house marketer.",
-      fit_signals: [
-        "Founder / Co-founder / CEO / Owner / Proprietor of a B2B company",
-        "No evident senior marketing leadership at the company",
-        "Founder is the de-facto marketer 'whenever there is time'",
-      ],
-      pain_points: [
-        "Audience acquired but never converted into pipeline",
-        "No consistent positioning or demand presence",
-        "Marketing happens in bursts around events, then goes silent",
-        "Knows marketing matters; cannot justify a senior full-time hire yet",
-      ],
+      summary: "B2B founders and growth leaders who need a whole marketing team in one unit — too small for an agency retainer or in-house build, too serious for tools alone. Sweet spot: funded startups and mid-size B2B firms with pipeline pressure this quarter.",
+      fit_signals: ["b2b saas", "startup", "series a", "series b", "funded", "growth stage", "lean team", "pipeline pressure"],
+      pain_points: ["agency costs too much", "in-house takes too long", "ai tools lack judgment", "marketing bandwidth", "inconsistent content output"],
+      disqualifiers: ["students", "interns", "recruiters", "professors", "b2c only"],
       personas: [
-        {
-          slug: "founder",
-          name: "Founder / CEO / Owner",
-          title_include: [
-            "founder", "co founder", "cofounder", "founding partner",
-            "chief executive officer", "owner", "proprietor",
-          ],
-          title_exclude: ["student", "aspiring", "intern"],
-          seniority: ["founder", "cxo"],
-          function_tags: [],
-        },
-      ],
-      disqualifiers: [
-        "Founder of a marketing/creative/digital agency (peer — company name is the tell)",
-        "Company already has a CMO / VP Marketing",
-        "Coaches and personal-brand businesses (off-ICP)",
-        "Managing Directors of established firms (route to gtm-office per ground truth)",
+        { slug: "startup-founder", name: "Founder / CEO of a growth-stage B2B company",
+          title_include: ["founder", "co-founder", "chief executive", "ceo"],
+          title_exclude: ["assistant", "office of"],
+          seniority: ["founder", "cxo"], function_tags: ["general management"] },
+        { slug: "growth-leader", name: "Growth / Demand leader needing execution muscle",
+          title_include: ["chief growth", "vp growth", "head of growth", "vp demand", "head of demand", "growth director", "vp marketing", "head of marketing"],
+          title_exclude: ["assistant", "associate", "manager"],
+          seniority: ["cxo", "vp", "head", "director"], function_tags: ["growth", "demand generation", "marketing"] },
       ],
     },
   },
   {
-    slug: "branding-rebranding",
-    name: "Branding / Rebranding",
+    slug: "demand-gen-abm",
+    name: "Demand Gen + ABM",
     icp: {
-      summary: "Brand strategy and repositioning — pitched to in-house design and brand-craft people (UX/UI/graphic designers, brand strategists) whose companies are visibly outgrowing their story.",
-      fit_signals: [
-        "In-house designer titles: UX designer, UI/UX, graphic designer, design lead",
-        "Brand strategy roles at non-agency companies",
-        "Company at an inflection: IPO/listing, fresh funding, category shift, legacy modernizing",
-      ],
-      pain_points: [
-        "Market still tells the old story about the company",
-        "Narrative inconsistent across analysts, media, buyers, and hiring",
-        "Product and delivery outran the brand years ago",
-      ],
+      summary: "Senior marketing and revenue leaders at B2B companies (SaaS, IT services, 50-2000 headcount) who own a pipeline number and need demand generation, ABM programs and content that converts.",
+      fit_signals: ["b2b saas", "it services", "enterprise software", "pipeline target", "abm", "demand generation", "sales-led with marketing"],
+      pain_points: ["pipeline stalls", "no attribution", "content without conversion", "abm on spreadsheets", "mql quality"],
+      disqualifiers: ["students", "interns", "recruiters", "professors", "b2c retail"],
       personas: [
-        {
-          slug: "design-brand-craft",
-          name: "In-house design / brand-craft professional",
-          title_include: [
-            "designer", "graphic design", "ui ux", "ux design", "design lead",
-            "brand strategy", "visual design",
-          ],
-          title_exclude: ["fashion designer", "jewellery designer", "interior designer", "intern", "student"],
-          seniority: ["head", "manager", "ic"],
-          function_tags: ["brand", "design"],
-        },
-      ],
-      disqualifiers: [
-        "Designers AT agencies/studios (peer — company name is the tell)",
-        "Personal-branding coaches (off-ICP)",
-        "Freelance designers selling design themselves (peer)",
+        { slug: "demand-owner", name: "Demand / Growth leader with a number",
+          title_include: ["vp demand", "head of demand", "demand generation director", "vp growth", "head of growth", "chief marketing", "cmo", "vp marketing", "head of marketing", "marketing director"],
+          title_exclude: ["assistant", "associate", "executive", "manager"],
+          seniority: ["cxo", "vp", "head", "director"], function_tags: ["demand generation", "marketing", "growth"] },
+        { slug: "revenue-owner-dg", name: "CRO / Sales head buying pipeline support",
+          title_include: ["chief revenue", "cro", "vp sales", "head of sales", "sales director"],
+          title_exclude: ["vice president sales operations", "assistant"],
+          seniority: ["cxo", "vp", "head", "director"], function_tags: ["sales", "revenue"] },
       ],
     },
   },
   {
-    slug: "sales-enablement",
-    name: "Sales Enablement",
+    slug: "branding-before-the-bell",
+    name: "Branding + Before the Bell",
     icp: {
-      summary: "Positioning, objection-handling, and account narratives — pitched to sales and business-development people at B2B companies, from CRO down to BD managers who improvise their own story daily.",
-      fit_signals: [
-        "Any sales-function title: VP/Head/Director/Manager/Executive of Sales",
-        "Business development roles at every level",
-        "Revenue leadership (CRO, Chief Business Officer, Business Head)",
-        "Complex multi-stakeholder B2B deals",
-      ],
-      pain_points: [
-        "Every AE improvises their own story",
-        "Objection handling lives in one senior person's head",
-        "Sales collateral lags the actual deal conversations",
-        "Long cycles stalling at the business-case stage",
-      ],
+      summary: "Leadership of B2B companies at inflection points — rebrand, repositioning, category creation, or the pre-IPO window ('Branding before the Bell') where the company story must be investor-ready.",
+      fit_signals: ["rebrand", "repositioning", "pre-ipo", "ipo bound", "drhp", "merger", "acquisition", "category creation", "b2b"],
+      pain_points: ["brand does not match ambition", "undifferentiated in category", "investor story unclear", "post-merger identity", "outdated identity"],
+      disqualifiers: ["students", "interns", "recruiters", "professors"],
       personas: [
-        {
-          slug: "sales-function",
-          name: "Sales / BD professional",
-          title_include: [
-            "sales", "business development", "revenue", "chief revenue officer",
-            "chief business officer", "business head", "national sales",
-          ],
-          title_exclude: ["telesales", "intern", "student", "aspiring"],
-          seniority: ["cxo", "vp", "head", "director", "manager", "ic"],
-          function_tags: ["sales", "revenue"],
-        },
+        { slug: "brand-decision-ceo", name: "CEO / Founder driving a rebrand",
+          title_include: ["chief executive", "ceo", "founder", "co-founder", "managing director", "chairman"],
+          title_exclude: ["assistant", "deputy"],
+          seniority: ["founder", "cxo"], function_tags: ["general management"] },
+        { slug: "pre-ipo-officer", name: "CFO / IR leader in the IPO window",
+          title_include: ["chief financial", "cfo", "investor relations", "head of ir", "company secretary"],
+          title_exclude: ["assistant", "analyst"],
+          seniority: ["cxo", "head", "director"], function_tags: ["finance", "investor relations"] },
+        { slug: "brand-cmo", name: "CMO owning the brand mandate",
+          title_include: ["chief marketing", "cmo", "chief brand", "brand director", "head of brand"],
+          title_exclude: ["assistant", "manager"],
+          seniority: ["cxo", "head", "director"], function_tags: ["marketing", "brand"] },
       ],
-      disqualifiers: [
-        "Transactional / B2C / retail sales",
-        "Sales trainers and coaches selling enablement themselves (off-ICP/peer)",
+    },
+  },
+  {
+    slug: "leadership-branding-etch",
+    name: "Leadership Branding (etch)",
+    icp: {
+      summary: "Senior leaders building their personal brand on LinkedIn - founders, CXOs, and established independent experts whose visibility drives their business. The buyer is the individual, not their company.",
+      fit_signals: ["thought leadership", "personal brand", "linkedin presence", "keynote speaker", "author", "fractional leader", "independent consultant with a practice"],
+      pain_points: ["expertise invisible online", "inconsistent posting", "ghostwritten content sounds generic", "profile does not match seniority", "no content system"],
+      disqualifiers: ["students", "interns", "recruiters", "professors", "career coaches for individuals", "life coaches"],
+      personas: [
+        { slug: "leader-personal-brand", name: "Founder / CXO investing in their own brand",
+          title_include: ["founder", "co-founder", "chief executive", "ceo", "chief", "managing director", "managing partner", "president"],
+          title_exclude: ["vice president", "assistant"],
+          seniority: ["founder", "cxo"], function_tags: ["leadership"] },
+        { slug: "independent-expert", name: "Established independent expert / fractional leader",
+          title_include: ["fractional cmo", "fractional cfo", "independent director", "advisor", "board member", "author", "keynote"],
+          title_exclude: ["career coach", "life coach", "student"],
+          seniority: ["founder", "cxo", "head"], function_tags: ["advisory"] },
       ],
     },
   },

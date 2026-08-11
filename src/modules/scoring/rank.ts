@@ -19,14 +19,22 @@ const FUNCTION_TERMS = /market|brand|growth|demand|communicat|content|gtm|go to 
 
 /** GT's Top 30 is dominated by pipeline-owning marketers — rank mirrors that
  *  priority so the machine's Top-N composes like the human's did. */
-const SERVICE_BONUS: Record<string, number> = {
-  "demand-gen-abm-content": 10,
-  "cmo-office": 8,
-  "sales-enablement": 6,
-  "marketeroid": 6,
-  "branding-rebranding": 4,
-  "gtm-office": 0,
-};
+/** Substring-matched so legacy slugs (cmo-office, sales-enablement…) and the
+ *  v3 live-catalog slugs (gmo-office, gmo-for-pe…) both resolve. Order matters:
+ *  first hit wins. Tune freely — Re-rank is free. */
+const SERVICE_BONUS_RULES: [string, number][] = [
+  ["marketeroid", 10],
+  ["gmo-for-pe", 8], ["sales-enablement", 8],
+  ["gmo", 8], ["cmo", 8],
+  ["demand", 6],
+  ["manufacturing", 5], ["gtm", 5],
+  ["etch", 4], ["leadership", 4],
+  ["brand", 4],
+];
+function serviceBonus(slug: string): number {
+  for (const [needle, bonus] of SERVICE_BONUS_RULES) if (slug.includes(needle)) return bonus;
+  return 0;
+}
 
 export function scoreConnection(input: {
   position: string | null; company: string | null; confidence: number | null;
@@ -39,7 +47,7 @@ export function scoreConnection(input: {
   const confidence = Math.round((input.confidence ?? 50) * 0.3);
   const founder_bonus = /founder\b|chief executive officer/.test(title) && !FUNCTION_TERMS.test(title) ? 8 : 0;
   const company_present = input.company ? 5 : 0;
-  const service_bonus = SERVICE_BONUS[input.serviceSlug ?? ""] ?? 0;
+  const service_bonus = serviceBonus(input.serviceSlug ?? "");
   const total = seniority + function_fit + confidence + founder_bonus + company_present + service_bonus;
   return { seniority, function_fit, confidence, founder_bonus, company_present, service_bonus, total };
 }

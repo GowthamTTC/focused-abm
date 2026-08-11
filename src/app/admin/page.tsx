@@ -3,14 +3,14 @@ import { eq } from "drizzle-orm";
 import { db, appUser, org } from "@/db";
 import { Shell, requirePage } from "@/app/shell";
 import { env } from "@/lib/env";
-import { addUser, removeUser } from "./actions";
+import { addUser, removeUser, syncCatalogToAllWorkspaces } from "./actions";
 
 export default async function AdminPage({ searchParams }: {
-  searchParams: Promise<{ err?: string; ok?: string }>;
+  searchParams: Promise<{ err?: string; ok?: string; n?: string }>;
 }) {
   const user = await requirePage();
   if (user.email.toLowerCase() !== (env.ADMIN_EMAIL ?? "").toLowerCase()) notFound();
-  const { err, ok } = await searchParams;
+  const { err, ok, n } = await searchParams;
   const users = await db.select({
     id: appUser.id, name: appUser.name, email: appUser.email,
     createdAt: appUser.createdAt, workspace: org.name,
@@ -27,7 +27,7 @@ export default async function AdminPage({ searchParams }: {
       <section className="mt-6 rounded-[18px] border border-white/10 bg-[#1F2329] p-6">
         <h2 className="text-lg font-medium">Add a user</h2>
         {err && <p className="mt-2 text-sm text-[#FF8A70]">{err}</p>}
-        {ok && <p className="mt-2 text-sm text-[#B6FF2E]">User added with a fresh workspace (six services pre-seeded) — share the credentials with them directly.</p>}
+        {ok === "1" && <p className="mt-2 text-sm text-[#B6FF2E]">User added with a fresh workspace (catalog pre-seeded) — share the credentials with them directly.</p>}
         <form action={addUser} className="mt-4 grid max-w-2xl grid-cols-1 gap-4 md:grid-cols-3">
           <label className="block text-sm text-white/70">Name
             <input name="name" required placeholder="Priya S"
@@ -47,6 +47,24 @@ export default async function AdminPage({ searchParams }: {
             </button>
           </div>
         </form>
+      </section>
+
+      <section className="mt-6 rounded-[18px] border border-white/10 bg-[#1F2329] p-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-medium">Catalog</h2>
+            <p className="mt-1 max-w-xl text-sm text-white/55">
+              Push your workspace's current services (names + ICPs) to every other workspace,
+              replacing theirs. Use after a catalog refresh.
+            </p>
+            {ok === "synced" && <p className="mt-2 text-sm text-[#B6FF2E]">Catalog synced to {n} workspace(s).</p>}
+          </div>
+          <form action={syncCatalogToAllWorkspaces}>
+            <button className="rounded-lg border border-[#B6FF2E]/40 bg-[#B6FF2E]/10 px-4 py-2 text-sm font-medium text-[#D9FF8A] hover:bg-[#B6FF2E]/15">
+              Sync catalog to all workspaces
+            </button>
+          </form>
+        </div>
       </section>
 
       <section className="mt-6 rounded-[18px] border border-white/10 bg-[#1F2329] p-6">

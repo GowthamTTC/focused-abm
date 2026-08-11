@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { and, eq, ne } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { db, appUser, org, service } from "@/db";
+import { ne as neq } from "drizzle-orm";
 import { requireUser } from "@/auth/session";
 import { env } from "@/lib/env";
 import { SEED_SERVICES } from "@/modules/services/seed-data";
@@ -48,4 +49,21 @@ export async function removeUser(userId: string) {
     ne(appUser.id, admin.userId),
   ));
   redirect("/admin");
+}
+
+/** Push the admin workspace's CURRENT catalog (names + ICPs) to every other
+ *  workspace, replacing their services wholesale. New signups seed from code;
+ *  this button brings existing workspaces up to date after a catalog refresh. */
+export async function syncCatalogToAllWorkspaces() {
+  const admin = await requireAdmin();
+  const catalog = await db.select().from(service).where(eq(service.orgId, admin.orgId));
+  if (catalog.length === 0) redirect("/admin?err=Your own workspace has no services to sync.");
+  const orgs = await db.select({ id: org.id }).from(org).where(neq(org.id, admin.orgId));
+  for (const o of orgs) {
+    await db.delete(service).where(eq(service.orgId, o.id));
+    await db.insert(service).values(catalog.map((c) => ({
+      orgId: o.id, slug: c.slug, name: c.name, status: c.status, icpJson: c.icpJson,
+    })));
+  }
+  redirect(`/admin?ok=synced&n=${orgs.length}`);
 }
