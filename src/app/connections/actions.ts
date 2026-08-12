@@ -1,5 +1,6 @@
 "use server";
 import { redirect } from "next/navigation";
+import { enqueue } from "@/jobs/runner";
 import { and, eq } from "drizzle-orm";
 import { db, channelAccount } from "@/db";
 import { requireUser } from "@/auth/session";
@@ -21,25 +22,13 @@ export async function uploadCsv(formData: FormData) {
   redirect(`/batches/${batch.id}`);
 }
 
+/** v1.3.6: sync is a background job — the button returns instantly and the
+ *  app-wide banner shows live "Syncing · N pulled" progress from the worker. */
 export async function syncRelations() {
   const user = await requireUser();
   const [seat] = await db.select().from(channelAccount)
     .where(and(eq(channelAccount.orgId, user.orgId), eq(channelAccount.status, "operational")));
   if (!seat) redirect("/connections?err=Connect+a+LinkedIn+account+in+Settings+first");
-
-  const provider = getChannelProvider();
-  const all: Relation[] = [];
-  let cursor: string | null = null;
-  do {
-    const page = await provider.fetchRelations({ accountId: seat.unipileAccountId, cursor, limit: 100 });
-    all.push(...page.items);
-    cursor = page.cursor;
-  } while (cursor && all.length < 20000);
-
-  const batch = await createBatchFromRelations(
-    user.orgId, `Synced connections (${all.length})`, all,
-  );
-  await db.update(channelAccount).set({ lastSyncedAt: new Date() })
-    .where(eq(channelAccount.id, seat.id));
-  redirect(`/batches/${batch.id}`);
+  await enqueue(user.orgId, "sync", { accountId: seat.unipileAccountId, seatId: seat.id });
+  redirect("/connections");
 }

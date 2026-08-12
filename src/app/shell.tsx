@@ -68,10 +68,13 @@ export async function Shell({ user, active, children }: { user: Ctx; active: str
         <div className="shrink-0 border-b border-white/5 bg-black/30 backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center gap-4 px-6 py-2">
             <span className="tnum whitespace-nowrap text-white/80">
-              {KIND_LABEL[running.kind] ?? running.kind} · {(running.progress ?? 0).toLocaleString()} / {(running.total ?? 0).toLocaleString()}
+              {KIND_LABEL[running.kind] ?? running.kind} · {(running.progress ?? 0).toLocaleString()}
+              {(running.total ?? 0) > 0 ? ` / ${(running.total ?? 0).toLocaleString()}` : " pulled"}
             </span>
-            <div className="h-0.5 flex-1 rounded bg-white/10">
-              <div className="h-0.5 rounded bg-[#B6FF2E] shadow-[0_0_8px_rgba(182,255,46,.7)]" style={{ width: `${pct}%` }} />
+            <div className="relative h-0.5 flex-1 overflow-hidden rounded bg-white/10">
+              {(running.total ?? 0) > 0
+                ? <div className="h-0.5 rounded bg-[#B6FF2E] shadow-[0_0_8px_rgba(182,255,46,.7)]" style={{ width: `${pct}%` }} />
+                : <div className="banner-indeterminate absolute h-0.5 w-1/3 rounded bg-[#B6FF2E] shadow-[0_0_8px_rgba(182,255,46,.7)]" />}
             </div>
           </div>
         </div>

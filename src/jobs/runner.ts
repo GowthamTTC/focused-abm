@@ -3,7 +3,9 @@
  * queued jobs; the web app only INSERTS job rows and reads progress.
  */
 import { and, asc, eq, gte, sql } from "drizzle-orm";
-import { db, connection, job } from "@/db";
+import { db, connection, job, channelAccount } from "@/db";
+import { getChannelProvider, type Relation } from "@/providers/channel";
+import { createBatchFromRelations } from "@/modules/connections/create-batch";
 import { env } from "@/lib/env";
 import { classifyBatch } from "@/modules/matching/service-fit";
 import { rankBatch } from "@/modules/scoring/rank";
@@ -34,7 +36,27 @@ export async function processNext(): Promise<boolean> {
 
   await db.update(job).set({ status: "running", updatedAt: new Date() }).where(eq(job.id, next.id));
   try {
-    if (next.kind === "classify") {
+    if (next.kind === "sync") {
+      const accountId = String(next.payloadJson.accountId);
+      const seatId = String(next.payloadJson.seatId ?? "");
+      const provider = getChannelProvider();
+      const all: Relation[] = [];
+      let cursor: string | null = null;
+      do {
+        const page = await provider.fetchRelations({ accountId, cursor, limit: 100 });
+        all.push(...page.items);
+        cursor = page.cursor;
+        // Live banner: total stays 0 (unknown until the last page) — the UI
+        // renders "Syncing · N pulled" with an indeterminate bar.
+        await db.update(job).set({ progress: all.length, updatedAt: new Date() })
+          .where(eq(job.id, next.id));
+      } while (cursor && all.length < 20000);
+      await createBatchFromRelations(next.orgId, `Synced connections (${all.length})`, all);
+      if (seatId) await db.update(channelAccount).set({ lastSyncedAt: new Date() })
+        .where(eq(channelAccount.id, seatId));
+      await db.update(job).set({ status: "done", progress: all.length, total: all.length, updatedAt: new Date() })
+        .where(eq(job.id, next.id));
+    } else if (next.kind === "classify") {
       const batchId = String(next.payloadJson.batchId);
       const reclassifyAll = Boolean(next.payloadJson.reclassifyAll);
       await classifyBatch(next.orgId, batchId, { reclassifyAll }, (done, total) => setProgress(next.id, done, total));

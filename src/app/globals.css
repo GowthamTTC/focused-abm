@@ -45,3 +45,7 @@ input::placeholder, textarea::placeholder { color: rgba(232, 234, 240, 0.35); }
 /* Fixed app frame — the app owns the viewport; content scrolls internally */
 html, body { height: 100%; }
 * { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.15) transparent; }
+
+/* Indeterminate job banner (sync — total unknown until the last page) */
+@keyframes banner-slide { 0% { left: -33%; } 100% { left: 100%; } }
+.banner-indeterminate { animation: banner-slide 1.4s ease-in-out infinite; }
