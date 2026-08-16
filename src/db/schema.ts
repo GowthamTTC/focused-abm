@@ -185,3 +185,26 @@ export const activityLog = pgTable("activity_log", {
   detailJson: jsonb("detail_json").$type<Record<string, unknown>>().default({}),
   createdAt: ts("created_at").notNull().defaultNow(),
 });
+
+/** Daily network stats — one row per org per day, upserted on page view and
+ *  after syncs. The growth charts begin the day this ships; we never invent
+ *  history that was not observed. */
+export const networkSnapshot = pgTable("network_snapshot", {
+  id: id(),
+  orgId: text("org_id").notNull().references(() => org.id),
+  day: text("day").notNull(),                       // YYYY-MM-DD
+  total: integer("total").notNull().default(0),
+  pitchable: integer("pitchable").notNull().default(0),
+  enriched: integer("enriched").notNull().default(0),
+  active30: integer("active30").notNull().default(0),  // posted within 30d of snapshot
+  sent: integer("sent").notNull().default(0),
+});
+
+export const exportLog = pgTable("export_log", {
+  id: id(),
+  orgId: text("org_id").notNull().references(() => org.id),
+  batchId: text("batch_id"),
+  label: text("label").notNull(),
+  rows: integer("rows").notNull().default(0),
+  createdAt: ts("created_at").notNull().defaultNow(),
+});

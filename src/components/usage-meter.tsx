@@ -6,12 +6,12 @@ export function UsageMeter({ used, cap, resetsAt, bar = false }: {
   used: number; cap: number; resetsAt: Date; bar?: boolean;
 }) {
   const pct = Math.min(100, Math.round((used / cap) * 100));
-  const tone = used >= cap ? "text-red-300" : pct >= 80 ? "text-[#E7B75F]" : "text-white/55";
+  const tone = used >= cap ? "text-red-600" : pct >= 80 ? "text-[#B07818]" : "text-[#2B3355]/55";
   const fill = used >= cap ? "#FF8A70" : pct >= 80 ? "#E7B75F" : "#B6FF2E";
   return (
     <span className="inline-flex items-center gap-2.5">
       {bar && (
-        <span className="inline-block h-1.5 w-28 rounded bg-white/10">
+        <span className="inline-block h-1.5 w-28 rounded bg-[#263BAA]/10">
           <span className="block h-1.5 rounded" style={{ width: `${pct}%`, backgroundColor: fill }} />
         </span>
       )}

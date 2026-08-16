@@ -47,7 +47,7 @@ export async function RecentRuns({ orgId }: { orgId: string }) {
   return (
     <>
       <h2 className="mt-10 text-lg font-medium">Recent runs</h2>
-      <ul className="mt-3 divide-y divide-white/5 rounded-[18px] border border-white/10 bg-[#1F2329]">
+      <ul className="mt-3 divide-y divide-[#263BAA]/8 rounded-[18px] border border-[#263BAA]/12 bg-white">
         {jobs.map((j) => {
           const ids = j.payloadJson.connectionIds;
           const batchId = typeof j.payloadJson.batchId === "string"
@@ -58,16 +58,16 @@ export async function RecentRuns({ orgId }: { orgId: string }) {
             <li key={j.id} className="flex items-center gap-4 p-3.5 text-sm">
               <span className="w-24 shrink-0 font-medium">{KIND_LABEL[j.kind] ?? j.kind}</span>
               <span className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] ${
-                j.status === "done" ? "bg-[#B6FF2E]/15 text-[#B6FF2E]"
-                : j.status === "running" ? "bg-[#E7B75F]/15 text-[#E7B75F]"
-                : j.status === "failed" ? "bg-red-500/15 text-red-300"
-                : "bg-white/10 text-white/60"}`}>{j.status}</span>
-              <span className="min-w-0 flex-1 truncate text-white/55">
+                j.status === "done" ? "bg-[#263BAA]/15 text-[#263BAA]"
+                : j.status === "running" ? "bg-[#B07818]/15 text-[#B07818]"
+                : j.status === "failed" ? "bg-red-500/15 text-red-600"
+                : "bg-[#263BAA]/10 text-[#2B3355]/60"}`}>{j.status}</span>
+              <span className="min-w-0 flex-1 truncate text-[#2B3355]/55">
                 {target ?? ""}{j.status === "failed" && j.error ? ` — ${j.error}` : ""}
               </span>
-              <span className="tnum shrink-0 text-white/55">{j.progress}/{j.total}</span>
-              <span className="tnum w-20 shrink-0 text-right text-white/35">{ago(j.createdAt)}</span>
-              <span className="tnum w-16 shrink-0 text-right text-white/35">
+              <span className="tnum shrink-0 text-[#2B3355]/55">{j.progress}/{j.total}</span>
+              <span className="tnum w-20 shrink-0 text-right text-[#2B3355]/35">{ago(j.createdAt)}</span>
+              <span className="tnum w-16 shrink-0 text-right text-[#2B3355]/35">
                 {j.status === "done" || j.status === "failed" ? dur(j.createdAt, j.updatedAt) : ""}
               </span>
             </li>

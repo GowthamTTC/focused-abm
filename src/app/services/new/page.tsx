@@ -41,28 +41,28 @@ export default async function NewServicePage({ searchParams }: {
   return (
     <Shell user={user} active="services">
       <h1 className="text-2xl font-semibold">Add a service</h1>
-      <p className="mt-1 max-w-2xl text-sm text-white/55">
+      <p className="mt-1 max-w-2xl text-sm text-[#2B3355]/55">
         One per offering you sell. Name it the way you say it on a sales call — every connection
         will be routed to the offer they are most likely to buy, so the names appear on your
         workbook and in every drafted message.
       </p>
-      {err && <p className="mt-3 text-sm text-[#FF8A70]">{err}</p>}
+      {err && <p className="mt-3 text-sm text-[#C2410C]">{err}</p>}
 
-      <form action={createService} className="mt-6 max-w-2xl rounded-[18px] border border-white/10 bg-[#1F2329] p-6">
-        <label className="block text-sm text-white/70">Offer name
+      <form action={createService} className="mt-6 max-w-2xl rounded-[18px] border border-[#263BAA]/12 bg-white p-6">
+        <label className="block text-sm text-[#2B3355]/70">Offer name
           <input name="name" required placeholder="e.g. Fractional CMO, ERP Implementation, Brand Sprint"
-            className="mt-1.5 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm" />
+            className="mt-1.5 w-full rounded-xl border border-[#263BAA]/12 bg-[#FBF3DE] px-4 py-3 text-sm" />
         </label>
-        <label className="mt-4 block text-sm text-white/70">Who buys it (one or two sentences)
+        <label className="mt-4 block text-sm text-[#2B3355]/70">Who buys it (one or two sentences)
           <textarea name="summary" rows={3}
             placeholder="e.g. B2B SaaS companies, 50-500 people, whose founder still runs marketing and needs pipeline this quarter."
-            className="mt-1.5 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm" />
+            className="mt-1.5 w-full rounded-xl border border-[#263BAA]/12 bg-[#FBF3DE] px-4 py-3 text-sm" />
         </label>
-        <p className="mt-3 text-xs text-white/40">
+        <p className="mt-3 text-xs text-[#2B3355]/40">
           You will add the buyer titles, pains and disqualifiers on the next screen — those patterns
           are what let the free rule pass resolve people without spending on the model.
         </p>
-        <button className="mt-5 rounded-lg bg-[#B6FF2E] px-5 py-2.5 text-sm font-semibold text-[#16191E] hover:bg-[#9FE51F]">
+        <button className="mt-5 rounded-lg bg-[#263BAA] px-5 py-2.5 text-sm font-semibold text-[#1B2559] hover:bg-[#1D2E86]">
           Create and define the ICP
         </button>
       </form>

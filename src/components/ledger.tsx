@@ -4,7 +4,7 @@
  *  off-ICP, excluded, unclassified fading into the dark. */
 const COLORS = {
   topDone: "#B6FF2E",
-  topPending: "rgba(182,255,46,0.45)",
+  topPending: "rgba(38,59,170,0.45)",
   pitchable: "#7A8494",
   peers: "#566070",
   offIcp: "#454D5A",
