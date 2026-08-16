@@ -31,6 +31,8 @@ const NAV: { section: string; items: [key: string, href: string, label: string][
     ["alerts", "/alerts", "Alerts"],
   ]},
   { section: "Pipeline", items: [
+    ["queue", "/send-queue", "Send Queue"],
+    ["flags", "/flag-inbox", "Flag Inbox"],
     ["connections", "/connections", "Data & Batches"],
     ["top", "/top-connections", "Top Connections"],
     ["health", "/relationship-health", "Relationship Health"],
