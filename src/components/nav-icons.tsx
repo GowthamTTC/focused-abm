@@ -1,0 +1,25 @@
+/** 15px monoline icons — single-path, stroke inherits currentColor (README §4). */
+const PATHS: Record<string, string> = {
+  today: "M3 3.5h10a.5.5 0 01.5.5v9a.5.5 0 01-.5.5H3a.5.5 0 01-.5-.5V4a.5.5 0 01.5-.5zM2.5 6.5h11M5 3.5v-1.5M11 3.5v-1.5",
+  review: "M2.5 4h11v8h-11zM2.5 4.2L8 8.4 13.5 4.2",
+  people: "M6 7.4a2.2 2.2 0 100-4.4 2.2 2.2 0 000 4.4zM2 13.2c0-2.1 1.8-3.4 4-3.4s4 1.3 4 3.4M11 5.6a1.9 1.9 0 010 3.8M12.6 13.2c0-1.5-.6-2.6-1.6-3.2",
+  network: "M8 6.4a1.6 1.6 0 100 3.2 1.6 1.6 0 000-3.2zM3.2 3.2a1.1 1.1 0 100 2.2 1.1 1.1 0 000-2.2zM12.8 3.2a1.1 1.1 0 100 2.2 1.1 1.1 0 000-2.2zM3.2 10.6a1.1 1.1 0 100 2.2 1.1 1.1 0 000-2.2zM12.8 10.6a1.1 1.1 0 100 2.2 1.1 1.1 0 000-2.2zM4.2 5.1l2.4 1.4M11.8 5.1L9.4 6.5M4.2 10.9l2.4-1.4M11.8 10.9L9.4 9.5",
+  alerts: "M8 2.4a3.4 3.4 0 00-3.4 3.4c0 2.9-1 3.9-1 3.9h8.8s-1-1-1-3.9A3.4 3.4 0 008 2.4zM6.6 12.3a1.5 1.5 0 002.8 0",
+  sources: "M8 2.4c2.7 0 4.9.9 4.9 2s-2.2 2-4.9 2-4.9-.9-4.9-2 2.2-2 4.9-2zM3.1 4.4v7.2c0 1.1 2.2 2 4.9 2s4.9-.9 4.9-2V4.4M3.1 8c0 1.1 2.2 2 4.9 2s4.9-.9 4.9-2",
+  offers: "M7.4 2.5H3.5a1 1 0 00-1 1v3.9l6.1 6.1 5-5-6.2-6zM5.3 5.4h.01",
+  exports: "M8 10.4V2.6M5.2 5.4L8 2.6l2.8 2.8M2.6 10.6v2a1 1 0 001 1h8.8a1 1 0 001-1v-2",
+  settings: "M8 9.9a1.9 1.9 0 100-3.8 1.9 1.9 0 000 3.8zM8 2.4v1.3M8 12.3v1.3M3.5 4.4l.9.9M11.6 11.1l.9.9M2.4 8h1.3M12.3 8h1.3M3.5 11.6l.9-.9M11.6 4.9l.9-.9",
+  search: "M7 2.5a4.5 4.5 0 100 9 4.5 4.5 0 000-9zM10.5 10.5l3 3",
+  admin: "M8 2.4l4.8 2.2v3.2c0 3-2 5.1-4.8 5.8-2.8-.7-4.8-2.8-4.8-5.8V4.6L8 2.4z",
+};
+
+export function NavIcon({ name, size = 15 }: { name: string; size?: number }) {
+  const d = PATHS[name];
+  if (!d) return null;
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor"
+      strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+      <path d={d} />
+    </svg>
+  );
+}

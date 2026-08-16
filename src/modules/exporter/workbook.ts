@@ -57,7 +57,7 @@ export async function buildWorkbook(
     "TABS",
     `• Top ${enriched.length} — Batch: fully enriched (grey = metadata match, amber = profile-scanned).`,
     `• Target Pool (ranked): all ${pitchable.length} pitchable targets — your source for the next batches.`,
-    `• Review — off-ICP: ${offIcp.length} demoted (coaches / personal-brand / B2C). Scan in case any belong back in.`,
+    `• Review — off-target: ${offIcp.length} demoted (coaches / personal-brand / B2C). Scan in case any belong back in.`,
     `• Peers & Competitors: ${peers.length} marketing people AT agencies — partnership / referral candidates, not buyers.`,
     `• Excluded silently: ${excluded.length} (own team, students, blank rows).`,
     "",
@@ -111,8 +111,8 @@ export async function buildWorkbook(
     ]).alignment = { vertical: "top", wrapText: true };
   }
 
-  // ── Review — off-ICP ───────────────────────────────────────────────
-  const rev = wb.addWorksheet("Review — off-ICP");
+  // ── Review — off-target ───────────────────────────────────────────────
+  const rev = wb.addWorksheet("Review — off-target");
   styleHeader(rev.addRow(["First Name", "Last Name", "Company", "Position", "LinkedIn URL", "Why flagged"]));
   rev.columns = [{ width: 16 }, { width: 16 }, { width: 28 }, { width: 34 }, { width: 40 }, { width: 50 }];
   for (const c of offIcp)

@@ -42,16 +42,16 @@ function TagList({ label, values, onChange, accent = false, flushRegistry }: {
 
   return (
     <div>
-      <p className="text-xs text-[#46506E]/45">{label}</p>
+      <p className="text-xs text-[#98A2B3]">{label}</p>
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
         {values.map((v) => (
           <span key={v} className={`group inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs ${
-            accent ? "bg-[#263BAA]/15 text-[#263BAA]" : "bg-[#263BAA]/10 text-[#46506E]/80"}`}>
+            accent ? "bg-[#EEF1FC] text-[#263BAA]" : "bg-[#EEF1FC] text-[#475467]"}`}>
             <button type="button" title="Click to edit"
               onClick={() => { onChange(values.filter((x) => x !== v)); setDraft(v); }}
               className="hover:underline">{v}</button>
             <button type="button" onClick={() => onChange(values.filter((x) => x !== v))}
-              className="text-[#46506E]/35 hover:text-red-600">×</button>
+              className="text-[#98A2B3] hover:text-[#B42318]">×</button>
           </span>
         ))}
         <input value={draft}
@@ -67,7 +67,7 @@ function TagList({ label, values, onChange, accent = false, flushRegistry }: {
             if (/[,\n;]/.test(text)) { e.preventDefault(); commit(`${draft} ${text}`); }
           }}
           placeholder="+ add (comma = several)" size={18}
-          className="rounded border border-dashed border-[#D0D5E4] bg-transparent px-2 py-0.5 text-xs text-[#46506E]/70 placeholder:text-[#46506E]/30" />
+          className="rounded border border-dashed border-[#DDE2EE] bg-transparent px-2 py-0.5 text-xs text-[#475467] placeholder:text-[#98A2B3]" />
       </div>
     </div>
   );
@@ -135,24 +135,24 @@ export function IcpEditor({ initialJson, action }: {
       {!jsonMode ? (
         <div className="space-y-6">
           <div>
-            <p className="text-xs text-[#46506E]/45">Summary</p>
+            <p className="text-xs text-[#98A2B3]">Summary</p>
             <textarea value={icp.summary} onChange={(e) => patch({ summary: e.target.value })} rows={3}
-              className="mt-1.5 w-full rounded-xl glass border-0 p-3 text-sm" />
+              className="mt-1.5 w-full bg-white border border-[#DDE2EE] rounded-[10px] shadow-[0_1px_2px_rgba(16,24,40,.04)] p-3 text-sm" />
           </div>
           <TagList label="Fit signals" values={icp.fit_signals} onChange={(v) => patch({ fit_signals: v })} flushRegistry={flushRegistry} />
           <TagList label="Pain points" values={icp.pain_points} onChange={(v) => patch({ pain_points: v })} flushRegistry={flushRegistry} />
           <TagList label="Disqualifiers" values={icp.disqualifiers} onChange={(v) => patch({ disqualifiers: v })} flushRegistry={flushRegistry} />
 
           <div>
-            <p className="text-xs text-[#46506E]/45">Personas</p>
+            <p className="text-xs text-[#98A2B3]">Personas</p>
             <div className="mt-2 space-y-3">
               {icp.personas.map((p, i) => (
-                <div key={i} className="rounded-xl glass border-0 p-4">
+                <div key={i} className="bg-white border border-[#DDE2EE] rounded-[10px] shadow-[0_1px_2px_rgba(16,24,40,.04)] p-4">
                   <div className="flex items-center justify-between gap-3">
                     <input value={p.name} onChange={(e) => patchPersona(i, { name: e.target.value })}
-                      className="flex-1 rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-sm font-medium hover:border-[#E4E7F2]" />
+                      className="flex-1 rounded-[8px] border border-transparent bg-transparent px-1 py-0.5 text-sm font-medium hover:border-[#DDE2EE]" />
                     <button type="button" onClick={() => patch({ personas: icp.personas.filter((_, j) => j !== i) })}
-                      className="text-xs text-[#46506E]/30 hover:text-red-600">remove</button>
+                      className="text-xs text-[#98A2B3] hover:text-[#B42318]">remove</button>
                   </div>
                   <div className="mt-3 space-y-3">
                     <TagList label="title include — these patterns drive the free rule pass" accent
@@ -160,7 +160,7 @@ export function IcpEditor({ initialJson, action }: {
                     <TagList label="title exclude" values={p.title_exclude}
                       onChange={(v) => patchPersona(i, { title_exclude: v })} flushRegistry={flushRegistry} />
                     <div>
-                      <p className="text-xs text-[#46506E]/45">seniority — a rule hit only counts inside these bands</p>
+                      <p className="text-xs text-[#98A2B3]">seniority — a rule hit only counts inside these bands</p>
                       <div className="mt-1.5 flex flex-wrap gap-1.5">
                         {SENIORITY_VOCAB.map((sv) => {
                           const on = (p.seniority ?? []).includes(sv);
@@ -171,7 +171,7 @@ export function IcpEditor({ initialJson, action }: {
                                   : [...(p.seniority ?? []), sv],
                               })}
                               className={`rounded px-2 py-0.5 text-xs ${on
-                                ? "bg-[#263BAA]/20 text-[#263BAA]" : "bg-[#263BAA]/5 text-[#46506E]/40 hover:text-[#46506E]/70"}`}>
+                                ? "bg-[#EEF1FC] text-[#263BAA]" : "bg-[#F4F6FB] text-[#98A2B3] hover:text-[#475467]"}`}>
                               {sv}
                             </button>
                           );
@@ -190,7 +190,7 @@ export function IcpEditor({ initialJson, action }: {
                     title_include: [], title_exclude: [], seniority: [], function_tags: [],
                   }],
                 })}
-                className="w-full rounded-xl border border-dashed border-[#D0D5E4] py-2.5 text-sm text-[#46506E]/45 hover:border-[#263BAA]/40 hover:text-[#46506E]/70">
+                className="w-full rounded-[10px] border border-dashed border-[#DDE2EE] py-2.5 text-sm text-[#98A2B3] hover:border-[#263BAA]/40 hover:text-[#475467]">
                 + Add persona
               </button>
             </div>
@@ -199,14 +199,14 @@ export function IcpEditor({ initialJson, action }: {
       ) : (
         <div>
           <textarea value={raw} onChange={(e) => setRaw(e.target.value)} rows={24}
-            className="w-full rounded-xl glass border-0 p-3 font-mono text-xs" />
+            className="w-full bg-white border border-[#DDE2EE] rounded-[10px] shadow-[0_1px_2px_rgba(16,24,40,.04)] p-3 font-mono text-xs" />
         </div>
       )}
 
-      {err && <p className="mt-3 text-sm text-red-600">{err}</p>}
+      {err && <p className="mt-3 text-sm text-[#B42318]">{err}</p>}
       <div className="mt-6 flex items-center gap-4">
         <button type="submit" disabled={saving}
-          className="rounded-lg bg-[#263BAA] px-5 py-2 text-sm font-semibold text-[#14204A] hover:bg-[#1D2E86] disabled:opacity-50">
+          className="rounded-[8px] bg-[#263BAA] px-5 py-2 text-sm font-semibold text-[#101828] hover:bg-[#1D2E86] disabled:opacity-50">
           {saving ? "Saving…" : "Save"}
         </button>
         {savedFlash && <span className="text-sm text-[#263BAA]">Saved ✓ — re-run matching to apply.</span>}

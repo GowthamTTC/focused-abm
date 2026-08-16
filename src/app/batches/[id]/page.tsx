@@ -13,14 +13,14 @@ import { getDailyEnrichUsage } from "@/modules/enrich/usage";
 import { UsageMeter } from "@/components/usage-meter";
 
 const BUCKET_LABEL: Record<string, string> = {
-  pitchable: "Pitchable", off_icp: "Off-ICP", peer_competitor: "Peers", excluded: "Excluded",
+  pitchable: "Matched", off_icp: "Off-target", peer_competitor: "Peers", excluded: "Excluded",
 };
 
 function StatusChip({ s }: { s: string }) {
-  const cls = s === "done" ? "bg-[#263BAA]/15 text-[#263BAA]"
-    : s === "running" ? "bg-[#B54708]/15 text-[#B54708]"
-    : s === "failed" ? "bg-red-500/15 text-red-600"
-    : "bg-[#263BAA]/10 text-[#46506E]/60";
+  const cls = s === "done" ? "bg-[#EEF1FC] text-[#263BAA]"
+    : s === "running" ? "bg-[#FDF6E7] text-[#B54708]"
+    : s === "failed" ? "bg-red-500/15 text-[#B42318]"
+    : "bg-[#EEF1FC] text-[#475467]";
   return <span className={`rounded px-1.5 py-0.5 text-[11px] ${cls}`}>{s}</span>;
 }
 
@@ -83,14 +83,14 @@ export default async function BatchPage(props: {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold">{batch.label}</h1>
-          <p className="tnum mt-1 text-[#46506E]/45">
+          <p className="tnum mt-1 text-[#98A2B3]">
             {batch.source} · {batch.createdAt.toISOString().slice(0, 10)} · {totalRows.toLocaleString()} rows
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {counts.unclassified > 0 && (
             <form action={runClassify.bind(null, id)}>
-              <button className="rounded-lg bg-[#263BAA] px-3 py-2 text-sm font-semibold text-[#14204A] shadow-[0_0_18px_rgba(38,59,170,.25)] hover:bg-[#1D2E86]">
+              <button className="rounded-[8px] bg-[#263BAA] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1D2E86]">
                 Run matching ({counts.unclassified.toLocaleString()})
               </button>
             </form>
@@ -98,21 +98,21 @@ export default async function BatchPage(props: {
           {counts.unclassified === 0 && classifiedRows > 0 && (
             <form action={runClassify.bind(null, id)}>
               <button title="Recompute scores, tiers and ranks — zero model calls."
-                className="rounded-lg border border-[#D0D5E4] px-3 py-2 text-sm text-[#46506E]/70 hover:bg-[#263BAA]/5">Re-rank</button>
+                className="rounded-[8px] border border-[#DDE2EE] px-3 py-2 text-sm text-[#475467] hover:bg-[#F4F6FB]">Re-rank</button>
             </form>
           )}
           {classifiedRows > 0 && (
             <form action={reclassifyAllAction.bind(null, id)}>
               <button title="Re-run Stage A on every row — use after ICP/prompt edits."
-                className="rounded-lg border border-[#D0D5E4] px-3 py-2 text-sm text-[#46506E]/70 hover:bg-[#263BAA]/5">Reclassify all</button>
+                className="rounded-[8px] border border-[#DDE2EE] px-3 py-2 text-sm text-[#475467] hover:bg-[#F4F6FB]">Reclassify all</button>
             </form>
           )}
           {counts.pitchable > 0 && (
             <form action={scanActivity.bind(null, id)} className="flex items-center gap-2">
               <input type="hidden" name="country" value={country} />
               <input name="n" type="number" defaultValue={50} min={1} max={200}
-                className="tnum w-16 rounded-lg glass border-0 px-2 py-1.5 text-xs" />
-              <button className="rounded-lg border border-[#D0D5E4] px-3 py-1.5 text-xs text-[#46506E]/70 hover:bg-[#263BAA]/5"
+                className="tnum w-16 rounded-[8px] bg-white border border-[#DDE2EE] rounded-[14px] shadow-[0_1px_2px_rgba(16,24,40,.04)] px-2 py-1.5 text-xs" />
+              <button className="rounded-[8px] border border-[#DDE2EE] px-3 py-1.5 text-xs text-[#475467] hover:bg-[#F4F6FB]"
                 title="Fetch recent-post dates only (no AI) so the activity filter has data — light seat touch, its own daily cap.">
                 Scan posts
               </button>
@@ -121,16 +121,16 @@ export default async function BatchPage(props: {
           {counts.pitchable > 0 && (
             <form action={selectTopN.bind(null, id)} className="flex items-center gap-2">
               <select name="n" defaultValue={defaultN}
-                className="rounded-lg glass-input px-2 py-2 text-sm">
+                className="rounded-[8px] bg-white border border-[#DDE2EE] rounded-[10px] px-2 py-2 text-sm">
                 {nOptions.map((o) => <option key={o} value={o}>{o}</option>)}
               </select>
               <button title="Queue the next N un-enriched people by rank — already-enriched people are never re-taken."
-                className="rounded-lg bg-[#263BAA] px-3 py-2 text-sm font-semibold text-[#14204A] hover:bg-[#1D2E86]">
+                className="rounded-[8px] bg-[#263BAA] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1D2E86]">
                 Select next N
               </button>
-              <Link href="/settings" className="text-xs text-[#46506E]/40 underline decoration-white/20 hover:text-[#46506E]/80"
+              <Link href="/settings" className="text-xs text-[#98A2B3] underline decoration-[#DDE2EE] hover:text-[#475467]"
                 title="Per-run enrichment cap — change in Settings">
-                guardrail {enrichLimit === "all" ? "off" : enrichLimit}
+                run limit {enrichLimit === "all" ? "off" : enrichLimit}
               </Link>
             </form>
           )}
@@ -138,12 +138,12 @@ export default async function BatchPage(props: {
             <form action={runDeepEnrich.bind(null, id)}>
               <button disabled={selQueued === 0}
                 title={selQueued === 0
-                  ? "Nothing queued — press Select next N to queue the next tranche of the pool."
+                  ? "Nothing queued — press Select next N to queue the next block of the pool."
                   : `Run enrichment for the ${selQueued} queued people`}
                 className={selQueued > 0
-                  ? "rounded-lg bg-[#263BAA] px-3 py-2 text-sm font-semibold text-[#14204A] hover:bg-[#1D2E86]"
-                  : "cursor-not-allowed rounded-lg border border-[#E4E7F2] bg-[#263BAA]/5 px-3 py-2 text-sm text-[#46506E]/30"}>
-                Deep enrich queued{selQueued > 0 ? ` (${selQueued})` : ""}
+                  ? "rounded-[8px] bg-[#263BAA] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1D2E86]"
+                  : "cursor-not-allowed rounded-[8px] border border-[#DDE2EE] bg-[#F4F6FB] px-3 py-2 text-sm text-[#98A2B3]"}>
+                Research queued{selQueued > 0 ? ` (${selQueued})` : ""}
               </button>
             </form>
           )}
@@ -161,7 +161,7 @@ export default async function BatchPage(props: {
           excluded: counts.excluded, unclassified: counts.unclassified,
         }} />
         <div className="mt-1.5 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 text-xs">
-          <span className="text-[#46506E]/35">One tick per connection, rank order — lime Top-N ignites as enrichment completes.</span>
+          <span className="text-[#98A2B3]">One tick per connection, rank order — lime Top-N ignites as research completes.</span>
           <span className="flex items-baseline gap-5">
             <UsageMeter used={usage.used} cap={usage.cap} resetsAt={usage.resetsAt} />
             {selTotal > 0 && (
@@ -172,12 +172,12 @@ export default async function BatchPage(props: {
       </div>
 
       {/* Tabs */}
-      <nav className="mt-6 flex gap-4 border-b border-[#E4E7F2] text-sm">
+      <nav className="mt-6 flex gap-4 border-b border-[#DDE2EE] text-sm">
         {(["pitchable", "enriched", "off_icp", "peer_competitor", "excluded"] as const).map((v) => (
           <Link key={v} href={`/batches/${id}?view=${v}`}
             className={`-mb-px border-b-2 px-1 pb-2 ${view === v
               ? "border-[#263BAA] font-medium text-[#263BAA]"
-              : "border-transparent text-[#46506E]/55 hover:text-[#14204A]"}`}>
+              : "border-transparent text-[#98A2B3] hover:text-[#101828]"}`}>
             {v === "enriched"
               ? `Batch (${selDone} done)`
               : `${BUCKET_LABEL[v]} (${(counts[v] ?? 0).toLocaleString()})`}
@@ -188,19 +188,19 @@ export default async function BatchPage(props: {
       {view === "enriched" ? (
         /* ── Two-pane enrichment view (design 1e) ── */
         rows.length === 0 ? (
-          <div className="mt-6 rounded-2xl border border-dashed border-[#E4E7F2] p-10 text-center text-sm text-[#46506E]/55">
-            Select top N in the Pitchable tab to build a batch.
+          <div className="mt-6 rounded-[14px] border border-dashed border-[#DDE2EE] p-10 text-center text-sm text-[#98A2B3]">
+            Select top N in the Matched tab to build a batch.
           </div>
         ) : (
           <div className="mt-6 flex flex-col gap-5 lg:flex-row">
-            <ul className="pane-scroll w-full shrink-0 self-start rounded-2xl glass border-0 lg:sticky lg:top-0 lg:max-h-[calc(100dvh-14rem)] lg:w-72 lg:">
+            <ul className="pane-scroll w-full shrink-0 self-start bg-white border border-[#DDE2EE] rounded-[14px] shadow-[0_1px_2px_rgba(16,24,40,.04)] lg:sticky lg:top-0 lg:max-h-[calc(100dvh-14rem)] lg:w-72 lg:">
               {rows.map((c, i) => (
-                <li key={c.id} className={`border-b border-[#263BAA]/8 last:border-0 ${person?.id === c.id ? "border-l-2 border-l-[#263BAA] bg-[#263BAA]/5" : ""}`}>
+                <li key={c.id} className={`border-b border-[#263BAA]/8 last:${person?.id === c.id ? "border-l-2 border-l-[#263BAA] bg-[#263BAA]/5" : ""}`}>
                   <Link href={`/batches/${id}?view=enriched&p=${c.id}`}
-                    className="flex items-center gap-2.5 px-3 py-2.5 text-sm hover:bg-[#263BAA]/5">
-                    <span className="tnum w-5 text-[#46506E]/35">{i + 1}</span>
+                    className="flex items-center gap-2.5 px-3 py-2.5 text-sm hover:bg-[#F4F6FB]">
+                    <span className="tnum w-5 text-[#98A2B3]">{i + 1}</span>
                     <span className="min-w-0 flex-1 truncate font-medium">{c.firstName} {c.lastName}</span>
-                    {c.flag && <span className="rounded border border-red-500/40 px-1 text-[10px] text-red-600">⚑</span>}
+                    {c.flag && <span className="rounded border border-[#FDA29B] px-1 text-[10px] text-[#B42318]">⚑</span>}
                     <StatusChip s={c.enrichStatus} />
                   </Link>
                 </li>
@@ -208,7 +208,7 @@ export default async function BatchPage(props: {
             </ul>
 
             {person && (
-              <div className="min-w-0 flex-1 rounded-2xl glass border-0 p-5">
+              <div className="min-w-0 flex-1 bg-white border border-[#DDE2EE] rounded-[14px] shadow-[0_1px_2px_rgba(16,24,40,.04)] p-5">
                 <div className="flex flex-wrap items-center gap-3">
                   <h2 className="text-xl font-semibold">{person.firstName} {person.lastName}</h2>
                   {person.linkedinUrl && (
@@ -220,14 +220,14 @@ export default async function BatchPage(props: {
                 </div>
 
                 {/* Stage A */}
-                <h3 className="mt-6 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#46506E]/45">
+                <h3 className="mt-6 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#98A2B3]">
                   <span className="h-2.5 w-2.5 rounded-sm bg-white/25" /> Stage A — matched from metadata
                 </h3>
-                <div className="mt-2 grid grid-cols-1 gap-x-8 gap-y-3 rounded-xl glass border-0 p-4 text-sm md:grid-cols-2">
-                  <div><p className="text-xs text-[#46506E]/45">Company</p><p className="mt-0.5">{person.companyRaw ?? "—"}</p></div>
-                  <div><p className="text-xs text-[#46506E]/45">Position</p><p className="mt-0.5">{person.positionRaw ?? person.headlineRaw ?? "—"}</p></div>
-                  <div><p className="text-xs text-[#46506E]/45">Provisional service</p><p className="tnum mt-0.5">{person.serviceSlug ?? "—"}</p></div>
-                  <div><p className="text-xs text-[#46506E]/45">Why</p><p className="mt-0.5 text-[#46506E]/80">{person.matchWhy ?? "—"}</p></div>
+                <div className="mt-2 grid grid-cols-1 gap-x-8 gap-y-3 bg-white border border-[#DDE2EE] rounded-[10px] shadow-[0_1px_2px_rgba(16,24,40,.04)] p-4 text-sm md:grid-cols-2">
+                  <div><p className="text-xs text-[#98A2B3]">Company</p><p className="mt-0.5">{person.companyRaw ?? "—"}</p></div>
+                  <div><p className="text-xs text-[#98A2B3]">Position</p><p className="mt-0.5">{person.positionRaw ?? person.headlineRaw ?? "—"}</p></div>
+                  <div><p className="text-xs text-[#98A2B3]">Provisional service</p><p className="tnum mt-0.5">{person.serviceSlug ?? "—"}</p></div>
+                  <div><p className="text-xs text-[#98A2B3]">Why</p><p className="mt-0.5 text-[#475467]">{person.matchWhy ?? "—"}</p></div>
                 </div>
 
                 {/* Stage B */}
@@ -235,26 +235,26 @@ export default async function BatchPage(props: {
                   <span className="h-2.5 w-2.5 rounded-sm bg-[#B54708]" /> Stage B — read from profile
                 </h3>
                 {person.enrichStatus === "failed" ? (
-                  <div className="mt-2 rounded-xl border border-red-500/25 bg-red-500/10 p-4 text-sm">
-                    <p className="text-red-600">{person.enrichError ?? "Enrichment failed."}</p>
+                  <div className="mt-2 rounded-[10px] border border-[#FDA29B] bg-red-500/10 p-4 text-sm">
+                    <p className="text-[#B42318]">{person.enrichError ?? "Research failed."}</p>
                     <form action={retryPerson.bind(null, id, person.id)} className="mt-3">
-                      <button className="rounded-lg border border-red-500/40 px-3 py-1.5 text-xs text-red-600 hover:bg-red-500/15">
+                      <button className="rounded-[8px] border border-[#FDA29B] px-3 py-1.5 text-xs text-[#B42318] hover:bg-red-500/15">
                         Retry this person
                       </button>
                     </form>
                   </div>
                 ) : person.enrichStatus !== "done" ? (
-                  <p className="mt-2 rounded-xl glass border-0 p-4 text-sm text-[#46506E]/55">
-                    {person.enrichStatus === "running" ? "Reading profile now…" : "Queued — press Deep enrich to run."}
+                  <p className="mt-2 bg-white border border-[#DDE2EE] rounded-[10px] shadow-[0_1px_2px_rgba(16,24,40,.04)] p-4 text-sm text-[#98A2B3]">
+                    {person.enrichStatus === "running" ? "Reading profile now…" : "Queued — press Research to run."}
                   </p>
                 ) : (
-                  <div className="mt-2 space-y-5 rounded-xl border border-[#B54708]/15 bg-[#B54708]/[.04] p-4 text-sm">
+                  <div className="mt-2 space-y-5 rounded-[10px] border border-[#B54708]/15 bg-[#B54708]/[.04] p-4 text-sm">
                     <div>
-                      <p className="text-xs text-[#B54708]/70">About — summary</p>
+                      <p className="text-xs text-[#B54708]">About — summary</p>
                       <p className="mt-1 text-[#46506E]/85">{person.aboutSummary ?? "—"}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-[#B54708]/70">
+                      <p className="text-xs text-[#B54708]">
                         Posts{" "}
                         {(person.activityUrl || person.linkedinUrl) && (
                           <a href={person.activityUrl ?? `${person.linkedinUrl?.replace(/\/$/, "")}/recent-activity/all/`}
@@ -266,7 +266,7 @@ export default async function BatchPage(props: {
                         : <p className="mt-1 text-[#B54708]">No original posts found — summary generated from profile only.</p>}
                     </div>
                     <div>
-                      <p className="text-xs text-[#B54708]/70">
+                      <p className="text-xs text-[#B54708]">
                         Pain points{" "}
                         {person.painInferred && (
                           <span className="rounded border border-[#B54708]/50 px-1.5 py-px text-[10px] text-[#B54708]">inferred</span>
@@ -275,28 +275,28 @@ export default async function BatchPage(props: {
                       <p className="mt-1 text-[#46506E]/85">{person.painPoints ?? "—"}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-[#B54708]/70">Service to pitch</p>
+                      <p className="text-xs text-[#B54708]">Service to pitch</p>
                       <p className="mt-1">
                         {person.serviceConfirmed && person.serviceConfirmed !== person.serviceSlug ? (
-                          <><span className="tnum text-[#46506E]/40 line-through">{person.serviceSlug}</span>
-                            <span className="mx-1.5 text-[#46506E]/40">→</span>
-                            <span className="tnum text-[#14204A]">{person.serviceConfirmed}</span></>
+                          <><span className="tnum text-[#98A2B3] line-through">{person.serviceSlug}</span>
+                            <span className="mx-1.5 text-[#98A2B3]">→</span>
+                            <span className="tnum text-[#101828]">{person.serviceConfirmed}</span></>
                         ) : (
                           <span className="tnum">{person.serviceConfirmed ?? person.serviceSlug ?? "—"}</span>
                         )}
-                        {person.correctionReason && <span className="text-[#46506E]/60"> — {person.correctionReason}</span>}
+                        {person.correctionReason && <span className="text-[#475467]"> — {person.correctionReason}</span>}
                       </p>
                       {person.flag && (
                         <p className="mt-1.5">
-                          <span className="rounded border border-red-400/50 px-1.5 py-px text-[10px] text-red-600">⚑ flag</span>
-                          <span className="ml-2 text-[#46506E]/70">{person.flag}</span>
+                          <span className="rounded border border-red-400/50 px-1.5 py-px text-[10px] text-[#B42318]">⚑ flag</span>
+                          <span className="ml-2 text-[#475467]">{person.flag}</span>
                         </p>
                       )}
                     </div>
                     {person.outreachMessage && (
                       <div>
-                        <p className="text-xs text-[#B54708]/70">Outreach message</p>
-                        <div className="mt-1.5 rounded-xl glass border-0 p-4 text-[15px] leading-relaxed text-[#14204A]">
+                        <p className="text-xs text-[#B54708]">Outreach message</p>
+                        <div className="mt-1.5 bg-white border border-[#DDE2EE] rounded-[10px] shadow-[0_1px_2px_rgba(16,24,40,.04)] p-4 text-[15px] leading-relaxed text-[#101828]">
                           {person.outreachMessage}
                         </div>
                         <div className="mt-2.5 flex items-center gap-3">
@@ -316,21 +316,21 @@ export default async function BatchPage(props: {
           </div>
         )
       ) : rows.length === 0 ? (
-        <div className="mt-6 rounded-2xl border border-dashed border-[#E4E7F2] p-12 text-center">
+        <div className="mt-6 rounded-[14px] border border-dashed border-[#DDE2EE] p-12 text-center">
           {view === "pitchable" && counts.unclassified > 0 ? (
             <>
-              <p className="text-[#14204A]">Run matching to classify {counts.unclassified.toLocaleString()} connections into buckets.</p>
-              <p className="mt-1 text-sm text-[#46506E]/45">Rows appear live as they classify — no skeleton table.</p>
+              <p className="text-[#101828]">Run matching to classify {counts.unclassified.toLocaleString()} connections into buckets.</p>
+              <p className="mt-1 text-sm text-[#98A2B3]">Rows appear live as they classify — no skeleton table.</p>
             </>
           ) : (
-            <p className="text-sm text-[#46506E]/55">Nothing here yet.</p>
+            <p className="text-sm text-[#98A2B3]">Nothing here yet.</p>
           )}
         </div>
       ) : (
         /* ── Bucket tables ── */
-        <div className="mt-4 overflow-x-auto rounded-2xl glass border-0">
+        <div className="mt-4 overflow-x-auto bg-white border border-[#DDE2EE] rounded-[14px] shadow-[0_1px_2px_rgba(16,24,40,.04)]">
           <table className="w-full text-left text-sm">
-            <thead className="bg-[#263BAA]/5 text-xs uppercase tracking-wide text-[#46506E]/45">
+            <thead className="bg-[#F4F6FB] text-xs uppercase tracking-wide text-[#98A2B3]">
               <tr>
                 {view === "pitchable" ? (
                   <><th className="px-3 py-2.5">Rank</th><th className="px-3 py-2.5">Tier</th><th className="px-3 py-2.5">Name</th>
@@ -344,63 +344,63 @@ export default async function BatchPage(props: {
                 )}
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#EAECF5] align-top">
+            <tbody className="divide-y divide-[#EEF1F8] align-top">
               {rows.map((c) => {
                 const b = c.scoreBreakdownJson;
                 return (
                   <tr key={c.id} className={c.selectedForEnrich && view === "pitchable"
                     ? "border-l-2 border-l-[#263BAA] bg-[#263BAA]/5" : ""}>
                     {view === "pitchable" ? (<>
-                      <td className="tnum px-3 py-2.5 text-[#46506E]/40">{c.rank ?? "—"}</td>
+                      <td className="tnum px-3 py-2.5 text-[#98A2B3]">{c.rank ?? "—"}</td>
                       <td className="px-3 py-2.5">
                         {c.tier && (
                           <span className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${
-                            c.tier === 1 ? "bg-[#263BAA]/20 text-[#263BAA]" : "bg-[#263BAA]/10 text-[#46506E]/60"}`}>
+                            c.tier === 1 ? "bg-[#EEF1FC] text-[#263BAA]" : "bg-[#EEF1FC] text-[#475467]"}`}>
                             T{c.tier}
                           </span>
                         )}
                       </td>
                       <td className="px-3 py-2.5 font-medium">
                         {c.linkedinUrl
-                          ? <a href={c.linkedinUrl} target="_blank" className="underline decoration-white/20 hover:decoration-[#263BAA]">{c.firstName} {c.lastName}</a>
+                          ? <a href={c.linkedinUrl} target="_blank" className="underline decoration-[#DDE2EE] hover:decoration-[#263BAA]">{c.firstName} {c.lastName}</a>
                           : <>{c.firstName} {c.lastName}</>}
                       </td>
                       <td className="px-3 py-2.5">{c.companyRaw}</td>
                       <td className="px-3 py-2.5">{c.positionRaw ?? c.headlineRaw}</td>
                       <td className="px-3 py-2.5">
-                        {c.serviceSlug && <span className="rounded bg-[#263BAA]/10 px-1.5 py-0.5 text-[11px] text-[#46506E]/75">{c.serviceSlug}</span>}
+                        {c.serviceSlug && <span className="rounded bg-[#EEF1FC] px-1.5 py-0.5 text-[11px] text-[#475467]">{c.serviceSlug}</span>}
                       </td>
-                      <td className="relative max-w-sm px-3 py-2.5 text-xs text-[#46506E]/55">
+                      <td className="relative max-w-sm px-3 py-2.5 text-xs text-[#98A2B3]">
                         <div className="group">
                           <span className="line-clamp-2">{c.matchWhy}</span>
-                          <div className="pointer-events-none absolute left-0 top-full z-20 mt-1 hidden w-[26rem] max-w-[80vw] rounded-xl glass border-0/95 p-3.5 shadow-2xl backdrop-blur group-hover:block">
-                            <p className="text-sm text-[#14204A]">{c.matchWhy}</p>
+                          <div className="pointer-events-none absolute left-0 top-full z-20 mt-1 hidden w-[26rem] max-w-[80vw] bg-white border border-[#DDE2EE] rounded-[10px] shadow-[0_1px_2px_rgba(16,24,40,.04)]/95 p-3.5 shadow-[0_12px_32px_rgba(16,24,40,.14)]  group-hover:block">
+                            <p className="text-sm text-[#101828]">{c.matchWhy}</p>
                             {b && (
                               <p className="tnum mt-2 text-[#46506E]/65">
                                 seniority {b.seniority} · function {b.function_fit} · confidence {b.confidence} · founder {b.founder_bonus} · company {b.company_present}
                                 {b.service_bonus ? ` · service ${b.service_bonus}` : ""} = {b.total}{c.tier ? ` → T${c.tier}` : ""}
                               </p>
                             )}
-                            <span className="mt-2 inline-block rounded border border-[#D0D5E4] px-1.5 py-0.5 text-[10px] text-[#46506E]/60">
+                            <span className="mt-2 inline-block rounded border border-[#DDE2EE] px-1.5 py-0.5 text-[10px] text-[#475467]">
                               {c.matchMethod === "rule" ? "rule pass" : c.matchMethod === "manual" ? "manual" : "model pass"}
                             </span>
                           </div>
                         </div>
                       </td>
-                      <td className="tnum px-3 py-2.5 text-right text-[#46506E]/70">{c.score ?? "—"}</td>
+                      <td className="tnum px-3 py-2.5 text-right text-[#475467]">{c.score ?? "—"}</td>
                     </>) : (<>
                       <td className="px-3 py-2.5 font-medium">
                         {c.linkedinUrl
-                          ? <a href={c.linkedinUrl} target="_blank" className="underline decoration-white/20 hover:decoration-[#263BAA]">{c.firstName} {c.lastName}</a>
+                          ? <a href={c.linkedinUrl} target="_blank" className="underline decoration-[#DDE2EE] hover:decoration-[#263BAA]">{c.firstName} {c.lastName}</a>
                           : <>{c.firstName} {c.lastName}</>}
                       </td>
                       <td className="px-3 py-2.5">{c.companyRaw}</td>
                       <td className="px-3 py-2.5">{c.positionRaw ?? c.headlineRaw}</td>
-                      <td className="max-w-md px-3 py-2.5 text-xs text-[#46506E]/55">{c.matchWhy}</td>
+                      <td className="max-w-md px-3 py-2.5 text-xs text-[#98A2B3]">{c.matchWhy}</td>
                       <td className="px-3 py-2.5 text-right">
                         {(view === "off_icp" || view === "peer_competitor") && (
                           <form action={moveToPitchable.bind(null, id, c.id)}>
-                            <button className="whitespace-nowrap text-xs text-[#46506E]/35 hover:text-[#263BAA]">
+                            <button className="whitespace-nowrap text-xs text-[#98A2B3] hover:text-[#263BAA]">
                               Move to pitchable
                             </button>
                           </form>

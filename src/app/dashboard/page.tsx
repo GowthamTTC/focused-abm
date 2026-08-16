@@ -50,8 +50,8 @@ export default async function DashboardPage({ searchParams }: {
   const events: Ev[] = [
     ...recentJobs.map((j): Ev => ({
       at: j.updatedAt, icon: j.status === "failed" ? "✗" : j.status === "done" ? "✓" : "◌",
-      tone: j.status === "failed" ? "text-red-600" : "text-[#263BAA]",
-      text: `${j.kind === "classify" ? "Matching" : j.kind === "deep_enrich" ? "Enrichment" : j.kind === "activity_scan" ? "Post scan" : j.kind} · ${j.status} · ${j.progress}/${j.total}`,
+      tone: j.status === "failed" ? "text-[#B42318]" : "text-[#263BAA]",
+      text: `${j.kind === "classify" ? "Matching" : j.kind === "deep_enrich" ? "Research" : j.kind === "activity_scan" ? "Post scan" : j.kind} · ${j.status} · ${j.progress}/${j.total}`,
     })),
     ...enriched.filter((p) => p.sentAt).slice(0, 4).map((p): Ev => ({
       at: p.sentAt!, icon: "✓", tone: "text-[#263BAA]", text: `${p.firstName} ${p.lastName} marked sent`,
@@ -59,11 +59,11 @@ export default async function DashboardPage({ searchParams }: {
   ].sort((a, b) => b.at.getTime() - a.at.getTime()).slice(0, 6);
 
   const stats: [n: number, label: string, href: string | null, tone?: string][] = [
-    [readyCount, "ready to send", `/send-queue?c=${batch.id}`],
-    [flagCount, "needs decision", `/flag-inbox?c=${batch.id}`, flagCount > 0 ? "text-[#B54708]" : undefined],
-    [sentCount, "sent", `/send-queue?c=${batch.id}`],
+    [readyCount, "ready to send", `/review?tab=ready&c=${batch.id}`],
+    [flagCount, "needs decision", `/review?tab=decisions&c=${batch.id}`, flagCount > 0 ? "text-[#B54708]" : undefined],
+    [sentCount, "sent", `/review?tab=ready&c=${batch.id}`],
     [activeWeek, "active this week", null, "text-[#263BAA]"],
-    [selAgg?.failed ?? 0, "failed", (selAgg?.failed ?? 0) > 0 ? `/send-queue?c=${batch.id}` : null, (selAgg?.failed ?? 0) > 0 ? "text-red-600" : undefined],
+    [selAgg?.failed ?? 0, "failed", (selAgg?.failed ?? 0) > 0 ? `/review?tab=ready&c=${batch.id}` : null, (selAgg?.failed ?? 0) > 0 ? "text-[#B42318]" : undefined],
   ];
 
   return (
@@ -73,20 +73,20 @@ export default async function DashboardPage({ searchParams }: {
         <CampaignSwitcher batches={batches} batch={batch} basePath="/dashboard" totalRows={totalRows} />
       </div>
 
-      {/* NUMBERS — the work lives in Send Queue and Flag Inbox */}
-      <section className="glass mt-4 rounded-2xl border-0 p-5">
+      {/* NUMBERS — the work lives in Ready to send and Decisions */}
+      <section className="bg-white border border-[#DDE2EE] rounded-[14px] shadow-[0_1px_2px_rgba(16,24,40,.04)] mt-4 rounded-[14px] p-5">
         <div className="flex flex-wrap items-center gap-x-9 gap-y-4">
           {stats.map(([n, label, href, tone]) => {
             const body = (
               <>
-                <p className={`tnum text-[26px] leading-8 ${tone ?? "text-[#14204A]"}`}>{n.toLocaleString()}</p>
-                <p className="mt-0.5 text-[10px] uppercase tracking-wider text-[#46506E]/40">
+                <p className={`tnum text-[26px] leading-8 ${tone ?? "text-[#101828]"}`}>{n.toLocaleString()}</p>
+                <p className="mt-0.5 text-[10px] uppercase tracking-wider text-[#98A2B3]">
                   {label}{href && <span className="ml-1 text-[#263BAA]/60">→</span>}
                 </p>
               </>
             );
             return href
-              ? <Link key={label} href={href} className="group rounded-lg px-1 transition hover:bg-[#263BAA]/5">{body}</Link>
+              ? <Link key={label} href={href} className="group rounded-[8px] px-1 transition hover:bg-[#F4F6FB]">{body}</Link>
               : <div key={label} className="px-1">{body}</div>;
           })}
           <div className="min-w-52"><UsageMeter used={usage.used} cap={usage.cap} resetsAt={usage.resetsAt} bar /></div>
@@ -94,30 +94,30 @@ export default async function DashboardPage({ searchParams }: {
             <form action={runTodaysTranche.bind(null, batch.id)}>
               <button disabled={capReached}
                 className={capReached
-                  ? "cursor-not-allowed rounded-xl bg-[#263BAA]/5 px-5 py-3 text-sm font-semibold text-[#46506E]/30"
-                  : "rounded-xl bg-[#263BAA] px-5 py-3 text-sm font-semibold text-white shadow-[0_0_28px_rgba(38,59,170,.35)] hover:bg-[#1D2E86]"}>
-                Run today's tranche
+                  ? "cursor-not-allowed rounded-[10px] bg-[#F4F6FB] px-5 py-3 text-sm font-semibold text-[#98A2B3]"
+                  : "rounded-[10px] bg-[#263BAA] px-5 py-3 text-sm font-semibold text-white hover:bg-[#1D2E86]"}>
+                Research next 30
               </button>
             </form>
-            <p className="tnum mt-1.5 text-[11px] text-[#46506E]/35">
-              {capReached ? "daily budget spent — resumes at reset" : "selects next 30 · enriches within today's budget"}
+            <p className="tnum mt-1.5 text-[11px] text-[#98A2B3]">
+              {capReached ? "today's run limit is spent — resumes at reset" : "researches the next 30 · within today's run limit"}
             </p>
           </div>
         </div>
       </section>
 
       {/* FUNNEL */}
-      <section className="glass mt-4 rounded-2xl border-0 p-5">
+      <section className="bg-white border border-[#DDE2EE] rounded-[14px] shadow-[0_1px_2px_rgba(16,24,40,.04)] mt-4 rounded-[14px] p-5">
         <div className="flex flex-wrap items-baseline gap-x-8 gap-y-2">
-          {([["Imported", totalRows], ["Pitchable", counts.pitchable], ["Enriched", selAgg?.done ?? 0], ["Messaged", sentCount]] as const)
+          {([["Imported", totalRows], ["Matched", counts.pitchable], ["Researched", selAgg?.done ?? 0], ["Messaged", sentCount]] as const)
             .map(([label, n], i) => (
               <span key={label} className="flex items-baseline gap-2">
-                {i > 0 && <span className="text-[#46506E]/20">→</span>}
+                {i > 0 && <span className="text-[#98A2B3]">→</span>}
                 <span className="tnum text-xl">{n.toLocaleString()}</span>
-                <span className="text-xs text-[#46506E]/45">{label}</span>
+                <span className="text-xs text-[#98A2B3]">{label}</span>
               </span>
             ))}
-          <span className="flex items-baseline gap-2"><span className="text-[#46506E]/20">→</span>
+          <span className="flex items-baseline gap-2"><span className="text-[#98A2B3]">→</span>
             <Soon tip="Coming in a later release — replies are marked manually for now."><span className="tnum text-xl">—</span><span className="text-xs">Replied</span></Soon>
           </span>
           <span className="tnum ml-auto text-sm text-[#263BAA]">T1 remaining {t1Remaining?.n ?? 0}</span>
@@ -127,40 +127,40 @@ export default async function DashboardPage({ searchParams }: {
           pitchable: Math.max(0, counts.pitchable - (selAgg?.total ?? 0)),
           peers: counts.peer_competitor, offIcp: counts.off_icp, excluded: counts.excluded, unclassified: counts.unclassified,
         }} />
-        <p className="mt-1.5 text-xs text-[#46506E]/30">one tick per person, rank order — indigo Top-N ignites as enrichment completes</p>
+        <p className="mt-1.5 text-xs text-[#98A2B3]">one tick per person, rank order — indigo Top-N ignites as research completes</p>
       </section>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_320px]">
         {/* ACTIVITY FEED */}
-        <section className="glass rounded-2xl border-0">
-          <ul className="divide-y divide-[#EAECF5]">
+        <section className="bg-white border border-[#DDE2EE] rounded-[14px] shadow-[0_1px_2px_rgba(16,24,40,.04)]">
+          <ul className="divide-y divide-[#EEF1F8]">
             {events.map((e, i) => (
               <li key={i} className="flex items-center gap-3 px-4 py-2.5 text-sm">
-                <span className={e.tone ?? "text-[#46506E]/40"}>{e.icon}</span>
-                <span className="min-w-0 flex-1 truncate text-[#46506E]/75">{e.text}</span>
-                <span className="tnum shrink-0 text-xs text-[#46506E]/30">{ago(e.at)}</span>
+                <span className={e.tone ?? "text-[#98A2B3]"}>{e.icon}</span>
+                <span className="min-w-0 flex-1 truncate text-[#475467]">{e.text}</span>
+                <span className="tnum shrink-0 text-xs text-[#98A2B3]">{ago(e.at)}</span>
               </li>
             ))}
-            {events.length === 0 && <li className="px-4 py-3 text-sm text-[#46506E]/40">No activity yet.</li>}
+            {events.length === 0 && <li className="px-4 py-3 text-sm text-[#98A2B3]">No activity yet.</li>}
           </ul>
         </section>
 
         <div className="space-y-4 self-start">
           {seat && (
-            <div className="glass flex items-center justify-between rounded-2xl border-0 p-4 text-sm">
+            <div className="bg-white border border-[#DDE2EE] rounded-[14px] shadow-[0_1px_2px_rgba(16,24,40,.04)] flex items-center justify-between rounded-[14px] p-4 text-sm">
               <span className="tnum truncate">{seat.displayName ?? seat.unipileAccountId}</span>
               <span className="flex items-center gap-2">
-                <span className={`rounded px-2 py-0.5 text-xs ${seat.status === "operational" ? "bg-[#263BAA]/15 text-[#263BAA]" : "bg-[#B54708]/15 text-[#B54708]"}`}>
+                <span className={`rounded px-2 py-0.5 text-xs ${seat.status === "operational" ? "bg-[#EEF1FC] text-[#263BAA]" : "bg-[#FDF6E7] text-[#B54708]"}`}>
                   {seat.status === "operational" ? "operational" : "needs re-auth"}
                 </span>
                 {seat.status !== "operational" && (
-                  <form action={startConnect}><button className="rounded-lg border border-[#D0D5E4] px-2.5 py-1 text-xs">Reconnect</button></form>
+                  <form action={startConnect}><button className="rounded-[8px] border border-[#DDE2EE] px-2.5 py-1 text-xs">Reconnect</button></form>
                 )}
               </span>
             </div>
           )}
           {capReached && (selAgg?.queued ?? 0) > 0 && (
-            <div className="tnum glass rounded-2xl border-0 p-4 text-sm text-[#46506E]/60">
+            <div className="tnum bg-white border border-[#DDE2EE] rounded-[14px] shadow-[0_1px_2px_rgba(16,24,40,.04)] p-4 text-sm text-[#475467]">
               {selAgg.queued} queued — waiting for daily reset ({resetsIn(usage.resetsAt)})
             </div>
           )}

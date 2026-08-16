@@ -10,7 +10,7 @@ export function CopyButton({ text, label = "Copy message" }: { text: string; lab
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
       }}
-      className="rounded-lg border border-[#D0D5E4] bg-[#263BAA]/10 px-3 py-1.5 text-sm text-[#14204A] hover:bg-[#263BAA]/15">
+      className="rounded-[8px] border border-[#DDE2EE] bg-[#EEF1FC] px-3 py-1.5 text-sm text-[#101828] hover:bg-[#EEF1FC]">
       {copied ? "Copied ✓" : label}
     </button>
   );

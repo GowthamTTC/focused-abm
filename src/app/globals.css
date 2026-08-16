@@ -1,101 +1,147 @@
-@import "tailwindcss";
+/* Focused ABM — Indigo Light tokens
+   Replace the existing :root block in src/app/globals.css with this file's contents.
+   Keep the @font-face / next/font wiring already in the project. */
 
-/* Focused ABM v1 — carbon + lime design system (from Focused_ABM_Glass_dc) */
 :root {
-  color-scheme: dark;
-  --bg: #14171C;
-  --panel: #FFFFFF;
-  --surface2: #F2F4FA;
-  --ink: #1B2559;
-  --lime: #263BAA;
-  --lime-hover: #1D2E86;
+  color-scheme: light;
+
+  /* surfaces and lines */
+  --bg: #F6F7FB;
+  --surface: #FFFFFF;
+  --surface-2: #EEF1F8;
+  --surface-3: #F4F6FB;
+  --rule: #DDE2EE;
+  --rule-soft: #EEF1F8;
+
+  /* text — three fixed values, never opacity */
+  --ink: #101828;
+  --ink-2: #475467;
+  --ink-muted: #98A2B3;
+
+  /* brand */
+  --indigo-50: #EEF1FC;
+  --indigo-100: #DEE4F8;
+  --indigo-500: #4358D4;
+  --indigo-600: #263BAA;
+  --indigo-700: #1D2E86;
+
+  /* semantic */
+  --stage-a-fill: #FAFBFE;
+  --stage-b-fill: #FEFBF3;
+  --stage-b-head: #FDF6E7;
+  --stage-b-line: #E7CE96;
+  --amber: #B54708;
+  --green: #067647;
+  --green-bg: #ECFDF3;
+  --red: #B42318;
+  --red-bg: #FFFBFA;
+  --red-line: #FDA29B;
+
+  /* ledger strip, rank order */
+  --ledger-top-done: #263BAA;
+  --ledger-top-pending: rgba(38, 59, 170, 0.45);
+  --ledger-pitchable: #8B95AE;
+  --ledger-peers: #667394;
+  --ledger-off-target: #98A2B3;
+  --ledger-excluded: #C6CDDE;
+
+  /* geometry */
+  --r-card: 14px;
+  --r-control: 10px;
+  --r-nav: 8px;
+  --r-chip: 4px;
+  --r-modal: 16px;
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04);
+  --shadow-menu: 0 8px 24px rgba(16, 24, 40, 0.08);
+  --shadow-modal: 0 24px 60px rgba(16, 24, 40, 0.18);
+  --motion: 130ms ease;
 }
 
 body {
   background: var(--bg);
   color: var(--ink);
-  font-family: var(--font-body), system-ui, sans-serif;
-  @apply antialiased;
+  font-family: var(--font-body), 'IBM Plex Sans', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-h1, h2, h3 { font-family: var(--font-display), var(--font-body), sans-serif; letter-spacing: -0.01em; }
+a:not([class]) { color: var(--indigo-600); text-decoration: none; }
+a:not([class]):hover { color: var(--indigo-700); }
 
-/* bare links pick up the accent; classed links style themselves */
-a:not([class]) { color: var(--lime); }
-a:not([class]):hover { color: var(--lime-hover); }
-
-/* form controls on carbon */
 input, select, textarea {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--surface);
+  border: 1px solid var(--rule);
   color: var(--ink);
+  border-radius: var(--r-control);
 }
-input::placeholder, textarea::placeholder { color: rgba(232, 234, 240, 0.35); }
+input::placeholder, textarea::placeholder { color: var(--ink-muted); }
 
-/* panel shadow rides on the 18px-radius cards */
-[class*="rounded-[18px]"] {
-  box-shadow: 16px 16px 36px rgba(0, 0, 0, 0.55), -8px -8px 22px rgba(255, 255, 255, 0.03);
+:focus-visible {
+  outline: 2px solid var(--indigo-600);
+  outline-offset: 2px;
+  border-radius: var(--r-nav);
+}
+::selection { background: rgba(38, 59, 170, 0.14); }
+
+/* panels: what class="glass" becomes */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-card);
+}
+.menu {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-menu);
 }
 
-/* data cells in mono where marked */
-.tnum { font-family: var(--font-mono), ui-monospace, monospace; font-size: 0.8rem; }
+kbd {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: var(--r-chip);
+  background: var(--surface-3);
+  color: var(--ink-2);
+}
 
-/* v1.1 component-sheet rules (design 1i) */
-:focus-visible { outline: 2px solid var(--lime); outline-offset: 2px; border-radius: 8px; }
-::selection { background: rgba(182, 255, 46, 0.25); }
+.tnum {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
 
-/* Fixed app frame — the app owns the viewport; content scrolls internally */
-html, body { height: 100%; }
-* { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.15) transparent; }
+.pane-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+.pane-scroll::-webkit-scrollbar-thumb {
+  background: rgba(38, 59, 170, 0.22);
+  border-radius: 99px;
+  border: 3px solid var(--bg);
+}
+.pane-scroll::-webkit-scrollbar-track { background: transparent; }
 
-/* Indeterminate job banner (sync — total unknown until the last page) */
+/* DELETE from globals.css when pasting this in:
+   · --lime and --lime-hover aliases (they hold indigo and mislead every reader)
+   · color-scheme: dark
+   · the radial-gradient body background
+   · the whole glass block: .glass, .glass-strong, .glass-input
+   · the rounded-[18px] shadow rule and .callout-mist
+   · the duplicate ::selection and focus rules further down the file
+   KEEP .pane-scroll and .banner-indeterminate. */
+
+
+body { background: var(--bg); color: var(--ink); }
+
+.tnum { font-variant-numeric: tabular-nums; font-family: var(--font-mono, ui-monospace, monospace); }
+
 @keyframes banner-slide { 0% { left: -33%; } 100% { left: 100%; } }
 .banner-indeterminate { animation: banner-slide 1.4s ease-in-out infinite; }
 
-
-/* ── Professional polish ── */
-* { -webkit-font-smoothing: antialiased; }
-input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible {
-  outline: 2px solid rgba(38, 59, 170, 0.35);
-  outline-offset: 1px;
-}
-::selection { background: rgba(38, 59, 170, 0.15); }
-/* Vanilla Mist, demoted to what it is good at: warm highlight strips */
-.callout-mist { background: #FFF8E6; border: 1px solid #F2E4BE; }
-
-
-/* ══ Glassmorphism system ══ */
-html, body { height: 100%; overflow: hidden; }
-body {
-  background:
-    radial-gradient(900px 600px at 12% -8%, rgba(38, 59, 170, 0.10), transparent 60%),
-    radial-gradient(800px 520px at 95% 8%, rgba(255, 226, 148, 0.16), transparent 55%),
-    radial-gradient(700px 700px at 55% 110%, rgba(38, 59, 170, 0.06), transparent 60%),
-    linear-gradient(180deg, #EFF1F8 0%, #E9EDF6 100%);
-  background-attachment: fixed;
-}
-.glass {
-  background: rgba(255, 255, 255, 0.58);
-  -webkit-backdrop-filter: blur(16px) saturate(1.5);
-  backdrop-filter: blur(16px) saturate(1.5);
-  border: 1px solid rgba(255, 255, 255, 0.65);
-  box-shadow: 0 8px 24px rgba(20, 32, 74, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.7);
-  border-radius: 16px;
-}
-.glass-strong {
-  background: rgba(255, 255, 255, 0.72);
-  -webkit-backdrop-filter: blur(20px) saturate(1.6);
-  backdrop-filter: blur(20px) saturate(1.6);
-  border-right: 1px solid rgba(255, 255, 255, 0.7);
-  box-shadow: 4px 0 24px rgba(20, 32, 74, 0.05);
-}
-.glass-input {
-  background: rgba(255, 255, 255, 0.55);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.7);
-}
-/* Panels scroll; the window never does */
-.pane-scroll { overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(38,59,170,.25) transparent; }
+.pane-scroll { overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(38,59,170,.22) transparent; }
 .pane-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
 .pane-scroll::-webkit-scrollbar-thumb { background: rgba(38,59,170,.22); border-radius: 999px; }
 .pane-scroll::-webkit-scrollbar-track { background: transparent; }
+
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visible {
+  outline: 2px solid rgba(38, 59, 170, 0.4);
+  outline-offset: 1px;
+}
+::selection { background: #DEE4F8; }

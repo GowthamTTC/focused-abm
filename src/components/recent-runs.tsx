@@ -2,7 +2,7 @@ import { desc, eq, inArray } from "drizzle-orm";
 import { db, connection, connectionBatch, job } from "@/db";
 
 const KIND_LABEL: Record<string, string> = {
-  classify: "Matching", deep_enrich: "Enrichment", sync: "Sync", activity_scan: "Post scan", import: "Import",
+  classify: "Matching", deep_enrich: "Research", sync: "Sync", activity_scan: "Post scan", import: "Import",
 };
 
 function ago(d: Date): string {
@@ -47,7 +47,7 @@ export async function RecentRuns({ orgId }: { orgId: string }) {
   return (
     <>
       <h2 className="mt-10 text-lg font-medium">Recent runs</h2>
-      <ul className="mt-3 divide-y divide-[#EAECF5] rounded-2xl glass border-0">
+      <ul className="mt-3 divide-y divide-[#EEF1F8] bg-white border border-[#DDE2EE] rounded-[14px] shadow-[0_1px_2px_rgba(16,24,40,.04)]">
         {jobs.map((j) => {
           const ids = j.payloadJson.connectionIds;
           const batchId = typeof j.payloadJson.batchId === "string"
@@ -58,16 +58,16 @@ export async function RecentRuns({ orgId }: { orgId: string }) {
             <li key={j.id} className="flex items-center gap-4 p-3.5 text-sm">
               <span className="w-24 shrink-0 font-medium">{KIND_LABEL[j.kind] ?? j.kind}</span>
               <span className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] ${
-                j.status === "done" ? "bg-[#263BAA]/15 text-[#263BAA]"
-                : j.status === "running" ? "bg-[#B54708]/15 text-[#B54708]"
-                : j.status === "failed" ? "bg-red-500/15 text-red-600"
-                : "bg-[#263BAA]/10 text-[#46506E]/60"}`}>{j.status}</span>
-              <span className="min-w-0 flex-1 truncate text-[#46506E]/55">
+                j.status === "done" ? "bg-[#EEF1FC] text-[#263BAA]"
+                : j.status === "running" ? "bg-[#FDF6E7] text-[#B54708]"
+                : j.status === "failed" ? "bg-red-500/15 text-[#B42318]"
+                : "bg-[#EEF1FC] text-[#475467]"}`}>{j.status}</span>
+              <span className="min-w-0 flex-1 truncate text-[#98A2B3]">
                 {target ?? ""}{j.status === "failed" && j.error ? ` — ${j.error}` : ""}
               </span>
-              <span className="tnum shrink-0 text-[#46506E]/55">{j.progress}/{j.total}</span>
-              <span className="tnum w-20 shrink-0 text-right text-[#46506E]/35">{ago(j.createdAt)}</span>
-              <span className="tnum w-16 shrink-0 text-right text-[#46506E]/35">
+              <span className="tnum shrink-0 text-[#98A2B3]">{j.progress}/{j.total}</span>
+              <span className="tnum w-20 shrink-0 text-right text-[#98A2B3]">{ago(j.createdAt)}</span>
+              <span className="tnum w-16 shrink-0 text-right text-[#98A2B3]">
                 {j.status === "done" || j.status === "failed" ? dur(j.createdAt, j.updatedAt) : ""}
               </span>
             </li>
