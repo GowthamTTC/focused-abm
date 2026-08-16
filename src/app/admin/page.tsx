@@ -6,11 +6,11 @@ import { env } from "@/lib/env";
 import { addUser, removeUser, syncCatalogToAllWorkspaces } from "./actions";
 
 export default async function AdminPage({ searchParams }: {
-  searchParams: Promise<{ err?: string; ok?: string; n?: string }>;
+  searchParams: Promise<{ err?: string; ok?: string; n?: string; skipped?: string }>;
 }) {
   const user = await requirePage();
   if (user.email.toLowerCase() !== (env.ADMIN_EMAIL ?? "").toLowerCase()) notFound();
-  const { err, ok, n } = await searchParams;
+  const { err, ok, n, skipped } = await searchParams;
   const users = await db.select({
     id: appUser.id, name: appUser.name, email: appUser.email,
     createdAt: appUser.createdAt, workspace: org.name,
@@ -41,6 +41,16 @@ export default async function AdminPage({ searchParams }: {
             <input name="password" type="text" required minLength={8} placeholder="min 8 characters"
               className="mt-1.5 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm" />
           </label>
+          <label className="block text-sm text-white/70 md:col-span-2">Offers in their workspace
+            <select name="catalogMode"
+              className="mt-1.5 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm">
+              <option value="managed">TTC catalogue — seed our seven services (internal seat)</option>
+              <option value="own">Their own offers — start empty, they define their services (external client)</option>
+            </select>
+            <span className="mt-1 block text-xs text-white/40">
+              Client workspaces are never overwritten by &ldquo;Sync catalogue&rdquo;.
+            </span>
+          </label>
           <div>
             <button className="rounded-lg bg-[#B6FF2E] px-4 py-2.5 text-sm font-semibold text-[#16191E] hover:bg-[#9FE51F]">
               Add user
@@ -54,10 +64,10 @@ export default async function AdminPage({ searchParams }: {
           <div>
             <h2 className="text-lg font-medium">Catalog</h2>
             <p className="mt-1 max-w-xl text-sm text-white/55">
-              Push your workspace's current services (names + ICPs) to every other workspace,
-              replacing theirs. Use after a catalog refresh.
+              Push your workspace&rsquo;s current services (names + ICPs) to every TTC-managed workspace,
+              replacing theirs. Client workspaces that define their own offers are skipped.
             </p>
-            {ok === "synced" && <p className="mt-2 text-sm text-[#B6FF2E]">Catalog synced to {n} workspace(s).</p>}
+            {ok === "synced" && <p className="mt-2 text-sm text-[#B6FF2E]">Catalogue synced to {n} workspace(s).{Number(skipped) > 0 && ` ${skipped} client workspace(s) skipped — they own their offers.`}</p>}
           </div>
           <form action={syncCatalogToAllWorkspaces}>
             <button className="rounded-lg border border-[#B6FF2E]/40 bg-[#B6FF2E]/10 px-4 py-2 text-sm font-medium text-[#D9FF8A] hover:bg-[#B6FF2E]/15">

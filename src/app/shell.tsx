@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { requestStop } from "@/app/jobs/actions";
 import { redirect } from "next/navigation";
 import { desc, eq } from "drizzle-orm";
 import { db, job } from "@/db";
@@ -76,6 +77,14 @@ export async function Shell({ user, active, children }: { user: Ctx; active: str
                 ? <div className="h-0.5 rounded bg-[#B6FF2E] shadow-[0_0_8px_rgba(182,255,46,.7)]" style={{ width: `${pct}%` }} />
                 : <div className="banner-indeterminate absolute h-0.5 w-1/3 rounded bg-[#B6FF2E] shadow-[0_0_8px_rgba(182,255,46,.7)]" />}
             </div>
+            {(running.kind === "deep_enrich" || running.kind === "sync" || running.kind === "activity_scan") && (
+              <form action={requestStop.bind(null, running.id)}>
+                <button className="rounded border border-white/20 px-2 py-0.5 text-[11px] text-white/70 hover:border-red-400/50 hover:text-red-300"
+                  title="Stops at the next safe point — completed people keep their results; the rest stay queued.">
+                  Stop
+                </button>
+              </form>
+            )}
           </div>
         </div>
       )}

@@ -7,7 +7,7 @@ import { CopyButton } from "@/components/copy-button";
 import { UsageMeter } from "@/components/usage-meter";
 import { getDailyEnrichUsage, resetsIn } from "@/modules/enrich/usage";
 import { bucketCounts } from "@/modules/matching/service-fit";
-import { flagVerdict, markSent, runTodaysTranche } from "./actions";
+import { checkQueuePosts, flagVerdict, markSent, runTodaysTranche, undoSent } from "./actions";
 import { retryPerson } from "@/app/batches/[id]/actions";
 import { startConnect } from "@/app/settings/actions";
 
@@ -38,10 +38,10 @@ const Soon = ({ children, tip }: { children: React.ReactNode; tip?: string }) =>
 );
 
 export default async function DashboardPage({ searchParams }: {
-  searchParams: Promise<{ c?: string; sort?: string }>;
+  searchParams: Promise<{ c?: string; sort?: string; qf?: string; qp?: string; fp?: string }>;
 }) {
   const user = await requirePage();
-  const { c, sort = "activity" } = await searchParams;
+  const { c, sort = "activity", qf = "all", qp = "1", fp = "1" } = await searchParams;
 
   const batches = await db.select().from(connectionBatch)
     .where(eq(connectionBatch.orgId, user.orgId)).orderBy(desc(connectionBatch.createdAt));
@@ -65,15 +65,28 @@ export default async function DashboardPage({ searchParams }: {
 
   const enriched = await db.select().from(connection)
     .where(and(eq(connection.batchId, batch.id), eq(connection.enrichStatus, "done")));
+  const recentCut = new Date(Date.now() - 7 * 86400000);
   const readyQueue = enriched
     .filter((p) => p.outreachMessage && !p.outreachStatus &&
       (!p.flag || p.flagVerdict === "variant") && p.flagVerdict !== "dropped" && p.flagVerdict !== "verify")
+    .filter((p) => qf === "recent" ? (p.lastPostAt && p.lastPostAt >= recentCut)
+      : qf === "older" ? (!p.lastPostAt || p.lastPostAt < recentCut) : true)
     .sort((a, b) => sort === "rank"
       ? (a.rank ?? 9e9) - (b.rank ?? 9e9)
       : (a.tier ?? 9) - (b.tier ?? 9)
         || (b.lastPostAt?.getTime() ?? 0) - (a.lastPostAt?.getTime() ?? 0)
         || (a.rank ?? 9e9) - (b.rank ?? 9e9));
   const flagInbox = enriched.filter((p) => p.flag && !p.flagVerdict);
+  const sentList = enriched.filter((p) => p.sentAt).sort((a, b) => b.sentAt!.getTime() - a.sentAt!.getTime());
+  const PAGE = 10;
+  const qPage = Math.max(1, Number(qp) || 1), qPages = Math.max(1, Math.ceil(readyQueue.length / PAGE));
+  const queueSlice = readyQueue.slice((qPage - 1) * PAGE, qPage * PAGE);
+  const fPage = Math.max(1, Number(fp) || 1), fPages = Math.max(1, Math.ceil(flagInbox.length / PAGE));
+  const flagSlice = flagInbox.slice((fPage - 1) * PAGE, fPage * PAGE);
+  const qs = (over: Record<string, string | number>) => {
+    const base: Record<string, string | number> = { c: batch.id, sort, qf, qp: qPage, fp: fPage, ...over };
+    return "/dashboard?" + Object.entries(base).map(([k, v]) => `${k}=${v}`).join("&");
+  };
   const activeWeek = enriched.filter((p) => p.lastPostAt && p.lastPostAt >= weekAgo).length;
   const sentCount = enriched.filter((p) => p.outreachStatus === "sent").length;
 
@@ -165,7 +178,18 @@ export default async function DashboardPage({ searchParams }: {
                   className={`rounded-md px-2.5 py-1 capitalize ${sort === s ? "bg-white/10 text-[#E8EAF0]" : "text-white/45"}`}>{s}</Link>
               ))}
             </div>
-            <span className="ml-auto"><Soon tip="Live activity refresh comes in a later release — badges show the enrichment-time snapshot.">Check for new posts now</Soon></span>
+            <div className="flex rounded-lg border border-white/10 bg-black/30 p-0.5 text-xs">
+              {([["all", "All"], ["recent", "Posted ≤7d"], ["older", "Older"]] as const).map(([v, label]) => (
+                <Link key={v} href={qs({ qf: v, qp: 1 })}
+                  className={`rounded-md px-2.5 py-1 ${qf === v ? "bg-white/10 text-[#E8EAF0]" : "text-white/45"}`}>{label}</Link>
+              ))}
+            </div>
+            <form action={checkQueuePosts.bind(null, batch.id)} className="ml-auto">
+              <button className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-white/70 hover:bg-white/5"
+                title="Lightweight scan: posts only, no AI — refreshes the activity badges for everyone in the queue.">
+                Check for new posts now
+              </button>
+            </form>
           </div>
           <div className="mt-3 space-y-3">
             {readyQueue.length === 0 && (
@@ -173,7 +197,7 @@ export default async function DashboardPage({ searchParams }: {
                 Queue clear — run today's tranche or raise N.
               </div>
             )}
-            {readyQueue.slice(0, 25).map((p) => (
+            {queueSlice.map((p) => (
               <div key={p.id} className="rounded-[18px] border border-white/10 bg-[#1F2329] p-4">
                 <div className="flex flex-wrap items-center gap-2.5 text-sm">
                   <span className="font-medium">{p.firstName} {p.lastName}</span>
@@ -214,6 +238,13 @@ export default async function DashboardPage({ searchParams }: {
                 </div>
               </div>
             ))}
+            {qPages > 1 && (
+              <div className="flex items-center justify-center gap-3 pt-1 text-sm">
+                {qPage > 1 && <Link href={qs({ qp: qPage - 1 })} className="rounded-lg border border-white/15 px-3 py-1.5 text-white/70 hover:bg-white/5">← Prev</Link>}
+                <span className="tnum text-white/40">page {qPage} / {qPages}</span>
+                {qPage < qPages && <Link href={qs({ qp: qPage + 1 })} className="rounded-lg border border-white/15 px-3 py-1.5 text-white/70 hover:bg-white/5">Next →</Link>}
+              </div>
+            )}
             {readyQueue.length > 0 && (
               <div className="pt-1 text-center"><Soon tip="We deliberately never auto-send — a human pressing send protects the seat and the relationship.">Sequence / auto-send</Soon></div>
             )}
@@ -226,7 +257,7 @@ export default async function DashboardPage({ searchParams }: {
             <h3 className="text-sm font-medium">Flag inbox <span className="tnum ml-1 text-[#E7B75F]">{flagInbox.length}</span></h3>
             {flagInbox.length === 0 && <p className="mt-2 text-sm text-white/40">Nothing waiting on a decision.</p>}
             <ul className="mt-2 divide-y divide-white/5">
-              {flagInbox.map((p) => (
+              {flagSlice.map((p) => (
                 <li key={p.id} className="py-3 text-sm">
                   <p className="font-medium">{p.firstName} {p.lastName} <span className="ml-1 rounded border border-red-400/40 px-1 text-[10px] text-red-300">⚑</span></p>
                   <p className="mt-0.5 text-xs text-white/55">{p.flag}</p>
@@ -244,6 +275,34 @@ export default async function DashboardPage({ searchParams }: {
                 </li>
               ))}
             </ul>
+            {fPages > 1 && (
+              <div className="mt-2 flex items-center justify-between text-xs">
+                {fPage > 1 ? <Link href={qs({ fp: fPage - 1 })} className="text-white/60 hover:text-white">← Prev</Link> : <span />}
+                <span className="tnum text-white/35">{fPage} / {fPages}</span>
+                {fPage < fPages ? <Link href={qs({ fp: fPage + 1 })} className="text-white/60 hover:text-white">Next →</Link> : <span />}
+              </div>
+            )}
+          </div>
+
+          {/* SENT — with undo */}
+          <div className="rounded-[18px] border border-white/10 bg-[#1F2329] p-4">
+            <h3 className="text-sm font-medium">Sent <span className="tnum ml-1 text-[#B6FF2E]">{sentList.length}</span></h3>
+            {sentList.length === 0 && <p className="mt-2 text-sm text-white/40">Nothing marked sent yet.</p>}
+            <ul className="mt-2 divide-y divide-white/5">
+              {sentList.slice(0, 10).map((p) => (
+                <li key={p.id} className="flex items-center gap-2 py-2.5 text-sm">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium">{p.firstName} {p.lastName}</p>
+                    <p className="truncate text-xs text-white/40">{p.companyRaw} · {p.sentAt!.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</p>
+                  </div>
+                  <form action={undoSent.bind(null, batch.id, p.id)}>
+                    <button className="rounded-lg border border-white/15 px-2.5 py-1 text-xs text-white/70 hover:bg-white/5"
+                      title="Back to the send queue">Undo</button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+            {sentList.length > 10 && <p className="mt-2 text-xs text-white/35">Showing latest 10 of {sentList.length}.</p>}
           </div>
           {failedRows.length > 0 && (
             <div className="rounded-[18px] border border-red-500/25 bg-red-500/5 p-4 text-sm">

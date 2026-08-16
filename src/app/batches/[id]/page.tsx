@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, isNotNull, isNull, sql } from "drizzle-orm";
 import { db, connection, connectionBatch } from "@/db";
 import { Shell, requirePage } from "@/app/shell";
 import { LedgerStrip } from "@/components/ledger";
 import { ExportCard } from "@/components/export-card";
 import { CopyButton } from "@/components/copy-button";
 import { bucketCounts } from "@/modules/matching/service-fit";
-import { moveToPitchable, reclassifyAllAction, retryPerson, runClassify, runDeepEnrich, selectTopN } from "./actions";
+import { moveToPitchable, reclassifyAllAction, retryPerson, runClassify, runDeepEnrich, selectTopN, scanActivity } from "./actions";
 import { getOrgSettings } from "@/modules/settings/org-settings";
 import { getDailyEnrichUsage } from "@/modules/enrich/usage";
 import { UsageMeter } from "@/components/usage-meter";
@@ -26,11 +26,14 @@ function StatusChip({ s }: { s: string }) {
 
 export default async function BatchPage(props: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ view?: string; p?: string }>;
+  searchParams: Promise<{ view?: string; p?: string; country?: string; posted?: string; order?: string }>;
 }) {
   const user = await requirePage();
   const { id } = await props.params;
-  const { view = "pitchable", p } = await props.searchParams;
+  const { view = "pitchable", p, country = "", posted = "", order = "rank" } = await props.searchParams;
+  const locRows = await db.selectDistinct({ l: connection.location }).from(connection)
+    .where(and(eq(connection.batchId, id), isNotNull(connection.location)));
+  const countries = [...new Set(locRows.map((r) => (r.l ?? "").split(",").pop()!.trim()).filter(Boolean))].sort();
 
   const [batch] = await db.select().from(connectionBatch)
     .where(and(eq(connectionBatch.id, id), eq(connectionBatch.orgId, user.orgId)));
@@ -53,9 +56,21 @@ export default async function BatchPage(props: {
   const selQueued = (sel.queued ?? 0) + (sel.running ?? 0);
 
   const rows = await db.select().from(connection)
-    .where(and(eq(connection.batchId, id),
-      view === "enriched" ? eq(connection.selectedForEnrich, true) : eq(connection.bucket, view)))
-    .orderBy(asc(connection.rank), asc(connection.createdAt))
+    .where(and(
+      eq(connection.batchId, id),
+      view === "enriched" ? eq(connection.selectedForEnrich, true) : eq(connection.bucket, view),
+      ...(country ? [ilike(connection.location, `%${country}`)] : []),
+      ...(posted === "none" ? [isNull(connection.lastPostAt)] : []),
+      ...(["3", "7", "15"].includes(posted)
+        ? [gte(connection.lastPostAt, new Date(Date.now() - Number(posted) * 864e5))] : []),
+    ))
+    .orderBy(
+      order === "score" ? desc(connection.score)
+      : order === "posted" ? sql`${connection.lastPostAt} desc nulls last`
+      : order === "name" ? asc(connection.firstName)
+      : asc(connection.rank),
+      asc(connection.createdAt),
+    )
     .limit(400);
 
   const nOptions = [10, 20, 30, 50, 80].filter((o) => enrichLimit === "all" || o <= enrichLimit);
@@ -90,6 +105,17 @@ export default async function BatchPage(props: {
             <form action={reclassifyAllAction.bind(null, id)}>
               <button title="Re-run Stage A on every row — use after ICP/prompt edits."
                 className="rounded-lg border border-white/15 px-3 py-2 text-sm text-white/70 hover:bg-white/5">Reclassify all</button>
+            </form>
+          )}
+          {counts.pitchable > 0 && (
+            <form action={scanActivity.bind(null, id)} className="flex items-center gap-2">
+              <input type="hidden" name="country" value={country} />
+              <input name="n" type="number" defaultValue={50} min={1} max={200}
+                className="tnum w-16 rounded-lg border border-white/10 bg-black/30 px-2 py-1.5 text-xs" />
+              <button className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-white/70 hover:bg-white/5"
+                title="Fetch recent-post dates only (no AI) so the activity filter has data — light seat touch, its own daily cap.">
+                Scan posts
+              </button>
             </form>
           )}
           {counts.pitchable > 0 && (

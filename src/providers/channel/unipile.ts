@@ -29,6 +29,7 @@ async function uni<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 const relationItem = z.object({
+  location: z.string().nullish(),
   public_identifier: z.string().nullish(),
   member_id: z.string().nullish(),
   first_name: z.string().nullish(),
@@ -107,6 +108,7 @@ export class UnipileChannelProvider implements ChannelProvider {
       firstName: r.first_name ?? "",
       lastName: r.last_name ?? "",
       headline: r.headline ?? null,
+      location: r.location ?? null,
       profileUrl: r.public_profile_url ??
         (r.public_identifier ? `https://www.linkedin.com/in/${r.public_identifier}` : null),
       connectedAt: r.created_at != null ? String(r.created_at) : null,

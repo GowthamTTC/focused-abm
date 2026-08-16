@@ -1,6 +1,6 @@
 "use server";
 import { redirect } from "next/navigation";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, gte, ilike, isNull, sql } from "drizzle-orm";
 import { db, connection } from "@/db";
 import { requireUser } from "@/auth/session";
 import { enqueue } from "@/jobs/runner";
@@ -36,10 +36,16 @@ export async function selectTopN(batchId: string, formData: FormData) {
   const user = await requireUser();
   const { enrichLimit } = await getOrgSettings(user.orgId);
   const n = clampToLimit(Number(formData.get("n") ?? 30), enrichLimit);
+  const country = String(formData.get("country") ?? "");
+  const posted = String(formData.get("posted") ?? "");
   const next = await db.select({ id: connection.id }).from(connection)
     .where(and(
       eq(connection.orgId, user.orgId), eq(connection.batchId, batchId),
       eq(connection.bucket, "pitchable"), eq(connection.selectedForEnrich, false),
+      ...(country ? [ilike(connection.location, `%${country}`)] : []),
+      ...(posted === "none" ? [isNull(connection.lastPostAt)] : []),
+      ...(["3", "7", "15"].includes(posted)
+        ? [gte(connection.lastPostAt, new Date(Date.now() - Number(posted) * 864e5))] : []),
     ))
     .orderBy(asc(connection.rank)).limit(n);
   await markSelection(batchId, next.map((t) => t.id), true);
@@ -83,4 +89,22 @@ export async function retryPerson(batchId: string, connId: string) {
     .where(and(eq(connection.orgId, user.orgId), eq(connection.id, connId)));
   await enqueue(user.orgId, "deep_enrich", { connectionIds: [connId] });
   redirect(`/batches/${batchId}?view=enriched&p=${connId}`);
+}
+
+/** Lightweight post-recency scan for the top of the (filtered) pool — fills
+ *  lastPostAt WITHOUT full enrichment, so the recent-post filter has data. */
+export async function scanActivity(batchId: string, formData: FormData) {
+  const user = await requireUser();
+  const n = Math.min(Math.max(Number(formData.get("n") ?? 50), 1), 200);
+  const country = String(formData.get("country") ?? "");
+  const targets = await db.select({ id: connection.id }).from(connection)
+    .where(and(
+      eq(connection.orgId, user.orgId), eq(connection.batchId, batchId),
+      eq(connection.bucket, "pitchable"), isNull(connection.lastScanAt),
+      ...(country ? [ilike(connection.location, `%${country}`)] : []),
+    ))
+    .orderBy(asc(connection.rank)).limit(n);
+  if (targets.length === 0) redirect(`/batches/${batchId}?err=Nothing unscanned in the current filter.`);
+  await enqueue(user.orgId, "activity_scan", { connectionIds: targets.map((t) => t.id) });
+  redirect(`/batches/${batchId}`);
 }

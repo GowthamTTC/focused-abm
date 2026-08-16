@@ -27,6 +27,7 @@ function relationAt(i: number): Relation {
     memberId: `mock:${i}`,
     firstName: fn,
     lastName: ln,
+    location: ["Chennai, Tamil Nadu, India", "Bengaluru, Karnataka, India", "Mumbai, Maharashtra, India", "Singapore", "Dubai, United Arab Emirates", "London, England, United Kingdom", "Austin, Texas, United States"][i % 7],
     headline: `${role} at ${co}`,
     profileUrl: `https://www.linkedin.com/in/${pid}`,
     connectedAt: new Date(Date.now() - i * 86400000).toISOString(),

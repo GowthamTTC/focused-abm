@@ -30,6 +30,10 @@ export default async function ServicesPage() {
             </p>
           </Link>
         ))}
+        <Link href="/services/new"
+          className="flex min-h-[140px] items-center justify-center rounded-[18px] border border-dashed border-white/15 text-sm text-white/45 hover:border-[#B6FF2E]/40 hover:text-[#B6FF2E]">
+          + Add another offer
+        </Link>
       </div>
     </Shell>
   );

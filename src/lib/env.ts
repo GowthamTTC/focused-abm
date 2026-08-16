@@ -19,6 +19,8 @@ const schema = z.object({
   APP_URL: z.string().url().default("http://localhost:3000"),
   DEEP_ENRICH_DAILY_CAP: z.coerce.number().int().positive().default(80),
   DEEP_ENRICH_MIN_GAP_SECONDS: z.coerce.number().int().positive().default(25),
+  ACTIVITY_SCAN_DAILY_CAP: z.coerce.number().int().positive().default(100),
+  ACTIVITY_SCAN_MIN_GAP_SECONDS: z.coerce.number().int().positive().default(12),
 });
 
 export const env = schema.parse(process.env);

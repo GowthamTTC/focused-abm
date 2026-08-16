@@ -15,6 +15,9 @@ const settingsSchema = z.object({
   classifyLlmPeopleCap: z
     .union([z.literal("all"), z.number().int().positive().max(100000)])
     .default(1000),
+  /** "managed"  — TTC-run seat; the admin catalog sync may overwrite services.
+   *  "own"      — client-defined offers; sync NEVER touches this workspace. */
+  catalogMode: z.enum(["managed", "own"]).default("managed"),
 });
 
 export async function getOrgSettings(orgId: string): Promise<OrgSettings> {

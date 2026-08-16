@@ -35,6 +35,8 @@ export async function createBatchFromRelations(orgId: string, label: string, rel
         companyRaw: company, positionRaw: position, headlineRaw: r.headline,
         linkedinUrl: r.profileUrl,
         publicIdentifier: r.publicIdentifier ?? r.memberId,
+        memberId: r.memberId ?? null,
+        location: r.location ?? null,
         connectedOn: r.connectedAt,
       };
     }));

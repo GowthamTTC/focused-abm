@@ -9,6 +9,7 @@ export interface Relation {
   firstName: string;
   lastName: string;
   headline: string | null;
+  location: string | null;
   profileUrl: string | null;
   connectedAt: string | null; // ISO when the provider exposes it
 }

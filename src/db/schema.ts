@@ -27,8 +27,13 @@ const ts = (name: string) => timestamp(name, { withTimezone: true });
 export interface OrgSettings {
   enrichLimit: number | "all";
   classifyLlmPeopleCap: number | "all";
+  /** "managed" — TTC-run seat, admin catalog sync may overwrite the services.
+   *  "own"     — client defines their own offers; sync never touches them. */
+  catalogMode?: "managed" | "own";
 }
-export const DEFAULT_ORG_SETTINGS: OrgSettings = { enrichLimit: 10, classifyLlmPeopleCap: 1000 };
+export const DEFAULT_ORG_SETTINGS: OrgSettings = {
+  enrichLimit: 10, classifyLlmPeopleCap: 1000, catalogMode: "managed",
+};
 
 export const org = pgTable("org", {
   id: id(),
@@ -116,6 +121,8 @@ export const connection = pgTable("connection", {
   headlineRaw: text("headline_raw"),
   linkedinUrl: text("linkedin_url"),
   publicIdentifier: text("public_identifier"),
+  memberId: text("member_id"),               // Unipile provider-internal id (posts endpoint needs it)
+  location: text("location"),                // e.g. "Chennai, Tamil Nadu, India" — country = last segment
   connectedOn: text("connected_on"),
 
   // Stage A — service fit + rank
@@ -147,7 +154,8 @@ export const connection = pgTable("connection", {
   outreachStatus: text("outreach_status"), // null/ready → sent (→ replied later)
   sentAt: ts("sent_at"),
   flagVerdict: text("flag_verdict"),       // null → dropped | verify | variant
-  lastPostAt: ts("last_post_at"),          // most recent post seen at enrichment time
+  lastPostAt: ts("last_post_at"),          // most recent post seen at enrichment/scan time
+  lastScanAt: ts("last_scan_at"),          // when the lightweight activity scan last checked this person
 
   createdAt: ts("created_at").notNull().defaultNow(),
 }, (t) => [

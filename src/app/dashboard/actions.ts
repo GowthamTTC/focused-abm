@@ -1,6 +1,7 @@
 "use server";
 import { redirect } from "next/navigation";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { desc } from "drizzle-orm";
 import { db, connection } from "@/db";
 import { requireUser } from "@/auth/session";
 import { enqueue } from "@/jobs/runner";
@@ -39,5 +40,27 @@ export async function flagVerdict(batchId: string, connId: string, verdict: "dro
   const user = await requireUser();
   await db.update(connection).set({ flagVerdict: verdict })
     .where(and(eq(connection.orgId, user.orgId), eq(connection.id, connId), isNull(connection.flagVerdict)));
+  redirect(`/dashboard?c=${batchId}`);
+}
+
+/** Undo a mistaken "Mark sent" — the person returns to the send queue. */
+export async function undoSent(batchId: string, connId: string) {
+  const user = await requireUser();
+  await db.update(connection).set({ outreachStatus: null, sentAt: null })
+    .where(and(eq(connection.orgId, user.orgId), eq(connection.id, connId)));
+  redirect(`/dashboard?c=${batchId}`);
+}
+
+/** "Check for new posts now" — lightweight activity scan over the send queue:
+ *  posts only, no LLM. Refreshes lastPostAt so activity badges and the
+ *  recent/older filter reflect today, not enrichment day. */
+export async function checkQueuePosts(batchId: string) {
+  const user = await requireUser();
+  const targets = await db.select({ id: connection.id }).from(connection)
+    .where(and(eq(connection.orgId, user.orgId), eq(connection.batchId, batchId),
+      eq(connection.enrichStatus, "done"), isNull(connection.sentAt)))
+    .orderBy(sql`${connection.lastScanAt} asc nulls first`).limit(80);
+  if (targets.length === 0) redirect(`/dashboard?c=${batchId}`);
+  await enqueue(user.orgId, "activity_scan", { connectionIds: targets.map((t) => t.id) });
   redirect(`/dashboard?c=${batchId}`);
 }

@@ -16,6 +16,21 @@ export async function enqueue(orgId: string, kind: string, payload: Record<strin
   return row;
 }
 
+async function stopRequested(jobId: string): Promise<boolean> {
+  const [row] = await db.select({ s: job.status }).from(job).where(eq(job.id, jobId));
+  return row?.s === "stopping";
+}
+async function markStopped(jobId: string, progress: number, total: number) {
+  await db.update(job).set({ status: "stopped", progress, total, updatedAt: new Date() })
+    .where(eq(job.id, jobId));
+}
+async function scannedToday(orgId: string): Promise<number> {
+  const today = new Date(); today.setUTCHours(0, 0, 0, 0);
+  const [row] = await db.select({ n: sql<number>`count(*)::int` }).from(connection)
+    .where(and(eq(connection.orgId, orgId), gte(connection.lastScanAt, today)));
+  return row?.n ?? 0;
+}
+
 async function setProgress(id: string, progress: number, total: number) {
   await db.update(job).set({ progress, total, updatedAt: new Date() }).where(eq(job.id, id));
 }
@@ -66,6 +81,7 @@ export async function processNext(): Promise<boolean> {
       await setProgress(next.id, 0, ids.length);
       let done = 0;
       for (const id of ids) {
+        if (await stopRequested(next.id)) { await markStopped(next.id, done, ids.length); return true; }
         if ((await enrichedToday(next.orgId)) >= env.DEEP_ENRICH_DAILY_CAP) {
           throw new Error(`Daily enrichment cap (${env.DEEP_ENRICH_DAILY_CAP}) reached — remaining rows stay queued; re-run tomorrow.`);
         }
@@ -74,6 +90,53 @@ export async function processNext(): Promise<boolean> {
         await setProgress(next.id, done, ids.length);
         // LinkedIn-respectful pacing: base gap + jitter between profile fetches.
         const gap = env.DEEP_ENRICH_MIN_GAP_SECONDS * 1000;
+        await sleep(gap + Math.random() * gap);
+      }
+    } else if (next.kind === "activity_scan") {
+      // Lightweight recency check: posts only, no LLM, no profile analysis.
+      // Uses the stored member_id when the batch came from sync (1 request);
+      // CSV rows need a profile fetch first to resolve the posts id (2 requests).
+      const ids = (next.payloadJson.connectionIds as string[]) ?? [];
+      await setProgress(next.id, 0, ids.length);
+      const [seat] = await db.select().from(channelAccount)
+        .where(and(eq(channelAccount.orgId, next.orgId), eq(channelAccount.status, "operational")));
+      if (!seat) throw new Error("Connect a LinkedIn account in Settings first.");
+      const provider = getChannelProvider();
+      let done = 0;
+      for (const cid of ids) {
+        if (await stopRequested(next.id)) { await markStopped(next.id, done, ids.length); return true; }
+        if ((await scannedToday(next.orgId)) >= env.ACTIVITY_SCAN_DAILY_CAP) {
+          throw new Error(`Daily post-scan cap (${env.ACTIVITY_SCAN_DAILY_CAP}) reached — remaining rows stay queued.`);
+        }
+        try {
+          const [c] = await db.select().from(connection).where(eq(connection.id, cid));
+          if (c) {
+            let postsId = c.memberId ?? null;
+            if (!postsId && (c.publicIdentifier || c.linkedinUrl)) {
+              const ident = c.publicIdentifier ?? c.linkedinUrl!.split("/in/")[1]?.replace(/\/+$/, "");
+              if (ident) {
+                const prof = await provider.fetchProfile({ accountId: seat.unipileAccountId, identifier: ident });
+                postsId = prof?.providerId ?? ident;
+                if (prof?.providerId) await db.update(connection)
+                  .set({ memberId: prof.providerId }).where(eq(connection.id, cid));
+              }
+            }
+            let lastPostAt: Date | null = null;
+            if (postsId) {
+              const posts = await provider.fetchRecentPosts({ accountId: seat.unipileAccountId, identifier: postsId, limit: 3 });
+              for (const post of posts) {
+                const d = post.postedAt ? new Date(post.postedAt) : null;
+                if (d && !Number.isNaN(d.getTime()) && (!lastPostAt || d > lastPostAt)) lastPostAt = d;
+              }
+            }
+            await db.update(connection)
+              .set({ lastPostAt: lastPostAt ?? c.lastPostAt, lastScanAt: new Date() })
+              .where(eq(connection.id, cid));
+          }
+        } catch { /* skip the person, keep scanning */ }
+        done += 1;
+        await setProgress(next.id, done, ids.length);
+        const gap = env.ACTIVITY_SCAN_MIN_GAP_SECONDS * 1000;
         await sleep(gap + Math.random() * gap);
       }
     } else {
