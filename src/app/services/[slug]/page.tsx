@@ -40,28 +40,28 @@ export default async function ServiceDetail(props: {
 
   return (
     <Shell user={user} active="services">
-      <h1 className="text-2xl font-semibold">{s.name} <span className="text-[#2B3355]/30">— ICP</span></h1>
+      <h1 className="text-2xl font-semibold">{s.name} <span className="text-[#46506E]/30">— ICP</span></h1>
       {saved && <p className="mt-2 text-sm text-[#263BAA]">ICP saved — re-run matching to apply.</p>}
-      {err === "confirm" && <p className="mt-2 text-sm text-[#C2410C]">Tick the confirmation box to delete.</p>}
-      {err === "last" && <p className="mt-2 text-sm text-[#C2410C]">Cannot delete your only service — the classifier needs at least one offer to route to.</p>}
+      {err === "confirm" && <p className="mt-2 text-sm text-[#B42318]">Tick the confirmation box to delete.</p>}
+      {err === "last" && <p className="mt-2 text-sm text-[#B42318]">Cannot delete your only service — the classifier needs at least one offer to route to.</p>}
       <div className="mt-5 flex flex-col gap-5 lg:flex-row">
-        <div className="min-w-0 flex-1 rounded-[18px] border border-[#263BAA]/12 bg-white p-6">
+        <div className="min-w-0 flex-1 rounded-[18px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-6">
           <IcpEditor key={s.slug} initialJson={JSON.stringify(s.icpJson)} action={save.bind(null, s.slug)} />
         </div>
         <aside className="w-full shrink-0 space-y-4 self-start lg:w-72">
-          <div className="rounded-[18px] border border-[#263BAA]/12 bg-white p-5 text-sm text-[#2B3355]/70">
+          <div className="rounded-[18px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-5 text-sm text-[#46506E]/70">
             These patterns drive the free rule pass — every pattern you add removes people
             from the paid model pass.
           </div>
           <details className="rounded-[18px] border border-red-500/25 bg-red-500/5 p-5 text-sm">
             <summary className="cursor-pointer list-none font-medium text-red-600">Danger zone ▾</summary>
-            <p className="mt-3 text-[#2B3355]/60">
+            <p className="mt-3 text-[#46506E]/60">
               Delete this service permanently.
-              {routed > 0 && <> <span className="text-[#B07818]">{routed.toLocaleString()} people are currently routed here</span> —
+              {routed > 0 && <> <span className="text-[#B54708]">{routed.toLocaleString()} people are currently routed here</span> —
               their verdicts keep the label, and the next re-match will redistribute them across your remaining offers.</>}
             </p>
             <form action={deleteService.bind(null, s.slug)} className="mt-3 space-y-3">
-              <label className="flex items-start gap-2 text-xs text-[#2B3355]/60">
+              <label className="flex items-start gap-2 text-xs text-[#46506E]/60">
                 <input type="checkbox" name="confirm" className="mt-0.5" />
                 I understand this cannot be undone.
               </label>

@@ -55,23 +55,23 @@ export async function Shell({ user, active, children }: {
     ? Math.min(100, Math.round(((running.progress ?? 0) / running.total) * 100)) : 0;
 
   return (
-    <div className="flex min-h-screen bg-[#FFF4D6] text-[#1B2559]">
+    <div className="flex min-h-screen bg-[#F7F8FB] text-[#14204A]">
       {/* ── Sidebar ── */}
-      <aside className="fixed inset-y-0 left-0 z-20 flex w-60 flex-col border-r border-[#263BAA]/12 bg-white">
+      <aside className="fixed inset-y-0 left-0 z-20 flex w-60 flex-col border-r border-[#E4E7F2] bg-white">
         <div className="px-5 pb-4 pt-6">
           <p className="text-lg font-semibold text-[#263BAA]">Focused ABM</p>
-          <p className="text-xs text-[#2B3355]/50">Warm-network intelligence</p>
+          <p className="text-xs text-[#46506E]/50">Warm-network intelligence</p>
         </div>
         <nav className="flex-1 overflow-y-auto px-3 pb-4">
           {NAV.map((group) => (
             <div key={group.section} className="mt-4 first:mt-0">
-              <p className="px-2 text-[10px] font-semibold uppercase tracking-widest text-[#2B3355]/40">{group.section}</p>
+              <p className="px-2 text-[10px] font-semibold uppercase tracking-widest text-[#46506E]/40">{group.section}</p>
               <div className="mt-1.5 space-y-0.5">
                 {group.items.map(([key, href, label]) => (
                   <Link key={key} href={href}
                     className={`block rounded-lg px-3 py-2 text-sm ${active === key
                       ? "bg-[#263BAA]/10 font-medium text-[#263BAA]"
-                      : "text-[#2B3355]/70 hover:bg-[#263BAA]/5 hover:text-[#1B2559]"}`}>
+                      : "text-[#46506E]/70 hover:bg-[#263BAA]/5 hover:text-[#14204A]"}`}>
                     {label}
                   </Link>
                 ))}
@@ -80,18 +80,18 @@ export async function Shell({ user, active, children }: {
           ))}
           {isAdmin && (
             <div className="mt-4">
-              <p className="px-2 text-[10px] font-semibold uppercase tracking-widest text-[#2B3355]/40">Admin</p>
+              <p className="px-2 text-[10px] font-semibold uppercase tracking-widest text-[#46506E]/40">Admin</p>
               <Link href="/admin"
                 className={`mt-1.5 block rounded-lg px-3 py-2 text-sm ${active === "admin"
-                  ? "bg-[#263BAA]/10 font-medium text-[#263BAA]" : "text-[#2B3355]/70 hover:bg-[#263BAA]/5"}`}>
+                  ? "bg-[#263BAA]/10 font-medium text-[#263BAA]" : "text-[#46506E]/70 hover:bg-[#263BAA]/5"}`}>
                 Console
               </Link>
             </div>
           )}
         </nav>
-        <div className="border-t border-[#263BAA]/12 p-4 text-sm">
+        <div className="border-t border-[#E4E7F2] p-4 text-sm">
           <p className="truncate font-medium">{user.name}</p>
-          <p className="truncate text-xs text-[#2B3355]/50">{user.email}</p>
+          <p className="truncate text-xs text-[#46506E]/50">{user.email}</p>
           <form action={signOut} className="mt-2">
             <button className="text-xs text-[#263BAA] underline decoration-[#263BAA]/40">sign out</button>
           </form>
@@ -101,8 +101,8 @@ export async function Shell({ user, active, children }: {
       {/* ── Main ── */}
       <div className="ml-60 min-w-0 flex-1">
         {running && (
-          <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-[#263BAA]/15 bg-[#EEF0FB] px-6 py-2 text-sm">
-            <span className="tnum whitespace-nowrap text-[#1B2559]/80">
+          <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-[#C9D2F4] bg-[#EEF1FB] px-6 py-2 text-sm">
+            <span className="tnum whitespace-nowrap text-[#14204A]/80">
               {KIND_LABEL[running.kind] ?? running.kind}
               {running.status === "stopping" && " · stopping…"}
               {" · "}{(running.progress ?? 0).toLocaleString()}
@@ -115,7 +115,7 @@ export async function Shell({ user, active, children }: {
             </div>
             {(running.kind === "deep_enrich" || running.kind === "sync" || running.kind === "activity_scan") && running.status !== "stopping" && (
               <form action={requestStop.bind(null, running.id)}>
-                <button className="rounded border border-[#263BAA]/25 px-2 py-0.5 text-[11px] text-[#2B3355]/70 hover:border-red-500/50 hover:text-red-600"
+                <button className="rounded border border-[#C9D2F4] px-2 py-0.5 text-[11px] text-[#46506E]/70 hover:border-red-500/50 hover:text-red-600"
                   title="Stops at the next safe point — completed people keep their results.">
                   Stop
                 </button>

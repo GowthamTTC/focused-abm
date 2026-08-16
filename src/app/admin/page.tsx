@@ -19,51 +19,51 @@ export default async function AdminPage({ searchParams }: {
   return (
     <Shell user={user} active="admin">
       <h1 className="text-2xl font-semibold">Admin console</h1>
-      <p className="mt-1 text-sm text-[#2B3355]/55">
+      <p className="mt-1 text-sm text-[#46506E]/55">
         Every user gets their own isolated workspace — their own batches, services, seat, and
         settings. Nobody sees anyone else's data.
       </p>
 
-      <section className="mt-6 rounded-[18px] border border-[#263BAA]/12 bg-white p-6">
+      <section className="mt-6 rounded-[18px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-6">
         <h2 className="text-lg font-medium">Add a user</h2>
-        {err && <p className="mt-2 text-sm text-[#C2410C]">{err}</p>}
+        {err && <p className="mt-2 text-sm text-[#B42318]">{err}</p>}
         {ok === "1" && <p className="mt-2 text-sm text-[#263BAA]">User added with a fresh workspace (catalog pre-seeded) — share the credentials with them directly.</p>}
         <form action={addUser} className="mt-4 grid max-w-2xl grid-cols-1 gap-4 md:grid-cols-3">
-          <label className="block text-sm text-[#2B3355]/70">Name
+          <label className="block text-sm text-[#46506E]/70">Name
             <input name="name" required placeholder="Priya S"
-              className="mt-1.5 w-full rounded-xl border border-[#263BAA]/12 bg-[#FBF3DE] px-3 py-2.5 text-sm" />
+              className="mt-1.5 w-full rounded-xl border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] px-3 py-2.5 text-sm" />
           </label>
-          <label className="block text-sm text-[#2B3355]/70">Email
+          <label className="block text-sm text-[#46506E]/70">Email
             <input name="email" type="email" required placeholder="priya@tossthe.co.in"
-              className="mt-1.5 w-full rounded-xl border border-[#263BAA]/12 bg-[#FBF3DE] px-3 py-2.5 text-sm" />
+              className="mt-1.5 w-full rounded-xl border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] px-3 py-2.5 text-sm" />
           </label>
-          <label className="block text-sm text-[#2B3355]/70">Password
+          <label className="block text-sm text-[#46506E]/70">Password
             <input name="password" type="text" required minLength={8} placeholder="min 8 characters"
-              className="mt-1.5 w-full rounded-xl border border-[#263BAA]/12 bg-[#FBF3DE] px-3 py-2.5 text-sm" />
+              className="mt-1.5 w-full rounded-xl border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] px-3 py-2.5 text-sm" />
           </label>
-          <label className="block text-sm text-[#2B3355]/70 md:col-span-2">Offers in their workspace
+          <label className="block text-sm text-[#46506E]/70 md:col-span-2">Offers in their workspace
             <select name="catalogMode"
-              className="mt-1.5 w-full rounded-xl border border-[#263BAA]/12 bg-[#FBF3DE] px-3 py-2.5 text-sm">
+              className="mt-1.5 w-full rounded-xl border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] px-3 py-2.5 text-sm">
               <option value="managed">TTC catalogue — seed our seven services (internal seat)</option>
               <option value="own">Their own offers — start empty, they define their services (external client)</option>
             </select>
-            <span className="mt-1 block text-xs text-[#2B3355]/40">
+            <span className="mt-1 block text-xs text-[#46506E]/40">
               Client workspaces are never overwritten by &ldquo;Sync catalogue&rdquo;.
             </span>
           </label>
           <div>
-            <button className="rounded-lg bg-[#263BAA] px-4 py-2.5 text-sm font-semibold text-[#1B2559] hover:bg-[#1D2E86]">
+            <button className="rounded-lg bg-[#263BAA] px-4 py-2.5 text-sm font-semibold text-[#14204A] hover:bg-[#1D2E86]">
               Add user
             </button>
           </div>
         </form>
       </section>
 
-      <section className="mt-6 rounded-[18px] border border-[#263BAA]/12 bg-white p-6">
+      <section className="mt-6 rounded-[18px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h2 className="text-lg font-medium">Catalog</h2>
-            <p className="mt-1 max-w-xl text-sm text-[#2B3355]/55">
+            <p className="mt-1 max-w-xl text-sm text-[#46506E]/55">
               Push your workspace&rsquo;s current services (names + ICPs) to every TTC-managed workspace,
               replacing theirs. Client workspaces that define their own offers are skipped.
             </p>
@@ -77,18 +77,18 @@ export default async function AdminPage({ searchParams }: {
         </div>
       </section>
 
-      <section className="mt-6 rounded-[18px] border border-[#263BAA]/12 bg-white p-6">
-        <h2 className="text-lg font-medium">Users <span className="tnum ml-1 text-[#2B3355]/40">{users.length}</span></h2>
-        <ul className="mt-3 divide-y divide-[#263BAA]/8">
+      <section className="mt-6 rounded-[18px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-6">
+        <h2 className="text-lg font-medium">Users <span className="tnum ml-1 text-[#46506E]/40">{users.length}</span></h2>
+        <ul className="mt-3 divide-y divide-[#EAECF5]">
           {users.map((u) => {
             const isAdmin = u.email === (env.ADMIN_EMAIL ?? "").toLowerCase();
             return (
               <li key={u.id} className="flex items-center gap-4 py-3 text-sm">
                 <span className="w-40 truncate font-medium">{u.name}</span>
-                <span className="tnum min-w-0 flex-1 truncate text-[#2B3355]/60">{u.email}</span>
-                <span className="hidden max-w-48 truncate text-xs text-[#2B3355]/35 md:inline">{u.workspace}</span>
+                <span className="tnum min-w-0 flex-1 truncate text-[#46506E]/60">{u.email}</span>
+                <span className="hidden max-w-48 truncate text-xs text-[#46506E]/35 md:inline">{u.workspace}</span>
                 {isAdmin && <span className="rounded bg-[#263BAA]/15 px-1.5 py-0.5 text-[11px] text-[#263BAA]">admin</span>}
-                <span className="tnum text-xs text-[#2B3355]/30">since {u.createdAt.toISOString().slice(0, 10)}</span>
+                <span className="tnum text-xs text-[#46506E]/30">since {u.createdAt.toISOString().slice(0, 10)}</span>
                 {!isAdmin && (
                   <form action={removeUser.bind(null, u.id)}>
                     <button className="text-xs text-red-600 hover:text-red-600">Remove</button>

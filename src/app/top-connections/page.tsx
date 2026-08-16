@@ -34,7 +34,7 @@ export default async function TopConnectionsPage(props: {
   return (
     <Shell user={user} active="top">
       <h1 className="text-2xl font-semibold">Top Connections</h1>
-      <p className="mt-1 text-sm text-[#2B3355]/55">Your most valuable relationships, ranked by the scoring system — deterministic and auditable per person.</p>
+      <p className="mt-1 text-sm text-[#46506E]/55">Your most valuable relationships, ranked by the scoring system — deterministic and auditable per person.</p>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
         <StatCard label="Tier-1 prospects" value={agg.t1.toLocaleString()} sub="score ≥ 70" />
@@ -42,11 +42,11 @@ export default async function TopConnectionsPage(props: {
         <StatCard label="Researched" value={agg.enriched.toLocaleString()} sub="with drafted openers" />
       </div>
 
-      <div className="mt-6 rounded-[16px] border border-[#263BAA]/12 bg-white p-5">
+      <div className="mt-6 rounded-[16px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-5">
         <form className="flex flex-wrap items-center gap-3" action="/top-connections">
           <input name="q" defaultValue={q} placeholder="Search name or company…"
-            className="w-64 rounded-lg border border-[#263BAA]/20 bg-[#FBF3DE] px-3 py-2 text-sm" />
-          <select name="svc" defaultValue={svc} className="rounded-lg border border-[#263BAA]/20 bg-[#FBF3DE] px-3 py-2 text-sm">
+            className="w-64 rounded-lg border border-[#D0D5E4] bg-white px-3 py-2 text-sm" />
+          <select name="svc" defaultValue={svc} className="rounded-lg border border-[#D0D5E4] bg-white px-3 py-2 text-sm">
             <option value="">All services</option>
             {services.map((x) => x.s && <option key={x.s} value={x.s}>{x.s}</option>)}
           </select>
@@ -54,7 +54,7 @@ export default async function TopConnectionsPage(props: {
         </form>
 
         <table className="mt-4 w-full text-left text-sm">
-          <thead className="text-xs uppercase tracking-wide text-[#2B3355]/45">
+          <thead className="text-xs uppercase tracking-wide text-[#46506E]/45">
             <tr>
               <th className="py-2 pr-3">Rank</th><th className="py-2 pr-3">Name</th>
               <th className="py-2 pr-3">Company</th><th className="py-2 pr-3">Service</th>
@@ -62,16 +62,16 @@ export default async function TopConnectionsPage(props: {
               <th className="py-2 pr-3">Last post</th><th className="py-2" />
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#263BAA]/8">
+          <tbody className="divide-y divide-[#EAECF5]">
             {rows.map((p) => (
               <tr key={p.id}>
-                <td className="tnum py-2.5 pr-3 text-[#2B3355]/60">#{p.rank ?? "—"}</td>
+                <td className="tnum py-2.5 pr-3 text-[#46506E]/60">#{p.rank ?? "—"}</td>
                 <td className="py-2.5 pr-3 font-medium">{p.firstName} {p.lastName}</td>
-                <td className="max-w-[220px] truncate py-2.5 pr-3 text-[#2B3355]/70">{p.companyRaw}</td>
+                <td className="max-w-[220px] truncate py-2.5 pr-3 text-[#46506E]/70">{p.companyRaw}</td>
                 <td className="py-2.5 pr-3"><span className="rounded bg-[#263BAA]/10 px-1.5 py-0.5 text-[11px] text-[#263BAA]">{p.serviceConfirmed ?? p.serviceSlug ?? "—"}</span></td>
                 <td className="tnum py-2.5 pr-3">{p.score ?? "—"}</td>
-                <td className="py-2.5 pr-3">{p.tier ? <span className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${p.tier === 1 ? "bg-[#263BAA]/15 text-[#263BAA]" : "bg-[#263BAA]/8 text-[#2B3355]/60"}`}>T{p.tier}</span> : "—"}</td>
-                <td className="tnum py-2.5 pr-3 text-xs text-[#2B3355]/55">{p.lastPostAt ? p.lastPostAt.toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "unknown"}</td>
+                <td className="py-2.5 pr-3">{p.tier ? <span className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${p.tier === 1 ? "bg-[#263BAA]/15 text-[#263BAA]" : "bg-[#263BAA]/8 text-[#46506E]/60"}`}>T{p.tier}</span> : "—"}</td>
+                <td className="tnum py-2.5 pr-3 text-xs text-[#46506E]/55">{p.lastPostAt ? p.lastPostAt.toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "unknown"}</td>
                 <td className="py-2.5 text-right">
                   {p.batchId && <Link href={`/batches/${p.batchId}?view=${p.enrichStatus === "done" ? "enriched" : "pitchable"}&p=${p.id}`} className="text-xs text-[#263BAA] underline">open</Link>}
                 </td>
@@ -79,11 +79,11 @@ export default async function TopConnectionsPage(props: {
             ))}
           </tbody>
         </table>
-        <div className="mt-3 flex items-center justify-between text-sm text-[#2B3355]/55">
+        <div className="mt-3 flex items-center justify-between text-sm text-[#46506E]/55">
           <span className="tnum">{totalN.toLocaleString()} people · page {pg}/{pages}</span>
           <span className="flex gap-2">
-            {pg > 1 && <Link href={qs({ page: pg - 1 })} className="rounded-lg border border-[#263BAA]/20 px-3 py-1.5 hover:bg-[#263BAA]/5">← Prev</Link>}
-            {pg < pages && <Link href={qs({ page: pg + 1 })} className="rounded-lg border border-[#263BAA]/20 px-3 py-1.5 hover:bg-[#263BAA]/5">Next →</Link>}
+            {pg > 1 && <Link href={qs({ page: pg - 1 })} className="rounded-lg border border-[#D0D5E4] px-3 py-1.5 hover:bg-[#263BAA]/5">← Prev</Link>}
+            {pg < pages && <Link href={qs({ page: pg + 1 })} className="rounded-lg border border-[#D0D5E4] px-3 py-1.5 hover:bg-[#263BAA]/5">Next →</Link>}
           </span>
         </div>
       </div>

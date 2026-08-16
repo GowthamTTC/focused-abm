@@ -19,10 +19,10 @@ export function LedgerStrip({ counts, className = "" }: {
   const order: (keyof typeof COLORS)[] = ["topDone", "topPending", "pitchable", "peers", "offIcp", "excluded", "unclassified"];
   const total = order.reduce((a, k) => a + (counts[k] ?? 0), 0);
   if (total === 0) {
-    return <div className={`h-4 rounded-full border border-[#263BAA]/8 bg-[#EFE6C8] ${className}`} />;
+    return <div className={`h-4 rounded-full border border-[#263BAA]/8 bg-[#EAECF5] ${className}`} />;
   }
   return (
-    <div className={`flex h-4 overflow-hidden rounded-full border border-[#263BAA]/8 bg-[#EFE6C8] shadow-[inset_0_1px_2px_rgba(38,59,170,.12)] ${className}`}>
+    <div className={`flex h-4 overflow-hidden rounded-full border border-[#263BAA]/8 bg-[#EAECF5] shadow-[inset_0_1px_2px_rgba(16,24,40,.06)] ${className}`}>
       {order.map((k) => {
         const n = counts[k] ?? 0;
         if (n === 0) return null;

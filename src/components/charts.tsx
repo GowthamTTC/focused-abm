@@ -4,13 +4,13 @@ export function StatCard({ label, value, sub, delta }: {
   label: string; value: string; sub?: string; delta?: { v: string; up: boolean };
 }) {
   return (
-    <div className="rounded-[16px] border border-[#263BAA]/12 bg-white p-5">
-      <p className="text-xs text-[#2B3355]/55">{label}</p>
-      <p className="tnum mt-2 text-3xl font-semibold text-[#1B2559]">{value}</p>
+    <div className="rounded-[16px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-5">
+      <p className="text-xs text-[#46506E]/55">{label}</p>
+      <p className="tnum mt-2 text-3xl font-semibold text-[#14204A]">{value}</p>
       {(sub || delta) && (
         <p className="mt-1.5 text-xs">
-          {delta && <span className={delta.up ? "text-emerald-600" : "text-red-600"}>{delta.up ? "↑" : "↓"} {delta.v} </span>}
-          <span className="text-[#2B3355]/45">{sub}</span>
+          {delta && <span className={delta.up ? "text-[#067647]" : "text-red-600"}>{delta.up ? "↑" : "↓"} {delta.v} </span>}
+          <span className="text-[#46506E]/45">{sub}</span>
         </p>
       )}
     </div>
@@ -39,15 +39,15 @@ export function Donut({ items, total, size = 168 }: {
     <div className="flex items-center gap-6">
       <svg width={size} height={size} className="shrink-0">
         {segs}
-        <text x="50%" y="47%" textAnchor="middle" className="fill-[#1B2559]" fontSize="24" fontWeight="600">{total.toLocaleString()}</text>
-        <text x="50%" y="60%" textAnchor="middle" className="fill-[#2B3355]" fontSize="11" opacity="0.5">total</text>
+        <text x="50%" y="47%" textAnchor="middle" className="fill-[#14204A]" fontSize="24" fontWeight="600">{total.toLocaleString()}</text>
+        <text x="50%" y="60%" textAnchor="middle" className="fill-[#46506E]" fontSize="11" opacity="0.5">total</text>
       </svg>
       <ul className="min-w-0 flex-1 space-y-1.5 text-sm">
         {items.map((i, idx) => (
           <li key={i.label} className="flex items-center gap-2">
             <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: PALETTE[idx % PALETTE.length] }} />
-            <span className="min-w-0 flex-1 truncate text-[#2B3355]/75">{i.label}</span>
-            <span className="tnum text-[#2B3355]/50">{total > 0 ? Math.round((i.n / total) * 100) : 0}% ({i.n.toLocaleString()})</span>
+            <span className="min-w-0 flex-1 truncate text-[#46506E]/75">{i.label}</span>
+            <span className="tnum text-[#46506E]/50">{total > 0 ? Math.round((i.n / total) * 100) : 0}% ({i.n.toLocaleString()})</span>
           </li>
         ))}
       </ul>
@@ -62,8 +62,8 @@ export function HBars({ items, max }: { items: { label: string; n: number }[]; m
       {items.map((i) => (
         <li key={i.label}>
           <div className="flex items-baseline justify-between">
-            <span className="truncate text-[#2B3355]/75">{i.label}</span>
-            <span className="tnum ml-3 text-[#2B3355]/50">{i.n.toLocaleString()}</span>
+            <span className="truncate text-[#46506E]/75">{i.label}</span>
+            <span className="tnum ml-3 text-[#46506E]/50">{i.n.toLocaleString()}</span>
           </div>
           <div className="mt-1 h-1.5 rounded bg-[#263BAA]/10">
             <div className="h-1.5 rounded bg-[#263BAA]" style={{ width: `${(i.n / m) * 100}%` }} />
@@ -78,7 +78,7 @@ export function LineChart({ points, w = 560, h = 180 }: {
   points: { x: string; y: number }[]; w?: number; h?: number;
 }) {
   if (points.length === 0) return (
-    <div className="flex h-[180px] items-center justify-center rounded-xl border border-dashed border-[#263BAA]/20 text-sm text-[#2B3355]/45">
+    <div className="flex h-[180px] items-center justify-center rounded-xl border border-dashed border-[#D0D5E4] text-sm text-[#46506E]/45">
       History begins today — this chart fills in as snapshots accumulate.
     </div>
   );
@@ -93,8 +93,8 @@ export function LineChart({ points, w = 560, h = 180 }: {
       <path d={area} fill="#263BAA" opacity="0.08" />
       <path d={path} fill="none" stroke="#263BAA" strokeWidth="2" />
       {points.map((p, i) => <circle key={i} cx={px(i)} cy={py(p.y)} r="3" fill="#fff" stroke="#263BAA" strokeWidth="2" />)}
-      <text x={24} y={h - 8} fontSize="10" className="fill-[#2B3355]" opacity="0.5">{points[0].x}</text>
-      <text x={w - 24} y={h - 8} fontSize="10" textAnchor="end" className="fill-[#2B3355]" opacity="0.5">{points[points.length - 1].x}</text>
+      <text x={24} y={h - 8} fontSize="10" className="fill-[#46506E]" opacity="0.5">{points[0].x}</text>
+      <text x={w - 24} y={h - 8} fontSize="10" textAnchor="end" className="fill-[#46506E]" opacity="0.5">{points[points.length - 1].x}</text>
     </svg>
   );
 }

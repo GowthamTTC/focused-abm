@@ -5,6 +5,7 @@
   color-scheme: dark;
   --bg: #14171C;
   --panel: #FFFFFF;
+  --surface2: #F2F4FA;
   --ink: #1B2559;
   --lime: #263BAA;
   --lime-hover: #1D2E86;
@@ -49,3 +50,14 @@ html, body { height: 100%; }
 /* Indeterminate job banner (sync — total unknown until the last page) */
 @keyframes banner-slide { 0% { left: -33%; } 100% { left: 100%; } }
 .banner-indeterminate { animation: banner-slide 1.4s ease-in-out infinite; }
+
+
+/* ── Professional polish ── */
+* { -webkit-font-smoothing: antialiased; }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible {
+  outline: 2px solid rgba(38, 59, 170, 0.35);
+  outline-offset: 1px;
+}
+::selection { background: rgba(38, 59, 170, 0.15); }
+/* Vanilla Mist, demoted to what it is good at: warm highlight strips */
+.callout-mist { background: #FFF8E6; border: 1px solid #F2E4BE; }
