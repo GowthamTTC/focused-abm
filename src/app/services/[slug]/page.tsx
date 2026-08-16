@@ -1,9 +1,20 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { notFound, redirect } from "next/navigation";
-import { db, service } from "@/db";
+import { db, connection, service } from "@/db";
 import { Shell, requirePage } from "@/app/shell";
 import { requireUser } from "@/auth/session";
 import { IcpEditor } from "@/components/icp-editor";
+
+async function deleteService(slug: string, formData: FormData) {
+  "use server";
+  const user = await requireUser();
+  if (String(formData.get("confirm")) !== "on") redirect(`/services/${slug}?err=confirm`);
+  const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(service)
+    .where(eq(service.orgId, user.orgId));
+  if (n <= 1) redirect(`/services/${slug}?err=last`);
+  await db.delete(service).where(and(eq(service.orgId, user.orgId), eq(service.slug, slug)));
+  redirect("/services?deleted=1");
+}
 
 async function save(slug: string, formData: FormData) {
   "use server";
@@ -16,26 +27,49 @@ async function save(slug: string, formData: FormData) {
 
 export default async function ServiceDetail(props: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ saved?: string }>;
+  searchParams: Promise<{ saved?: string; err?: string }>;
 }) {
   const user = await requirePage();
   const { slug } = await props.params;
-  const { saved } = await props.searchParams;
+  const { saved, err } = await props.searchParams;
   const [s] = await db.select().from(service)
     .where(and(eq(service.orgId, user.orgId), eq(service.slug, slug)));
   if (!s) notFound();
+  const [{ routed }] = await db.select({ routed: sql<number>`count(*)::int` }).from(connection)
+    .where(and(eq(connection.orgId, user.orgId), eq(connection.serviceSlug, slug)));
 
   return (
     <Shell user={user} active="services">
       <h1 className="text-2xl font-semibold">{s.name} <span className="text-white/30">— ICP</span></h1>
       {saved && <p className="mt-2 text-sm text-[#B6FF2E]">ICP saved — re-run matching to apply.</p>}
+      {err === "confirm" && <p className="mt-2 text-sm text-[#FF8A70]">Tick the confirmation box to delete.</p>}
+      {err === "last" && <p className="mt-2 text-sm text-[#FF8A70]">Cannot delete your only service — the classifier needs at least one offer to route to.</p>}
       <div className="mt-5 flex flex-col gap-5 lg:flex-row">
         <div className="min-w-0 flex-1 rounded-[18px] border border-white/10 bg-[#1F2329] p-6">
           <IcpEditor key={s.slug} initialJson={JSON.stringify(s.icpJson)} action={save.bind(null, s.slug)} />
         </div>
-        <aside className="w-full shrink-0 self-start rounded-[18px] border border-white/10 bg-[#1F2329] p-5 text-sm text-white/70 lg:w-72">
-          These patterns drive the free rule pass — every pattern you add removes people
-          from the paid model pass.
+        <aside className="w-full shrink-0 space-y-4 self-start lg:w-72">
+          <div className="rounded-[18px] border border-white/10 bg-[#1F2329] p-5 text-sm text-white/70">
+            These patterns drive the free rule pass — every pattern you add removes people
+            from the paid model pass.
+          </div>
+          <details className="rounded-[18px] border border-red-500/25 bg-red-500/5 p-5 text-sm">
+            <summary className="cursor-pointer list-none font-medium text-red-300">Danger zone ▾</summary>
+            <p className="mt-3 text-white/60">
+              Delete this service permanently.
+              {routed > 0 && <> <span className="text-[#E7B75F]">{routed.toLocaleString()} people are currently routed here</span> —
+              their verdicts keep the label, and the next re-match will redistribute them across your remaining offers.</>}
+            </p>
+            <form action={deleteService.bind(null, s.slug)} className="mt-3 space-y-3">
+              <label className="flex items-start gap-2 text-xs text-white/60">
+                <input type="checkbox" name="confirm" className="mt-0.5" />
+                I understand this cannot be undone.
+              </label>
+              <button className="rounded-lg border border-red-400/40 px-3 py-1.5 text-sm text-red-300 hover:bg-red-500/10">
+                Delete “{s.name}”
+              </button>
+            </form>
+          </details>
         </aside>
       </div>
     </Shell>

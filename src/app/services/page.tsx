@@ -3,7 +3,8 @@ import { eq } from "drizzle-orm";
 import { db, service } from "@/db";
 import { Shell, requirePage } from "@/app/shell";
 
-export default async function ServicesPage() {
+export default async function ServicesPage(props: { searchParams: Promise<{ deleted?: string }> }) {
+  const { deleted } = await props.searchParams;
   const user = await requirePage();
   const services = await db.select().from(service).where(eq(service.orgId, user.orgId));
 

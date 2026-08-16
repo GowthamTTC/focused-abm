@@ -17,7 +17,8 @@ export async function requirePage(): Promise<Ctx> {
 }
 
 const KIND_LABEL: Record<string, string> = {
-  classify: "Matching", deep_enrich: "Enriching", sync: "Syncing", import: "Importing",
+  classify: "Matching", deep_enrich: "Enriching", sync: "Syncing",
+  import: "Importing", activity_scan: "Scanning posts",
 };
 
 /** App shell with the design's frosted job banner docked under the top bar
