@@ -190,7 +190,7 @@ export function IcpEditor({ initialJson, action }: {
                     title_include: [], title_exclude: [], seniority: [], function_tags: [],
                   }],
                 })}
-                className="w-full rounded-xl border border-dashed border-[#263BAA]/20 py-2.5 text-sm text-[#2B3355]/45 hover:border-white/30 hover:text-[#2B3355]/70">
+                className="w-full rounded-xl border border-dashed border-[#263BAA]/20 py-2.5 text-sm text-[#2B3355]/45 hover:border-[#263BAA]/40 hover:text-[#2B3355]/70">
                 + Add persona
               </button>
             </div>
@@ -215,7 +215,7 @@ export function IcpEditor({ initialJson, action }: {
             if (!jsonMode) { setRaw(JSON.stringify(icp, null, 2)); setErr(""); }
             setJsonMode(!jsonMode);
           }}
-          className="text-sm text-[#263BAA] underline decoration-[#263BAA]/40 hover:text-[#9FE51F]">
+          className="text-sm text-[#263BAA] underline decoration-[#263BAA]/40 hover:text-[#1D2E86]">
           {jsonMode ? "Back to form" : "Edit as JSON"}
         </button>
       </div>

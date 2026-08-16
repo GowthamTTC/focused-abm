@@ -41,11 +41,11 @@ export default async function ConnectionsPage({ searchParams }: { searchParams: 
           <h2 className="text-lg font-medium">Upload Connections.csv</h2>
           <p className="mt-1 text-sm text-[#2B3355]/55">LinkedIn → Settings → Data privacy → Get a copy of your data → Connections.</p>
           <div className="mt-4 flex items-center gap-3">
-            <label className="flex h-16 flex-1 cursor-pointer items-center justify-center rounded-xl border border-dashed border-[#263BAA]/20 bg-[#FBF3DE] px-3 text-sm text-[#2B3355]/40 transition hover:border-white/30 hover:text-[#2B3355]/60">
+            <label className="flex h-16 flex-1 cursor-pointer items-center justify-center rounded-xl border border-dashed border-[#263BAA]/20 bg-[#FBF3DE] px-3 text-sm text-[#2B3355]/40 transition hover:border-[#263BAA]/40 hover:text-[#2B3355]/60">
               <input name="file" type="file" accept=".csv" required
-                className="w-full text-sm text-[#2B3355]/60 file:mr-3 file:rounded-lg file:border-0 file:bg-[#263BAA]/10 file:px-3 file:py-1.5 file:text-sm file:text-[#E8EAF0]" />
+                className="w-full text-sm text-[#2B3355]/60 file:mr-3 file:rounded-lg file:border-0 file:bg-[#263BAA]/10 file:px-3 file:py-1.5 file:text-sm file:text-[#1B2559]" />
             </label>
-            <button className="rounded-lg border border-[#263BAA]/20 bg-[#263BAA]/10 px-4 py-2 text-sm font-medium hover:bg-white/15">Upload</button>
+            <button className="rounded-lg border border-[#263BAA]/20 bg-[#263BAA]/10 px-4 py-2 text-sm font-medium hover:bg-[#263BAA]/15">Upload</button>
           </div>
         </form>
       </div>

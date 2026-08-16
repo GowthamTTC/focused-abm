@@ -177,7 +177,7 @@ export default async function BatchPage(props: {
           <Link key={v} href={`/batches/${id}?view=${v}`}
             className={`-mb-px border-b-2 px-1 pb-2 ${view === v
               ? "border-[#263BAA] font-medium text-[#263BAA]"
-              : "border-transparent text-[#2B3355]/55 hover:text-[#E8EAF0]"}`}>
+              : "border-transparent text-[#2B3355]/55 hover:text-[#1B2559]"}`}>
             {v === "enriched"
               ? `Batch (${selDone} done)`
               : `${BUCKET_LABEL[v]} (${(counts[v] ?? 0).toLocaleString()})`}
@@ -195,7 +195,7 @@ export default async function BatchPage(props: {
           <div className="mt-6 flex flex-col gap-5 lg:flex-row">
             <ul className="w-full shrink-0 self-start rounded-[18px] border border-[#263BAA]/12 bg-white lg:sticky lg:top-0 lg:max-h-[calc(100dvh-14rem)] lg:w-72 lg:overflow-y-auto">
               {rows.map((c, i) => (
-                <li key={c.id} className={`border-b border-white/5 last:border-0 ${person?.id === c.id ? "border-l-2 border-l-[#B6FF2E] bg-[#263BAA]/5" : ""}`}>
+                <li key={c.id} className={`border-b border-[#263BAA]/8 last:border-0 ${person?.id === c.id ? "border-l-2 border-l-[#263BAA] bg-[#263BAA]/5" : ""}`}>
                   <Link href={`/batches/${id}?view=enriched&p=${c.id}`}
                     className="flex items-center gap-2.5 px-3 py-2.5 text-sm hover:bg-[#263BAA]/5">
                     <span className="tnum w-5 text-[#2B3355]/35">{i + 1}</span>
@@ -212,7 +212,7 @@ export default async function BatchPage(props: {
                 <div className="flex flex-wrap items-center gap-3">
                   <h2 className="text-xl font-semibold">{person.firstName} {person.lastName}</h2>
                   {person.linkedinUrl && (
-                    <a href={person.linkedinUrl} target="_blank" className="text-sm text-[#263BAA] underline decoration-[#263BAA]/40 hover:text-[#9FE51F]">
+                    <a href={person.linkedinUrl} target="_blank" className="text-sm text-[#263BAA] underline decoration-[#263BAA]/40 hover:text-[#1D2E86]">
                       Open profile ↗
                     </a>
                   )}
@@ -280,7 +280,7 @@ export default async function BatchPage(props: {
                         {person.serviceConfirmed && person.serviceConfirmed !== person.serviceSlug ? (
                           <><span className="tnum text-[#2B3355]/40 line-through">{person.serviceSlug}</span>
                             <span className="mx-1.5 text-[#2B3355]/40">→</span>
-                            <span className="tnum text-[#E8EAF0]">{person.serviceConfirmed}</span></>
+                            <span className="tnum text-[#1B2559]">{person.serviceConfirmed}</span></>
                         ) : (
                           <span className="tnum">{person.serviceConfirmed ?? person.serviceSlug ?? "—"}</span>
                         )}
@@ -296,13 +296,13 @@ export default async function BatchPage(props: {
                     {person.outreachMessage && (
                       <div>
                         <p className="text-xs text-[#B07818]/70">Outreach message</p>
-                        <div className="mt-1.5 rounded-xl border border-[#263BAA]/12 bg-[#FBF3DE] p-4 text-[15px] leading-relaxed text-[#E8EAF0]">
+                        <div className="mt-1.5 rounded-xl border border-[#263BAA]/12 bg-[#FBF3DE] p-4 text-[15px] leading-relaxed text-[#1B2559]">
                           {person.outreachMessage}
                         </div>
                         <div className="mt-2.5 flex items-center gap-3">
                           <CopyButton text={person.outreachMessage} />
                           {person.linkedinUrl && (
-                            <a href={person.linkedinUrl} target="_blank" className="text-sm text-[#263BAA] underline decoration-[#263BAA]/40 hover:text-[#9FE51F]">
+                            <a href={person.linkedinUrl} target="_blank" className="text-sm text-[#263BAA] underline decoration-[#263BAA]/40 hover:text-[#1D2E86]">
                               Open profile
                             </a>
                           )}
@@ -319,7 +319,7 @@ export default async function BatchPage(props: {
         <div className="mt-6 rounded-[18px] border border-dashed border-[#263BAA]/12 p-12 text-center">
           {view === "pitchable" && counts.unclassified > 0 ? (
             <>
-              <p className="text-[#E8EAF0]">Run matching to classify {counts.unclassified.toLocaleString()} connections into buckets.</p>
+              <p className="text-[#1B2559]">Run matching to classify {counts.unclassified.toLocaleString()} connections into buckets.</p>
               <p className="mt-1 text-sm text-[#2B3355]/45">Rows appear live as they classify — no skeleton table.</p>
             </>
           ) : (
@@ -349,7 +349,7 @@ export default async function BatchPage(props: {
                 const b = c.scoreBreakdownJson;
                 return (
                   <tr key={c.id} className={c.selectedForEnrich && view === "pitchable"
-                    ? "border-l-2 border-l-[#B6FF2E] bg-[#263BAA]/5" : ""}>
+                    ? "border-l-2 border-l-[#263BAA] bg-[#263BAA]/5" : ""}>
                     {view === "pitchable" ? (<>
                       <td className="tnum px-3 py-2.5 text-[#2B3355]/40">{c.rank ?? "—"}</td>
                       <td className="px-3 py-2.5">
@@ -374,7 +374,7 @@ export default async function BatchPage(props: {
                         <div className="group">
                           <span className="line-clamp-2">{c.matchWhy}</span>
                           <div className="pointer-events-none absolute left-0 top-full z-20 mt-1 hidden w-[26rem] max-w-[80vw] rounded-xl border border-[#263BAA]/12 bg-white/95 p-3.5 shadow-2xl backdrop-blur group-hover:block">
-                            <p className="text-sm text-[#E8EAF0]">{c.matchWhy}</p>
+                            <p className="text-sm text-[#1B2559]">{c.matchWhy}</p>
                             {b && (
                               <p className="tnum mt-2 text-[#2B3355]/65">
                                 seniority {b.seniority} · function {b.function_fit} · confidence {b.confidence} · founder {b.founder_bonus} · company {b.company_present}

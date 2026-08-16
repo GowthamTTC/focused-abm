@@ -18,7 +18,7 @@ export default async function HealthPage() {
       sql`tier in (1, 2)`, isNull(connection.sentAt),
       or(isNull(connection.lastPostAt), lt(connection.lastPostAt, cutoff)),
     ))
-    .orderBy(asc(sql`rank nulls last`)).limit(10);
+    .orderBy(sql`rank asc nulls last`).limit(10);
 
   return (
     <Shell user={user} active="health">

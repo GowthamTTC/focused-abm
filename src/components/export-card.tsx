@@ -25,7 +25,7 @@ export function ExportCard({ batchId, topN, targetPool, review, peers }: {
                 .map(([k, v]) => (
                   <div key={k} className="flex justify-between py-1">
                     <span className="text-[#2B3355]/70">{k}</span>
-                    <span className="tnum text-[#E8EAF0]">{v}</span>
+                    <span className="tnum text-[#1B2559]">{v}</span>
                   </div>
                 ))}
               {ops && (
@@ -41,7 +41,7 @@ export function ExportCard({ batchId, topN, targetPool, review, peers }: {
             </p>
             <label className="mt-4 flex cursor-pointer items-start gap-2.5 text-sm">
               <input type="checkbox" checked={ops} onChange={(e) => setOps(e.target.checked)}
-                className="mt-0.5 h-4 w-4 accent-[#B6FF2E]" />
+                className="mt-0.5 h-4 w-4 accent-[#263BAA]" />
               <span>
                 Include Ops tab (internal diagnostics)
                 <span className="mt-0.5 block text-xs text-[#2B3355]/45">

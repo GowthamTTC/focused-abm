@@ -147,7 +147,7 @@ export default async function DashboardPage({ searchParams }: {
         {([[readyQueue.length, "ready to send", ""], [flagInbox.length, "needs decision", flagInbox.length > 0 ? "text-[#B07818]" : ""], [activeWeek, "active this week", "text-[#263BAA]"]] as const)
           .map(([n, label, tone]) => (
             <div key={label}>
-              <p className={`tnum text-2xl ${tone || "text-[#E8EAF0]"}`}>{n}</p>
+              <p className={`tnum text-2xl ${tone || "text-[#1B2559]"}`}>{n}</p>
               <p className="mt-0.5 text-[10px] uppercase tracking-wider text-[#2B3355]/40">{label}</p>
             </div>
           ))}
@@ -175,13 +175,13 @@ export default async function DashboardPage({ searchParams }: {
             <div className="flex rounded-lg border border-[#263BAA]/12 bg-[#FBF3DE] p-0.5 text-xs">
               {(["activity", "rank"] as const).map((s) => (
                 <Link key={s} href={`/dashboard?c=${batch.id}&sort=${s}`}
-                  className={`rounded-md px-2.5 py-1 capitalize ${sort === s ? "bg-[#263BAA]/10 text-[#E8EAF0]" : "text-[#2B3355]/45"}`}>{s}</Link>
+                  className={`rounded-md px-2.5 py-1 capitalize ${sort === s ? "bg-[#263BAA]/10 text-[#1B2559]" : "text-[#2B3355]/45"}`}>{s}</Link>
               ))}
             </div>
             <div className="flex rounded-lg border border-[#263BAA]/12 bg-[#FBF3DE] p-0.5 text-xs">
               {([["all", "All"], ["recent", "Posted ≤7d"], ["older", "Older"]] as const).map(([v, label]) => (
                 <Link key={v} href={qs({ qf: v, qp: 1 })}
-                  className={`rounded-md px-2.5 py-1 ${qf === v ? "bg-[#263BAA]/10 text-[#E8EAF0]" : "text-[#2B3355]/45"}`}>{label}</Link>
+                  className={`rounded-md px-2.5 py-1 ${qf === v ? "bg-[#263BAA]/10 text-[#1B2559]" : "text-[#2B3355]/45"}`}>{label}</Link>
               ))}
             </div>
             <form action={checkQueuePosts.bind(null, batch.id)} className="ml-auto">

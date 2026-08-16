@@ -18,7 +18,7 @@ export default async function TopConnectionsPage(props: {
     ...(svc ? [eq(connection.serviceSlug, svc)] : []),
   );
   const rows = await db.select().from(connection).where(where)
-    .orderBy(asc(sql`rank nulls last`)).limit(PAGE).offset((pg - 1) * PAGE);
+    .orderBy(sql`rank asc nulls last`).limit(PAGE).offset((pg - 1) * PAGE);
   const [{ n: totalN }] = await db.select({ n: sql<number>`count(*)::int` }).from(connection).where(where);
   const services = await db.selectDistinct({ s: connection.serviceSlug }).from(connection)
     .where(and(eq(connection.orgId, user.orgId), eq(connection.bucket, "pitchable")));

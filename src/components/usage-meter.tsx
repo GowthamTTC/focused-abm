@@ -7,7 +7,7 @@ export function UsageMeter({ used, cap, resetsAt, bar = false }: {
 }) {
   const pct = Math.min(100, Math.round((used / cap) * 100));
   const tone = used >= cap ? "text-red-600" : pct >= 80 ? "text-[#B07818]" : "text-[#2B3355]/55";
-  const fill = used >= cap ? "#FF8A70" : pct >= 80 ? "#E7B75F" : "#B6FF2E";
+  const fill = used >= cap ? "#C2410C" : pct >= 80 ? "#B07818" : "#263BAA";
   return (
     <span className="inline-flex items-center gap-2.5">
       {bar && (

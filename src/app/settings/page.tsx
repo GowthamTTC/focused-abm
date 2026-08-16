@@ -91,7 +91,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           {accounts.map((a) => (
             <li key={a.id} className="flex items-center justify-between gap-4 p-4 text-sm">
               <div className="min-w-0">
-                <p className="tnum truncate text-[#E8EAF0]">{a.displayName ?? a.unipileAccountId}</p>
+                <p className="tnum truncate text-[#1B2559]">{a.displayName ?? a.unipileAccountId}</p>
                 <p className="tnum mt-0.5 text-xs text-[#2B3355]/35">connected {a.createdAt.toISOString().slice(0, 10)}</p>
               </div>
               <div className="flex shrink-0 items-center gap-3">
@@ -107,7 +107,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                   </form>
                 )}
                 <form action={refreshStatus.bind(null, a.unipileAccountId)}>
-                  <button className="text-xs text-[#2B3355]/55 hover:text-[#E8EAF0]">Refresh</button>
+                  <button className="text-xs text-[#2B3355]/55 hover:text-[#1B2559]">Refresh</button>
                 </form>
                 <form action={disconnect.bind(null, a.unipileAccountId)}>
                   <button className="text-xs text-red-600 hover:text-red-600">Disconnect</button>

@@ -19,7 +19,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         {err && <p className="mt-5 text-sm text-[#C2410C]">Wrong email or password.</p>}
         <label className="mt-5 block text-sm text-[#2B3355]/70">Email
           <input name="email" type="email" required placeholder="you@tossthe.co.in"
-            className="mt-1.5 w-full rounded-xl border border-[#263BAA]/12 bg-[#FBF3DE] px-4 py-3 text-sm text-[#E8EAF0]" />
+            className="mt-1.5 w-full rounded-xl border border-[#263BAA]/12 bg-[#FBF3DE] px-4 py-3 text-sm text-[#1B2559]" />
         </label>
         <label className="mt-4 block text-sm text-[#2B3355]/70">Password
           <input name="password" type="password" required placeholder="••••••••"

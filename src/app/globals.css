@@ -4,10 +4,10 @@
 :root {
   color-scheme: dark;
   --bg: #14171C;
-  --panel: #1F2329;
-  --ink: #E8EAF0;
-  --lime: #B6FF2E;
-  --lime-hover: #9FE51F;
+  --panel: #FFFFFF;
+  --ink: #1B2559;
+  --lime: #263BAA;
+  --lime-hover: #1D2E86;
 }
 
 body {
