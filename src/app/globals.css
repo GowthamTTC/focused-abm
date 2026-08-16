@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 /* Focused ABM — Indigo Light tokens
    Replace the existing :root block in src/app/globals.css with this file's contents.
    Keep the @font-face / next/font wiring already in the project. */
