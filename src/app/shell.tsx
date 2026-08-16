@@ -55,9 +55,9 @@ export async function Shell({ user, active, children }: {
     ? Math.min(100, Math.round(((running.progress ?? 0) / running.total) * 100)) : 0;
 
   return (
-    <div className="flex min-h-screen bg-[#F7F8FB] text-[#14204A]">
+    <div className="flex h-screen overflow-hidden text-[#14204A]">
       {/* ── Sidebar ── */}
-      <aside className="fixed inset-y-0 left-0 z-20 flex w-60 flex-col border-r border-[#E4E7F2] bg-white">
+      <aside className="glass-strong fixed inset-y-0 left-0 z-20 flex w-60 flex-col">
         <div className="px-5 pb-4 pt-6">
           <p className="text-lg font-semibold text-[#263BAA]">Focused ABM</p>
           <p className="text-xs text-[#46506E]/50">Warm-network intelligence</p>
@@ -99,9 +99,9 @@ export async function Shell({ user, active, children }: {
       </aside>
 
       {/* ── Main ── */}
-      <div className="ml-60 min-w-0 flex-1">
+      <div className="ml-60 flex h-screen min-w-0 flex-1 flex-col">
         {running && (
-          <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-[#C9D2F4] bg-[#EEF1FB] px-6 py-2 text-sm">
+          <div className="z-10 flex shrink-0 items-center gap-3 border-b border-white/60 bg-white/55 px-6 py-2 text-sm backdrop-blur-xl">
             <span className="tnum whitespace-nowrap text-[#14204A]/80">
               {KIND_LABEL[running.kind] ?? running.kind}
               {running.status === "stopping" && " · stopping…"}
@@ -128,7 +128,7 @@ export async function Shell({ user, active, children }: {
             <span className="truncate">{KIND_LABEL[failed.kind] ?? failed.kind} failed — {failed.error}</span>
           </div>
         )}
-        <main className="mx-auto max-w-[1200px] px-6 py-8">{children}</main>
+        <main className="pane-scroll min-h-0 flex-1"><div className="mx-auto max-w-[1200px] px-6 py-5">{children}</div></main>
       </div>
     </div>
   );

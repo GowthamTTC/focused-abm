@@ -22,8 +22,8 @@ export default async function ConnectionsPage({ searchParams }: { searchParams: 
       <h1 className="text-2xl font-semibold">Connections</h1>
       {err && <p className="mt-2 text-sm text-red-600">{err}</p>}
 
-      <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2">
-        <form action={syncRelations} className="rounded-[18px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-6">
+      <div className="mt-4 grid grid-cols-1 gap-5 md:grid-cols-2">
+        <form action={syncRelations} className="rounded-2xl glass border-0 p-5">
           <h2 className="text-lg font-medium">Sync from LinkedIn</h2>
           <p className="mt-1 text-sm text-[#46506E]/55">Pull all 1st-degree connections through the connected account.</p>
           <button disabled={!seat}
@@ -37,7 +37,7 @@ export default async function ConnectionsPage({ searchParams }: { searchParams: 
           )}
         </form>
 
-        <form action={uploadCsv} className="rounded-[18px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-6">
+        <form action={uploadCsv} className="rounded-2xl glass border-0 p-5">
           <h2 className="text-lg font-medium">Upload Connections.csv</h2>
           <p className="mt-1 text-sm text-[#46506E]/55">LinkedIn → Settings → Data privacy → Get a copy of your data → Connections.</p>
           <div className="mt-4 flex items-center gap-3">
@@ -51,7 +51,7 @@ export default async function ConnectionsPage({ searchParams }: { searchParams: 
       </div>
 
       <h2 className="mt-10 text-lg font-medium">Batches</h2>
-      <ul className="mt-3 divide-y divide-[#EAECF5] rounded-[18px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)]">
+      <ul className="mt-3 divide-y divide-[#EAECF5] rounded-2xl glass border-0">
         {batches.length === 0 && (
           <li className="border border-dashed border-[#E4E7F2] p-8 text-center text-sm text-[#46506E]/45">
             No batches yet — sync or upload above.

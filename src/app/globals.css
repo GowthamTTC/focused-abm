@@ -61,3 +61,41 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
 ::selection { background: rgba(38, 59, 170, 0.15); }
 /* Vanilla Mist, demoted to what it is good at: warm highlight strips */
 .callout-mist { background: #FFF8E6; border: 1px solid #F2E4BE; }
+
+
+/* ══ Glassmorphism system ══ */
+html, body { height: 100%; overflow: hidden; }
+body {
+  background:
+    radial-gradient(900px 600px at 12% -8%, rgba(38, 59, 170, 0.10), transparent 60%),
+    radial-gradient(800px 520px at 95% 8%, rgba(255, 226, 148, 0.16), transparent 55%),
+    radial-gradient(700px 700px at 55% 110%, rgba(38, 59, 170, 0.06), transparent 60%),
+    linear-gradient(180deg, #EFF1F8 0%, #E9EDF6 100%);
+  background-attachment: fixed;
+}
+.glass {
+  background: rgba(255, 255, 255, 0.58);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+  backdrop-filter: blur(16px) saturate(1.5);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  box-shadow: 0 8px 24px rgba(20, 32, 74, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  border-radius: 16px;
+}
+.glass-strong {
+  background: rgba(255, 255, 255, 0.72);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  backdrop-filter: blur(20px) saturate(1.6);
+  border-right: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 4px 0 24px rgba(20, 32, 74, 0.05);
+}
+.glass-input {
+  background: rgba(255, 255, 255, 0.55);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+}
+/* Panels scroll; the window never does */
+.pane-scroll { overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(38,59,170,.25) transparent; }
+.pane-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+.pane-scroll::-webkit-scrollbar-thumb { background: rgba(38,59,170,.22); border-radius: 999px; }
+.pane-scroll::-webkit-scrollbar-track { background: transparent; }

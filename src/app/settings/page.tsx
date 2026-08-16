@@ -12,7 +12,7 @@ function Segmented({ name, options, current, allLabel }: {
   name: string; options: readonly (number | "all")[]; current: number | "all"; allLabel: string;
 }) {
   return (
-    <div className="inline-flex rounded-xl border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-1">
+    <div className="inline-flex rounded-xl glass border-0 p-1">
       {options.map((opt) => (
         <label key={String(opt)}
           className="cursor-pointer rounded-lg px-4 py-1.5 text-sm text-[#46506E]/60 transition has-[:checked]:bg-[#263BAA] has-[:checked]:font-semibold has-[:checked]:text-[#14204A]">
@@ -36,7 +36,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     <Shell user={user} active="settings">
       <h1 className="text-2xl font-semibold">Settings</h1>
 
-      <section className="mt-6 rounded-[18px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-6">
+      <section className="mt-6 rounded-2xl glass border-0 p-5">
         <h2 className="text-lg font-medium">Enrichment guardrail</h2>
         <p className="mt-1 max-w-2xl text-sm text-[#46506E]/55">
           Maximum people one deep-enrichment run may process — your spend brake.
@@ -58,7 +58,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         </p>
       </section>
 
-      <section className="mt-6 rounded-[18px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-6">
+      <section className="mt-6 rounded-2xl glass border-0 p-5">
         <h2 className="text-lg font-medium">Matching guardrail</h2>
         <p className="mt-1 max-w-2xl text-sm text-[#46506E]/55">
           Maximum people one matching run may send to the AI. Rule-matched people are free and
@@ -72,7 +72,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         </form>
       </section>
 
-      <section className="mt-6 rounded-[18px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-6">
+      <section className="mt-6 rounded-2xl glass border-0 p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="text-lg font-medium">LinkedIn account</h2>
@@ -86,7 +86,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             </button>
           </form>
         </div>
-        <ul className="mt-4 divide-y divide-[#EAECF5] rounded-xl border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)]">
+        <ul className="mt-4 divide-y divide-[#EAECF5] rounded-xl glass border-0">
           {accounts.length === 0 && <li className="p-4 text-sm text-[#46506E]/55">No account connected yet.</li>}
           {accounts.map((a) => (
             <li key={a.id} className="flex items-center justify-between gap-4 p-4 text-sm">

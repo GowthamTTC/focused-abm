@@ -36,24 +36,24 @@ export default async function TopConnectionsPage(props: {
       <h1 className="text-2xl font-semibold">Top Connections</h1>
       <p className="mt-1 text-sm text-[#46506E]/55">Your most valuable relationships, ranked by the scoring system — deterministic and auditable per person.</p>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-3">
+      <div className="mt-4 grid gap-4 sm:grid-cols-3">
         <StatCard label="Tier-1 prospects" value={agg.t1.toLocaleString()} sub="score ≥ 70" />
         <StatCard label="Average score" value={String(agg.avgScore)} sub="across the pitchable pool" />
         <StatCard label="Researched" value={agg.enriched.toLocaleString()} sub="with drafted openers" />
       </div>
 
-      <div className="mt-6 rounded-[16px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-5">
+      <div className="mt-6 rounded-2xl glass border-0 p-5">
         <form className="flex flex-wrap items-center gap-3" action="/top-connections">
           <input name="q" defaultValue={q} placeholder="Search name or company…"
-            className="w-64 rounded-lg border border-[#D0D5E4] bg-white px-3 py-2 text-sm" />
-          <select name="svc" defaultValue={svc} className="rounded-lg border border-[#D0D5E4] bg-white px-3 py-2 text-sm">
+            className="w-64 rounded-lg glass-input px-3 py-2 text-sm" />
+          <select name="svc" defaultValue={svc} className="rounded-lg glass-input px-3 py-2 text-sm">
             <option value="">All services</option>
             {services.map((x) => x.s && <option key={x.s} value={x.s}>{x.s}</option>)}
           </select>
           <button className="rounded-lg bg-[#263BAA] px-4 py-2 text-sm font-medium text-white hover:bg-[#1D2E86]">Filter</button>
         </form>
 
-        <table className="mt-4 w-full text-left text-sm">
+        <div className="pane-scroll mt-4 max-h-[52vh]"><table className="w-full text-left text-sm">
           <thead className="text-xs uppercase tracking-wide text-[#46506E]/45">
             <tr>
               <th className="py-2 pr-3">Rank</th><th className="py-2 pr-3">Name</th>
@@ -78,7 +78,7 @@ export default async function TopConnectionsPage(props: {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
         <div className="mt-3 flex items-center justify-between text-sm text-[#46506E]/55">
           <span className="tnum">{totalN.toLocaleString()} people · page {pg}/{pages}</span>
           <span className="flex gap-2">

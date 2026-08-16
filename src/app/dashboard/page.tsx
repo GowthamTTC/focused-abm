@@ -50,7 +50,7 @@ export default async function DashboardPage({ searchParams }: {
   if (!batch) {
     return (
       <Shell user={user} active="dashboard">
-        <div className="rounded-[18px] border border-dashed border-[#E4E7F2] p-12 text-center text-sm text-[#46506E]/55">
+        <div className="rounded-2xl border border-dashed border-[#E4E7F2] p-12 text-center text-sm text-[#46506E]/55">
           No campaign yet — import or sync a network on the <Link href="/connections" className="text-[#263BAA] underline">Data</Link> page.
         </div>
       </Shell>
@@ -126,13 +126,13 @@ export default async function DashboardPage({ searchParams }: {
     <Shell user={user} active="dashboard">
       {/* Campaign switcher */}
       <details className="relative inline-block">
-        <summary className="flex cursor-pointer list-none items-center gap-3 rounded-xl border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] px-4 py-2">
+        <summary className="flex cursor-pointer list-none items-center gap-3 rounded-xl glass border-0 px-4 py-2">
           <span className="font-medium">{batch.label}</span>
           <span className="tnum text-xs text-[#46506E]/40">{totalRows.toLocaleString()} rows</span>
           <span className="text-[#46506E]/30">▾</span>
           <span className="text-xs text-[#46506E]/30">campaign</span>
         </summary>
-        <div className="absolute z-30 mt-1 w-72 rounded-xl border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)]/95 p-1 shadow-2xl backdrop-blur">
+        <div className="absolute z-30 mt-1 w-72 rounded-xl glass border-0/95 p-1 shadow-2xl backdrop-blur">
           {batches.map((b) => (
             <Link key={b.id} href={`/dashboard?c=${b.id}`}
               className={`block rounded-lg px-3 py-2 text-sm hover:bg-[#263BAA]/5 ${b.id === batch.id ? "text-[#263BAA]" : ""}`}>
@@ -143,7 +143,7 @@ export default async function DashboardPage({ searchParams }: {
       </details>
 
       {/* ① TODAY BAR */}
-      <section className="mt-4 flex flex-wrap items-center gap-x-8 gap-y-4 rounded-[18px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-5">
+      <section className="mt-4 flex flex-wrap items-center gap-x-8 gap-y-4 rounded-2xl glass border-0 p-5">
         {([[readyQueue.length, "ready to send", ""], [flagInbox.length, "needs decision", flagInbox.length > 0 ? "text-[#B54708]" : ""], [activeWeek, "active this week", "text-[#263BAA]"]] as const)
           .map(([n, label, tone]) => (
             <div key={label}>
@@ -172,13 +172,13 @@ export default async function DashboardPage({ searchParams }: {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-4">
             <h2 className="text-lg font-medium">Send queue</h2>
-            <div className="flex rounded-lg border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-0.5 text-xs">
+            <div className="flex rounded-lg glass border-0 p-0.5 text-xs">
               {(["activity", "rank"] as const).map((s) => (
                 <Link key={s} href={`/dashboard?c=${batch.id}&sort=${s}`}
                   className={`rounded-md px-2.5 py-1 capitalize ${sort === s ? "bg-[#263BAA]/10 text-[#14204A]" : "text-[#46506E]/45"}`}>{s}</Link>
               ))}
             </div>
-            <div className="flex rounded-lg border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-0.5 text-xs">
+            <div className="flex rounded-lg glass border-0 p-0.5 text-xs">
               {([["all", "All"], ["recent", "Posted ≤7d"], ["older", "Older"]] as const).map(([v, label]) => (
                 <Link key={v} href={qs({ qf: v, qp: 1 })}
                   className={`rounded-md px-2.5 py-1 ${qf === v ? "bg-[#263BAA]/10 text-[#14204A]" : "text-[#46506E]/45"}`}>{label}</Link>
@@ -193,12 +193,12 @@ export default async function DashboardPage({ searchParams }: {
           </div>
           <div className="mt-3 space-y-3">
             {readyQueue.length === 0 && (
-              <div className="rounded-[18px] border border-dashed border-[#E4E7F2] p-10 text-center text-sm text-[#46506E]/45">
+              <div className="rounded-2xl border border-dashed border-[#E4E7F2] p-10 text-center text-sm text-[#46506E]/45">
                 Queue clear — run today's tranche or raise N.
               </div>
             )}
             {queueSlice.map((p) => (
-              <div key={p.id} className="rounded-[18px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-4">
+              <div key={p.id} className="rounded-2xl glass border-0 p-4">
                 <div className="flex flex-wrap items-center gap-2.5 text-sm">
                   <span className="font-medium">{p.firstName} {p.lastName}</span>
                   <span className="text-[#46506E]/45">{p.companyRaw}</span>
@@ -214,7 +214,7 @@ export default async function DashboardPage({ searchParams }: {
                     <span className="line-clamp-2 group-open:hidden">{p.outreachMessage}</span>
                     <span className="hidden text-xs text-[#46506E]/35 group-open:inline">collapse ▴</span>
                   </summary>
-                  <div className="mt-2 max-w-xl rounded-xl border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-4 text-[15px] leading-relaxed">
+                  <div className="mt-2 max-w-xl rounded-xl glass border-0 p-4 text-[15px] leading-relaxed">
                     {p.outreachMessage}
                   </div>
                 </details>
@@ -253,10 +253,10 @@ export default async function DashboardPage({ searchParams }: {
 
         {/* ③ ATTENTION */}
         <div className="w-full shrink-0 space-y-4 lg:w-80">
-          <div className="rounded-[18px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-4">
+          <div className="rounded-2xl glass border-0 p-4">
             <h3 className="text-sm font-medium">Flag inbox <span className="tnum ml-1 text-[#B54708]">{flagInbox.length}</span></h3>
             {flagInbox.length === 0 && <p className="mt-2 text-sm text-[#46506E]/40">Nothing waiting on a decision.</p>}
-            <ul className="mt-2 divide-y divide-[#EAECF5]">
+            <ul className="pane-scroll mt-2 max-h-[46vh] divide-y divide-[#EAECF5]">
               {flagSlice.map((p) => (
                 <li key={p.id} className="py-3 text-sm">
                   <p className="font-medium">{p.firstName} {p.lastName} <span className="ml-1 rounded border border-red-500/40 px-1 text-[10px] text-red-600">⚑</span></p>
@@ -285,10 +285,10 @@ export default async function DashboardPage({ searchParams }: {
           </div>
 
           {/* SENT — with undo */}
-          <div className="rounded-[18px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-4">
+          <div className="rounded-2xl glass border-0 p-4">
             <h3 className="text-sm font-medium">Sent <span className="tnum ml-1 text-[#263BAA]">{sentList.length}</span></h3>
             {sentList.length === 0 && <p className="mt-2 text-sm text-[#46506E]/40">Nothing marked sent yet.</p>}
-            <ul className="mt-2 divide-y divide-[#EAECF5]">
+            <ul className="pane-scroll mt-2 max-h-[46vh] divide-y divide-[#EAECF5]">
               {sentList.slice(0, 10).map((p) => (
                 <li key={p.id} className="flex items-center gap-2 py-2.5 text-sm">
                   <div className="min-w-0 flex-1">
@@ -305,7 +305,7 @@ export default async function DashboardPage({ searchParams }: {
             {sentList.length > 10 && <p className="mt-2 text-xs text-[#46506E]/35">Showing latest 10 of {sentList.length}.</p>}
           </div>
           {failedRows.length > 0 && (
-            <div className="rounded-[18px] border border-red-500/25 bg-red-500/5 p-4 text-sm">
+            <div className="rounded-2xl border border-red-500/25 bg-red-500/5 p-4 text-sm">
               <h3 className="font-medium text-red-600">Failed <span className="tnum ml-1">{selAgg?.failed ?? failedRows.length}</span></h3>
               {failedRows.map((p) => (
                 <p key={p.id} className="mt-2 text-xs text-[#46506E]/60">
@@ -316,7 +316,7 @@ export default async function DashboardPage({ searchParams }: {
             </div>
           )}
           {seat && (
-            <div className="flex items-center justify-between rounded-[18px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-4 text-sm">
+            <div className="flex items-center justify-between rounded-2xl glass border-0 p-4 text-sm">
               <span className="tnum truncate">{seat.displayName ?? seat.unipileAccountId}</span>
               <span className="flex items-center gap-2">
                 <span className={`rounded px-2 py-0.5 text-xs ${seat.status === "operational" ? "bg-[#263BAA]/15 text-[#263BAA]" : "bg-[#B54708]/15 text-[#B54708]"}`}>
@@ -329,11 +329,11 @@ export default async function DashboardPage({ searchParams }: {
             </div>
           )}
           {capReached && (selAgg?.queued ?? 0) > 0 && (
-            <div className="tnum rounded-[18px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-4 text-sm text-[#46506E]/60">
+            <div className="tnum rounded-2xl glass border-0 p-4 text-sm text-[#46506E]/60">
               {selAgg.queued} queued — waiting for daily reset ({resetsIn(usage.resetsAt)})
             </div>
           )}
-          <div className="flex items-center justify-between rounded-[18px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-4 text-sm">
+          <div className="flex items-center justify-between rounded-2xl glass border-0 p-4 text-sm">
             <Soon tip="Reading replies needs inbox access through the seat — a later release.">Auto-detect replies</Soon>
             <span className="h-4 w-8 rounded-full bg-[#263BAA]/10 opacity-35" />
           </div>
@@ -341,7 +341,7 @@ export default async function DashboardPage({ searchParams }: {
       </div>
 
       {/* ④ FUNNEL */}
-      <section className="mt-6 rounded-[18px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-5">
+      <section className="mt-6 rounded-2xl glass border-0 p-5">
         <div className="flex flex-wrap items-baseline gap-x-8 gap-y-2">
           {([["Imported", totalRows], ["Pitchable", counts.pitchable], ["Enriched", selAgg?.done ?? 0], ["Messaged", sentCount]] as const)
             .map(([label, n], i) => (
@@ -366,7 +366,7 @@ export default async function DashboardPage({ searchParams }: {
 
       {/* ⑤ ACTIVITY FEED */}
       {events.length > 0 && (
-        <section className="mt-6 rounded-[18px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)]">
+        <section className="mt-6 rounded-2xl glass border-0">
           <ul className="divide-y divide-[#EAECF5]">
             {events.map((e, i) => (
               <li key={i} className="flex items-center gap-3 px-4 py-2.5 text-sm">

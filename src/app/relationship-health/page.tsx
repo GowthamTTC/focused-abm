@@ -28,15 +28,15 @@ export default async function HealthPage() {
         was visibly active, and which high-value relationships are going quiet before you have spoken.
       </p>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Active ≤7d" value={fresh7.toLocaleString()} sub="reply-hot" />
         <StatCard label="Warm 8–30d" value={fresh30.toLocaleString()} />
         <StatCard label="Cooling 31–90d" value={cooling.toLocaleString()} />
         <StatCard label="Dormant / quiet" value={dormant.toLocaleString()} sub="among scanned people" />
       </div>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        <div className="rounded-[16px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-6">
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <div className="rounded-2xl glass border-0 p-5">
           <h2 className="font-medium">Freshness distribution</h2>
           <p className="mt-0.5 text-xs text-[#46506E]/45">Of the {s.scanned.toLocaleString()} people with observed activity.</p>
           <div className="mt-4">
@@ -46,7 +46,7 @@ export default async function HealthPage() {
             ]} />
           </div>
         </div>
-        <div className="rounded-[16px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-6">
+        <div className="rounded-2xl glass border-0 p-5">
           <h2 className="font-medium">Needs attention</h2>
           <p className="mt-0.5 text-xs text-[#46506E]/45">Tier-1/2 prospects, never contacted, quiet 30+ days or unscanned.</p>
           <ul className="mt-3 divide-y divide-[#EAECF5]">

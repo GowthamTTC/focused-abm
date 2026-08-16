@@ -137,7 +137,7 @@ export function IcpEditor({ initialJson, action }: {
           <div>
             <p className="text-xs text-[#46506E]/45">Summary</p>
             <textarea value={icp.summary} onChange={(e) => patch({ summary: e.target.value })} rows={3}
-              className="mt-1.5 w-full rounded-xl border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-3 text-sm" />
+              className="mt-1.5 w-full rounded-xl glass border-0 p-3 text-sm" />
           </div>
           <TagList label="Fit signals" values={icp.fit_signals} onChange={(v) => patch({ fit_signals: v })} flushRegistry={flushRegistry} />
           <TagList label="Pain points" values={icp.pain_points} onChange={(v) => patch({ pain_points: v })} flushRegistry={flushRegistry} />
@@ -147,7 +147,7 @@ export function IcpEditor({ initialJson, action }: {
             <p className="text-xs text-[#46506E]/45">Personas</p>
             <div className="mt-2 space-y-3">
               {icp.personas.map((p, i) => (
-                <div key={i} className="rounded-xl border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-4">
+                <div key={i} className="rounded-xl glass border-0 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <input value={p.name} onChange={(e) => patchPersona(i, { name: e.target.value })}
                       className="flex-1 rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-sm font-medium hover:border-[#E4E7F2]" />
@@ -199,7 +199,7 @@ export function IcpEditor({ initialJson, action }: {
       ) : (
         <div>
           <textarea value={raw} onChange={(e) => setRaw(e.target.value)} rows={24}
-            className="w-full rounded-xl border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-3 font-mono text-xs" />
+            className="w-full rounded-xl glass border-0 p-3 font-mono text-xs" />
         </div>
       )}
 

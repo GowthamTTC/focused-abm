@@ -17,10 +17,10 @@ export function ExportCard({ batchId, topN, targetPool, review, peers }: {
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
           onClick={() => setOpen(false)}>
-          <div className="w-full max-w-md rounded-[18px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-6"
+          <div className="w-full max-w-md rounded-2xl glass border-0 p-5"
             onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-semibold">Export workbook</h2>
-            <div className="mt-4 rounded-xl border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-4 text-sm">
+            <div className="mt-4 rounded-xl glass border-0 p-4 text-sm">
               {([["Instructions", "—"], [`Top ${topN || "N"}`, topN || "—"], ["Target Pool", targetPool.toLocaleString()], ["Review", review.toLocaleString()], ["Peers", peers.toLocaleString()]] as const)
                 .map(([k, v]) => (
                   <div key={k} className="flex justify-between py-1">

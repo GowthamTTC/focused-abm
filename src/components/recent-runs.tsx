@@ -47,7 +47,7 @@ export async function RecentRuns({ orgId }: { orgId: string }) {
   return (
     <>
       <h2 className="mt-10 text-lg font-medium">Recent runs</h2>
-      <ul className="mt-3 divide-y divide-[#EAECF5] rounded-[18px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)]">
+      <ul className="mt-3 divide-y divide-[#EAECF5] rounded-2xl glass border-0">
         {jobs.map((j) => {
           const ids = j.payloadJson.connectionIds;
           const batchId = typeof j.payloadJson.batchId === "string"

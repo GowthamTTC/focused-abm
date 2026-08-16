@@ -4,9 +4,9 @@ export function StatCard({ label, value, sub, delta }: {
   label: string; value: string; sub?: string; delta?: { v: string; up: boolean };
 }) {
   return (
-    <div className="rounded-[16px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-5">
+    <div className="rounded-2xl glass border-0 p-5">
       <p className="text-xs text-[#46506E]/55">{label}</p>
-      <p className="tnum mt-2 text-3xl font-semibold text-[#14204A]">{value}</p>
+      <p className="tnum mt-2 text-[26px] font-semibold text-[#14204A]">{value}</p>
       {(sub || delta) && (
         <p className="mt-1.5 text-xs">
           {delta && <span className={delta.up ? "text-[#067647]" : "text-red-600"}>{delta.up ? "↑" : "↓"} {delta.v} </span>}

@@ -111,7 +111,7 @@ export default async function BatchPage(props: {
             <form action={scanActivity.bind(null, id)} className="flex items-center gap-2">
               <input type="hidden" name="country" value={country} />
               <input name="n" type="number" defaultValue={50} min={1} max={200}
-                className="tnum w-16 rounded-lg border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] px-2 py-1.5 text-xs" />
+                className="tnum w-16 rounded-lg glass border-0 px-2 py-1.5 text-xs" />
               <button className="rounded-lg border border-[#D0D5E4] px-3 py-1.5 text-xs text-[#46506E]/70 hover:bg-[#263BAA]/5"
                 title="Fetch recent-post dates only (no AI) so the activity filter has data — light seat touch, its own daily cap.">
                 Scan posts
@@ -121,7 +121,7 @@ export default async function BatchPage(props: {
           {counts.pitchable > 0 && (
             <form action={selectTopN.bind(null, id)} className="flex items-center gap-2">
               <select name="n" defaultValue={defaultN}
-                className="rounded-lg border border-[#D0D5E4] bg-white px-2 py-2 text-sm">
+                className="rounded-lg glass-input px-2 py-2 text-sm">
                 {nOptions.map((o) => <option key={o} value={o}>{o}</option>)}
               </select>
               <button title="Queue the next N un-enriched people by rank — already-enriched people are never re-taken."
@@ -188,12 +188,12 @@ export default async function BatchPage(props: {
       {view === "enriched" ? (
         /* ── Two-pane enrichment view (design 1e) ── */
         rows.length === 0 ? (
-          <div className="mt-6 rounded-[18px] border border-dashed border-[#E4E7F2] p-10 text-center text-sm text-[#46506E]/55">
+          <div className="mt-6 rounded-2xl border border-dashed border-[#E4E7F2] p-10 text-center text-sm text-[#46506E]/55">
             Select top N in the Pitchable tab to build a batch.
           </div>
         ) : (
           <div className="mt-6 flex flex-col gap-5 lg:flex-row">
-            <ul className="w-full shrink-0 self-start rounded-[18px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] lg:sticky lg:top-0 lg:max-h-[calc(100dvh-14rem)] lg:w-72 lg:overflow-y-auto">
+            <ul className="pane-scroll w-full shrink-0 self-start rounded-2xl glass border-0 lg:sticky lg:top-0 lg:max-h-[calc(100dvh-14rem)] lg:w-72 lg:">
               {rows.map((c, i) => (
                 <li key={c.id} className={`border-b border-[#263BAA]/8 last:border-0 ${person?.id === c.id ? "border-l-2 border-l-[#263BAA] bg-[#263BAA]/5" : ""}`}>
                   <Link href={`/batches/${id}?view=enriched&p=${c.id}`}
@@ -208,7 +208,7 @@ export default async function BatchPage(props: {
             </ul>
 
             {person && (
-              <div className="min-w-0 flex-1 rounded-[18px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-6">
+              <div className="min-w-0 flex-1 rounded-2xl glass border-0 p-5">
                 <div className="flex flex-wrap items-center gap-3">
                   <h2 className="text-xl font-semibold">{person.firstName} {person.lastName}</h2>
                   {person.linkedinUrl && (
@@ -223,7 +223,7 @@ export default async function BatchPage(props: {
                 <h3 className="mt-6 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#46506E]/45">
                   <span className="h-2.5 w-2.5 rounded-sm bg-white/25" /> Stage A — matched from metadata
                 </h3>
-                <div className="mt-2 grid grid-cols-1 gap-x-8 gap-y-3 rounded-xl border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-4 text-sm md:grid-cols-2">
+                <div className="mt-2 grid grid-cols-1 gap-x-8 gap-y-3 rounded-xl glass border-0 p-4 text-sm md:grid-cols-2">
                   <div><p className="text-xs text-[#46506E]/45">Company</p><p className="mt-0.5">{person.companyRaw ?? "—"}</p></div>
                   <div><p className="text-xs text-[#46506E]/45">Position</p><p className="mt-0.5">{person.positionRaw ?? person.headlineRaw ?? "—"}</p></div>
                   <div><p className="text-xs text-[#46506E]/45">Provisional service</p><p className="tnum mt-0.5">{person.serviceSlug ?? "—"}</p></div>
@@ -244,7 +244,7 @@ export default async function BatchPage(props: {
                     </form>
                   </div>
                 ) : person.enrichStatus !== "done" ? (
-                  <p className="mt-2 rounded-xl border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-4 text-sm text-[#46506E]/55">
+                  <p className="mt-2 rounded-xl glass border-0 p-4 text-sm text-[#46506E]/55">
                     {person.enrichStatus === "running" ? "Reading profile now…" : "Queued — press Deep enrich to run."}
                   </p>
                 ) : (
@@ -296,7 +296,7 @@ export default async function BatchPage(props: {
                     {person.outreachMessage && (
                       <div>
                         <p className="text-xs text-[#B54708]/70">Outreach message</p>
-                        <div className="mt-1.5 rounded-xl border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-4 text-[15px] leading-relaxed text-[#14204A]">
+                        <div className="mt-1.5 rounded-xl glass border-0 p-4 text-[15px] leading-relaxed text-[#14204A]">
                           {person.outreachMessage}
                         </div>
                         <div className="mt-2.5 flex items-center gap-3">
@@ -316,7 +316,7 @@ export default async function BatchPage(props: {
           </div>
         )
       ) : rows.length === 0 ? (
-        <div className="mt-6 rounded-[18px] border border-dashed border-[#E4E7F2] p-12 text-center">
+        <div className="mt-6 rounded-2xl border border-dashed border-[#E4E7F2] p-12 text-center">
           {view === "pitchable" && counts.unclassified > 0 ? (
             <>
               <p className="text-[#14204A]">Run matching to classify {counts.unclassified.toLocaleString()} connections into buckets.</p>
@@ -328,7 +328,7 @@ export default async function BatchPage(props: {
         </div>
       ) : (
         /* ── Bucket tables ── */
-        <div className="mt-4 overflow-x-auto rounded-[18px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)]">
+        <div className="mt-4 overflow-x-auto rounded-2xl glass border-0">
           <table className="w-full text-left text-sm">
             <thead className="bg-[#263BAA]/5 text-xs uppercase tracking-wide text-[#46506E]/45">
               <tr>
@@ -373,7 +373,7 @@ export default async function BatchPage(props: {
                       <td className="relative max-w-sm px-3 py-2.5 text-xs text-[#46506E]/55">
                         <div className="group">
                           <span className="line-clamp-2">{c.matchWhy}</span>
-                          <div className="pointer-events-none absolute left-0 top-full z-20 mt-1 hidden w-[26rem] max-w-[80vw] rounded-xl border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)]/95 p-3.5 shadow-2xl backdrop-blur group-hover:block">
+                          <div className="pointer-events-none absolute left-0 top-full z-20 mt-1 hidden w-[26rem] max-w-[80vw] rounded-xl glass border-0/95 p-3.5 shadow-2xl backdrop-blur group-hover:block">
                             <p className="text-sm text-[#14204A]">{c.matchWhy}</p>
                             {b && (
                               <p className="tnum mt-2 text-[#46506E]/65">

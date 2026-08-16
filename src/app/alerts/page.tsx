@@ -64,13 +64,13 @@ export default async function AlertsPage(props: { searchParams: Promise<{ f?: st
         "profile viewed you" style alerts: LinkedIn does not expose that data to any tool.
       </p>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-3">
+      <div className="mt-4 grid gap-4 sm:grid-cols-3">
         <StatCard label="High priority" value={String(count("high"))} sub="job changes · failures" />
         <StatCard label="Medium" value={String(count("med"))} sub="flags · new activity" />
         <StatCard label="Low" value={String(count("low"))} sub="run history" />
       </div>
 
-      <div className="mt-6 flex gap-1 rounded-lg border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-1 text-sm w-fit">
+      <div className="mt-6 flex gap-1 rounded-lg glass border-0 p-1 text-sm w-fit">
         {(["all", "high", "med", "low"] as const).map((v) => (
           <Link key={v} href={`/alerts?f=${v}`}
             className={`rounded-md px-3 py-1.5 capitalize ${f === v ? "bg-[#263BAA]/10 font-medium text-[#263BAA]" : "text-[#46506E]/55"}`}>
@@ -79,9 +79,9 @@ export default async function AlertsPage(props: { searchParams: Promise<{ f?: st
         ))}
       </div>
 
-      <div className="mt-4 space-y-3">
+      <div className="pane-scroll mt-4 max-h-[54vh] space-y-3 pr-1">
         {shown.map((a, i) => (
-          <div key={i} className="flex items-start gap-4 rounded-[16px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-4">
+          <div key={i} className="flex items-start gap-4 rounded-2xl glass border-0 p-4">
             <span className={`mt-0.5 rounded border px-2 py-0.5 text-[10px] font-semibold uppercase ${SEV_STYLE[a.sev]}`}>{a.sev}</span>
             <div className="min-w-0 flex-1">
               <p className="font-medium">{a.title}</p>
@@ -92,7 +92,7 @@ export default async function AlertsPage(props: { searchParams: Promise<{ f?: st
           </div>
         ))}
         {shown.length === 0 && (
-          <div className="rounded-[16px] border border-dashed border-[#D0D5E4] p-10 text-center text-sm text-[#46506E]/45">
+          <div className="rounded-2xl border border-dashed border-[#D0D5E4] p-10 text-center text-sm text-[#46506E]/45">
             Nothing here — a quiet inbox is a healthy pipeline.
           </div>
         )}

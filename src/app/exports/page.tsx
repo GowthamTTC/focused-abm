@@ -17,17 +17,17 @@ export default async function ExportsPage() {
       <h1 className="text-2xl font-semibold">Exports</h1>
       <p className="mt-1 text-sm text-[#46506E]/55">The workbook is the deliverable — five tabs: prospects, drafts, flags, methodology, ops log.</p>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-3">
+      <div className="mt-4 grid gap-4 sm:grid-cols-3">
         <StatCard label="Exports generated" value={String(history.length)} sub="since logging began" />
         <StatCard label="Rows exported" value={totalRows.toLocaleString()} />
         <StatCard label="Campaigns" value={String(batches.length)} sub="available to export" />
       </div>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_320px]">
-        <div className="rounded-[16px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-6">
+      <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_320px]">
+        <div className="rounded-2xl glass border-0 p-5">
           <h2 className="font-medium">Export history</h2>
           {history.length === 0 && <p className="mt-3 text-sm text-[#46506E]/45">No exports logged yet — generate one from the panel on the right; history begins now.</p>}
-          <ul className="mt-3 divide-y divide-[#EAECF5]">
+          <ul className="pane-scroll mt-3 max-h-[50vh] divide-y divide-[#EAECF5]">
             {history.map((e) => (
               <li key={e.id} className="flex items-center gap-3 py-3 text-sm">
                 <div className="min-w-0 flex-1">
@@ -43,7 +43,7 @@ export default async function ExportsPage() {
             ))}
           </ul>
         </div>
-        <div className="self-start rounded-[16px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-6">
+        <div className="self-start rounded-2xl glass border-0 p-5">
           <h2 className="font-medium">Generate export</h2>
           <p className="mt-1 text-xs text-[#46506E]/45">Pick a campaign — the workbook downloads as .xlsx.</p>
           <ul className="mt-3 space-y-2">

@@ -45,15 +45,15 @@ export default async function ServiceDetail(props: {
       {err === "confirm" && <p className="mt-2 text-sm text-[#B42318]">Tick the confirmation box to delete.</p>}
       {err === "last" && <p className="mt-2 text-sm text-[#B42318]">Cannot delete your only service — the classifier needs at least one offer to route to.</p>}
       <div className="mt-5 flex flex-col gap-5 lg:flex-row">
-        <div className="min-w-0 flex-1 rounded-[18px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-6">
+        <div className="min-w-0 flex-1 rounded-2xl glass border-0 p-5">
           <IcpEditor key={s.slug} initialJson={JSON.stringify(s.icpJson)} action={save.bind(null, s.slug)} />
         </div>
         <aside className="w-full shrink-0 space-y-4 self-start lg:w-72">
-          <div className="rounded-[18px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-5 text-sm text-[#46506E]/70">
+          <div className="rounded-2xl glass border-0 p-5 text-sm text-[#46506E]/70">
             These patterns drive the free rule pass — every pattern you add removes people
             from the paid model pass.
           </div>
-          <details className="rounded-[18px] border border-red-500/25 bg-red-500/5 p-5 text-sm">
+          <details className="rounded-2xl border border-red-500/25 bg-red-500/5 p-5 text-sm">
             <summary className="cursor-pointer list-none font-medium text-red-600">Danger zone ▾</summary>
             <p className="mt-3 text-[#46506E]/60">
               Delete this service permanently.

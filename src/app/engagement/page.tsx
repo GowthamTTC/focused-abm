@@ -25,15 +25,15 @@ export default async function EngagementPage() {
         LinkedIn does not expose likes on your posts or profile views to any tool.
       </p>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Posted ≤7 days" value={s.active7.toLocaleString()} sub="hottest reply window" />
         <StatCard label="Posted ≤30 days" value={s.active30.toLocaleString()} />
         <StatCard label="Posted ≤90 days" value={s.active90.toLocaleString()} />
         <StatCard label="Activity unknown" value={unknown.toLocaleString()} sub="not yet scanned — run a post scan" />
       </div>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        <div className="rounded-[16px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-6">
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <div className="rounded-2xl glass border-0 p-5">
           <h2 className="font-medium">Freshness of known activity</h2>
           <div className="mt-4">
             <Donut total={s.scanned} items={[
@@ -44,14 +44,14 @@ export default async function EngagementPage() {
             ]} />
           </div>
         </div>
-        <div className="rounded-[16px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-6">
+        <div className="rounded-2xl glass border-0 p-5">
           <h2 className="font-medium">Most recent post, by weekday</h2>
           <p className="mt-0.5 text-xs text-[#46506E]/45">Last-90-day observations — a rough guide to when your network is on LinkedIn.</p>
           <div className="mt-4"><HBars items={dows.map((d) => ({ label: DOW[d.dow] ?? String(d.dow), n: d.n }))} /></div>
         </div>
       </div>
 
-      <div className="mt-4 rounded-[16px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-6">
+      <div className="mt-4 rounded-2xl glass border-0 p-5">
         <h2 className="font-medium">Active this week</h2>
         <ul className="mt-3 divide-y divide-[#EAECF5]">
           {recentPosters.map((p) => (

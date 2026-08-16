@@ -24,26 +24,26 @@ export default async function AdminPage({ searchParams }: {
         settings. Nobody sees anyone else's data.
       </p>
 
-      <section className="mt-6 rounded-[18px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-6">
+      <section className="mt-6 rounded-2xl glass border-0 p-5">
         <h2 className="text-lg font-medium">Add a user</h2>
         {err && <p className="mt-2 text-sm text-[#B42318]">{err}</p>}
         {ok === "1" && <p className="mt-2 text-sm text-[#263BAA]">User added with a fresh workspace (catalog pre-seeded) — share the credentials with them directly.</p>}
         <form action={addUser} className="mt-4 grid max-w-2xl grid-cols-1 gap-4 md:grid-cols-3">
           <label className="block text-sm text-[#46506E]/70">Name
             <input name="name" required placeholder="Priya S"
-              className="mt-1.5 w-full rounded-xl border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] px-3 py-2.5 text-sm" />
+              className="mt-1.5 w-full rounded-xl glass border-0 px-3 py-2.5 text-sm" />
           </label>
           <label className="block text-sm text-[#46506E]/70">Email
             <input name="email" type="email" required placeholder="priya@tossthe.co.in"
-              className="mt-1.5 w-full rounded-xl border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] px-3 py-2.5 text-sm" />
+              className="mt-1.5 w-full rounded-xl glass border-0 px-3 py-2.5 text-sm" />
           </label>
           <label className="block text-sm text-[#46506E]/70">Password
             <input name="password" type="text" required minLength={8} placeholder="min 8 characters"
-              className="mt-1.5 w-full rounded-xl border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] px-3 py-2.5 text-sm" />
+              className="mt-1.5 w-full rounded-xl glass border-0 px-3 py-2.5 text-sm" />
           </label>
           <label className="block text-sm text-[#46506E]/70 md:col-span-2">Offers in their workspace
             <select name="catalogMode"
-              className="mt-1.5 w-full rounded-xl border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] px-3 py-2.5 text-sm">
+              className="mt-1.5 w-full rounded-xl glass border-0 px-3 py-2.5 text-sm">
               <option value="managed">TTC catalogue — seed our seven services (internal seat)</option>
               <option value="own">Their own offers — start empty, they define their services (external client)</option>
             </select>
@@ -59,7 +59,7 @@ export default async function AdminPage({ searchParams }: {
         </form>
       </section>
 
-      <section className="mt-6 rounded-[18px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-6">
+      <section className="mt-6 rounded-2xl glass border-0 p-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h2 className="text-lg font-medium">Catalog</h2>
@@ -77,7 +77,7 @@ export default async function AdminPage({ searchParams }: {
         </div>
       </section>
 
-      <section className="mt-6 rounded-[18px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-6">
+      <section className="mt-6 rounded-2xl glass border-0 p-5">
         <h2 className="text-lg font-medium">Users <span className="tnum ml-1 text-[#46506E]/40">{users.length}</span></h2>
         <ul className="mt-3 divide-y divide-[#EAECF5]">
           {users.map((u) => {

@@ -48,15 +48,15 @@ export default async function NewServicePage({ searchParams }: {
       </p>
       {err && <p className="mt-3 text-sm text-[#B42318]">{err}</p>}
 
-      <form action={createService} className="mt-6 max-w-2xl rounded-[18px] border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] p-6">
+      <form action={createService} className="mt-6 max-w-2xl rounded-2xl glass border-0 p-5">
         <label className="block text-sm text-[#46506E]/70">Offer name
           <input name="name" required placeholder="e.g. Fractional CMO, ERP Implementation, Brand Sprint"
-            className="mt-1.5 w-full rounded-xl border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] px-4 py-3 text-sm" />
+            className="mt-1.5 w-full rounded-xl glass border-0 px-4 py-3 text-sm" />
         </label>
         <label className="mt-4 block text-sm text-[#46506E]/70">Who buys it (one or two sentences)
           <textarea name="summary" rows={3}
             placeholder="e.g. B2B SaaS companies, 50-500 people, whose founder still runs marketing and needs pipeline this quarter."
-            className="mt-1.5 w-full rounded-xl border border-[#E4E7F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)] px-4 py-3 text-sm" />
+            className="mt-1.5 w-full rounded-xl glass border-0 px-4 py-3 text-sm" />
         </label>
         <p className="mt-3 text-xs text-[#46506E]/40">
           You will add the buyer titles, pains and disqualifiers on the next screen — those patterns
