@@ -43,7 +43,7 @@ export default async function ConnectionsPage({ searchParams }: { searchParams: 
           <div className="mt-4 flex items-center gap-3">
             <label className="flex h-16 flex-1 cursor-pointer items-center justify-center rounded-[10px] border border-dashed border-[#DDE2EE] bg-white px-3 text-sm text-[#98A2B3] transition hover:border-[#263BAA]/40 hover:text-[#475467]">
               <input name="file" type="file" accept=".csv" required
-                className="w-full text-sm text-[#475467] file:mr-3 file:rounded-[8px] file:file:bg-[#EEF1FC] file:px-3 file:py-1.5 file:text-sm file:text-[#101828]" />
+                className="w-full text-sm text-[#475467] file:mr-3 file:rounded-[8px] file:border file:border-[#DDE2EE] file:bg-[#F4F6FB] file:px-3 file:py-1.5 file:text-sm file:text-[#475467] hover:file:bg-[#EEF1FC]" />
             </label>
             <button className="rounded-[8px] border border-[#DDE2EE] bg-[#EEF1FC] px-4 py-2 text-sm font-medium hover:bg-[#EEF1FC]">Upload</button>
           </div>
