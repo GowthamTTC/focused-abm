@@ -162,7 +162,7 @@ export async function Shell({ user, active, children }: {
                 ? <div className="h-[3px] rounded-full bg-[#263BAA]" style={{ width: `${pct}%` }} />
                 : <div className="banner-indeterminate absolute h-[3px] w-1/3 rounded-full bg-[#263BAA]" />}
             </div>
-            {["deep_enrich", "sync", "activity_scan"].includes(running.kind) && running.status !== "stopping" && (
+            {running.status !== "stopping" && (
               <form action={requestStop.bind(null, running.id)}>
                 <button className="rounded-[6px] border border-[#DDE2EE] px-2 py-[2px] text-[11px] text-[#475467] transition-colors duration-[130ms] hover:border-[#FDA29B] hover:text-[#B42318]"
                   title="Stops at the next safe point — completed people keep their results.">
