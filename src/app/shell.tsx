@@ -7,6 +7,7 @@ import { env } from "@/lib/env";
 import { requestStop } from "@/app/jobs/actions";
 import { NavIcon } from "@/components/nav-icons";
 import { CommandPalette, PaletteTrigger } from "@/components/command-palette";
+import { LiveJob } from "@/components/live-job";
 
 export async function requirePage(): Promise<Ctx> {
   const user = await currentUser();
@@ -151,17 +152,9 @@ export async function Shell({ user, active, children }: {
 
         {running && (
           <div className="flex shrink-0 items-center gap-3 border-b border-[#DDE2EE] bg-white px-5 py-2">
-            <span className="tnum text-[12px] text-[#475467]">
-              {KIND_LABEL[running.kind] ?? running.kind}
-              {running.status === "stopping" && " · stopping — finishing the current step"}
-              {" · "}{(running.progress ?? 0).toLocaleString()}
-              {(running.total ?? 0) > 0 ? ` / ${(running.total ?? 0).toLocaleString()}` : " pulled"}
-            </span>
-            <div className="relative h-[3px] flex-1 overflow-hidden rounded-full bg-[#EEF1F8]">
-              {(running.total ?? 0) > 0
-                ? <div className="h-[3px] rounded-full bg-[#263BAA]" style={{ width: `${pct}%` }} />
-                : <div className="banner-indeterminate absolute h-[3px] w-1/3 rounded-full bg-[#263BAA]" />}
-            </div>
+            <LiveJob label={KIND_LABEL[running.kind] ?? running.kind}
+              initial={{ id: running.id, kind: running.kind, status: running.status,
+                progress: running.progress, total: running.total }} />
             {running.status !== "stopping" && (
               <form action={requestStop.bind(null, running.id)}>
                 <button className="rounded-[6px] border border-[#DDE2EE] px-2 py-[2px] text-[11px] text-[#475467] transition-colors duration-[130ms] hover:border-[#FDA29B] hover:text-[#B42318]"
