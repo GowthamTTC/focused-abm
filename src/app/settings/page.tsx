@@ -123,7 +123,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       <section className="mt-6 rounded-[14px] border border-[#DDE2EE] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,.04)]">
         <h2 className="font-medium">Your voice</h2>
         <p className="mt-1 max-w-2xl text-sm text-[#475467]">
-          The system reads your own recent posts once, distils how you actually write — tone, rhythm,
+          The system reads your last six months of posts and your profile (About, headline) once, distils how you actually write — tone, rhythm,
           phrases, sign-offs — and every drafted message then follows it. Prospects hear you, not a template.
         </p>
         {settings.voiceProfile ? (
@@ -142,7 +142,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           <button className="rounded-[10px] bg-[#263BAA] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#1D2E86]">
             {settings.voiceProfile ? "Re-scan my voice" : "Scan my voice"}
           </button>
-          <span className="text-xs text-[#98A2B3]">Reads your 5 latest posts · one light seat touch · no AI reads anyone else</span>
+          <span className="text-xs text-[#98A2B3]">Reads your last 6 months of posts + your About section · one light seat touch</span>
         </form>
       </section>
     </Shell>

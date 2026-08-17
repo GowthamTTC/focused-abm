@@ -44,6 +44,7 @@ export async function classifyBatch(
   batchId: string,
   opts: { reclassifyAll?: boolean } = {},
   onProgress?: (done: number, total: number) => Promise<void>,
+  shouldStop?: () => Promise<boolean>,
 ): Promise<{ classified: number; ruleHits: number; llmCalls: number }> {
   const services = (await db.select().from(service)
     .where(and(eq(service.orgId, orgId), eq(service.status, "active"))))
@@ -175,6 +176,7 @@ export async function classifyBatch(
 
   await Promise.all(Array.from({ length: CONCURRENCY }, async () => {
     for (;;) {
+      if (shouldStop && (await shouldStop())) return;
       const i = next; next += 1;
       if (i >= slices.length) return;
       try {

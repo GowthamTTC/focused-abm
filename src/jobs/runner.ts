@@ -77,7 +77,19 @@ export async function processNext(): Promise<boolean> {
     } else if (next.kind === "classify") {
       const batchId = String(next.payloadJson.batchId);
       const reclassifyAll = Boolean(next.payloadJson.reclassifyAll);
-      await classifyBatch(next.orgId, batchId, { reclassifyAll }, (done, total) => setProgress(next.id, done, total));
+      const stoppedEarly = { v: false };
+      await classifyBatch(next.orgId, batchId, { reclassifyAll },
+        (done, total) => setProgress(next.id, done, total),
+        async () => {
+          const stop = await stopRequested(next.id);
+          if (stop) stoppedEarly.v = true;
+          return stop;
+        });
+      if (stoppedEarly.v) {
+        const [row] = await db.select({ p: job.progress, t: job.total }).from(job).where(eq(job.id, next.id));
+        await markStopped(next.id, row?.p ?? 0, row?.t ?? 0);
+        return true;
+      }
       await rankBatch(next.orgId, batchId);
     } else if (next.kind === "deep_enrich") {
       const ids = (next.payloadJson.connectionIds as string[]) ?? [];
@@ -100,16 +112,28 @@ export async function processNext(): Promise<boolean> {
       const [seat] = await db.select().from(channelAccount)
         .where(and(eq(channelAccount.orgId, next.orgId), eq(channelAccount.status, "operational")));
       if (!seat) throw new Error("No operational LinkedIn seat.");
-      await setProgress(next.id, 0, 2);
+      await setProgress(next.id, 0, 3);
       const provider = getChannelProvider();
-      const posts = await provider.fetchRecentPosts({ accountId: seat.unipileAccountId, identifier, limit: 5 });
-      const sample = posts.map((p: { text: string }) => p.text.slice(0, 600)).filter(Boolean).join("\n---\n");
-      if (!sample) throw new Error("No posts found on that profile — post something first, or check the URL.");
-      await setProgress(next.id, 1, 2);
+      const profile = await provider.fetchProfile({ accountId: seat.unipileAccountId, identifier });
+      await setProgress(next.id, 1, 3);
+      const sixMonthsAgo = Date.now() - 182 * 86400000;
+      const allPosts = await provider.fetchRecentPosts({ accountId: seat.unipileAccountId, identifier, limit: 20 });
+      const posts = allPosts
+        .filter((p) => !p.postedAt || new Date(p.postedAt).getTime() >= sixMonthsAgo)
+        .slice(0, 14);
+      const sample = posts.map((p) => p.text.slice(0, 500)).filter(Boolean).join("\n---\n");
+      const profileBlock = [
+        profile?.headline ? `Headline: ${profile.headline}` : "",
+        profile?.about ? `About: ${profile.about.slice(0, 1200)}` : "",
+      ].filter(Boolean).join("\n") || "(no profile text available)";
+      if (!sample && profileBlock.startsWith("(no")) {
+        throw new Error("Nothing to sample — no posts in the last 6 months and no About text. Check the URL.");
+      }
+      await setProgress(next.id, 2, 3);
       const out = await complete({
         stage: "deepdive",
         prompt: "voice-profile",
-        vars: { posts_sample: sample },
+        vars: { posts_sample: sample || "(no posts in the last 6 months)", profile_block: profileBlock },
         schema: z.object({ profile: z.string().min(20) }),
         maxTokens: 400,
       });
@@ -117,7 +141,7 @@ export async function processNext(): Promise<boolean> {
         voiceProfile: out.profile,
         voiceSampledAt: new Date().toISOString(),
       });
-      await setProgress(next.id, 2, 2);
+      await setProgress(next.id, 3, 3);
     } else if (next.kind === "activity_scan") {
       // Lightweight recency check: posts only, no LLM, no profile analysis.
       // Uses the stored member_id when the batch came from sync (1 request);

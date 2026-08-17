@@ -23,7 +23,7 @@ async function signOut() {
 
 const KIND_LABEL: Record<string, string> = {
   classify: "Matching", deep_enrich: "Researching", sync: "Syncing",
-  import: "Importing", activity_scan: "Scanning posts",
+  import: "Importing", activity_scan: "Scanning posts", voice_scan: "Sampling voice",
 };
 
 const NAV: { section: string; items: [key: string, href: string, label: string][] }[] = [
@@ -153,7 +153,7 @@ export async function Shell({ user, active, children }: {
           <div className="flex shrink-0 items-center gap-3 border-b border-[#DDE2EE] bg-white px-5 py-2">
             <span className="tnum text-[12px] text-[#475467]">
               {KIND_LABEL[running.kind] ?? running.kind}
-              {running.status === "stopping" && " · stopping…"}
+              {running.status === "stopping" && " · stopping — finishing the current step"}
               {" · "}{(running.progress ?? 0).toLocaleString()}
               {(running.total ?? 0) > 0 ? ` / ${(running.total ?? 0).toLocaleString()}` : " pulled"}
             </span>

@@ -2,7 +2,7 @@ import { desc, eq, inArray } from "drizzle-orm";
 import { db, connection, connectionBatch, job } from "@/db";
 
 const KIND_LABEL: Record<string, string> = {
-  classify: "Matching", deep_enrich: "Research", sync: "Sync", activity_scan: "Post scan", import: "Import",
+  classify: "Matching", deep_enrich: "Research", sync: "Sync", activity_scan: "Post scan", voice_scan: "Voice sample", import: "Import",
 };
 
 function ago(d: Date): string {
