@@ -126,7 +126,7 @@ export default async function BatchPage(props: {
               </select>
               <button title="Queue the next N un-enriched people by rank — already-enriched people are never re-taken."
                 className="rounded-[8px] bg-[#263BAA] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1D2E86]">
-                Select next N
+                Queue for research: N
               </button>
               <Link href="/settings" className="text-xs text-[#98A2B3] underline decoration-[#DDE2EE] hover:text-[#475467]"
                 title="Per-run enrichment cap — change in Settings">
@@ -138,7 +138,7 @@ export default async function BatchPage(props: {
             <form action={runDeepEnrich.bind(null, id)}>
               <button disabled={selQueued === 0}
                 title={selQueued === 0
-                  ? "Nothing queued — press Select next N to queue the next block of the pool."
+                  ? "Nothing queued — press Queue for research: N to queue the next block of the pool."
                   : `Run enrichment for the ${selQueued} queued people`}
                 className={selQueued > 0
                   ? "rounded-[8px] bg-[#263BAA] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1D2E86]"
@@ -189,7 +189,7 @@ export default async function BatchPage(props: {
         /* ── Two-pane enrichment view (design 1e) ── */
         rows.length === 0 ? (
           <div className="mt-6 rounded-[14px] border border-dashed border-[#DDE2EE] p-10 text-center text-sm text-[#98A2B3]">
-            Select top N in the Matched tab to build a batch.
+            Queue top N in the Matched tab to build a batch.
           </div>
         ) : (
           <div className="mt-6 flex flex-col gap-5 lg:flex-row">

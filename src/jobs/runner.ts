@@ -121,10 +121,22 @@ export async function processNext(): Promise<boolean> {
       if (!seat) throw new Error("No operational LinkedIn seat.");
       await setProgress(next.id, 0, 3);
       const provider = getChannelProvider();
-      const profile = await provider.fetchProfile({ accountId: seat.unipileAccountId, identifier });
+      // "me" resolves the seat owner — the voice we are sampling is theirs by
+      // definition. A pasted URL is only an override, and we fall back if it
+      // does not resolve (LinkedIn rejects many vanity slugs).
+      let profile = null as Awaited<ReturnType<typeof provider.fetchProfile>>;
+      if (identifier && identifier !== "me") {
+        try { profile = await provider.fetchProfile({ accountId: seat.unipileAccountId, identifier }); }
+        catch { profile = null; }
+      }
+      if (!profile) profile = await provider.fetchProfile({ accountId: seat.unipileAccountId, identifier: "me" });
       await setProgress(next.id, 1, 3);
       const sixMonthsAgo = Date.now() - 182 * 86400000;
-      const allPosts = await provider.fetchRecentPosts({ accountId: seat.unipileAccountId, identifier, limit: 20 });
+      // The posts endpoint needs the provider-internal id, not the vanity slug.
+      const postsId = profile?.providerId ?? identifier;
+      const allPosts = postsId
+        ? await provider.fetchRecentPosts({ accountId: seat.unipileAccountId, identifier: postsId, limit: 20 })
+        : [];
       const posts = allPosts
         .filter((p) => !p.postedAt || new Date(p.postedAt).getTime() >= sixMonthsAgo)
         .slice(0, 14);

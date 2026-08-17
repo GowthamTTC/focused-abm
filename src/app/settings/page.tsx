@@ -137,12 +137,12 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           <p className="mt-3 text-sm text-[#B54708]">No voice sampled yet — drafts use the house style until you scan.</p>
         )}
         <form action={scanVoice} className="mt-4 flex flex-wrap items-center gap-3">
-          <input name="profileUrl" required placeholder="https://www.linkedin.com/in/your-handle"
+          <input name="profileUrl" placeholder="optional — leave blank to use your connected account"
             className="w-96 rounded-[10px] border border-[#DDE2EE] bg-white px-4 py-2.5 text-sm" />
           <button className="rounded-[10px] bg-[#263BAA] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#1D2E86]">
             {settings.voiceProfile ? "Re-scan my voice" : "Scan my voice"}
           </button>
-          <span className="text-xs text-[#98A2B3]">Reads your last 6 months of posts + your About section · one light seat touch</span>
+          <span className="text-xs text-[#98A2B3]">Reads your last 6 months of posts + your About section from your connected seat · one light touch</span>
         </form>
       </section>
     </Shell>

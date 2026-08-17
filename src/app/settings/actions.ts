@@ -56,7 +56,7 @@ export async function scanVoice(formData: FormData) {
   const raw = String(formData.get("profileUrl") ?? "").trim();
   const m = raw.match(/linkedin\.com\/in\/([^/?#]+)/i);
   const identifier = m ? m[1] : raw.replace(/^@/, "");
-  if (!identifier) redirect("/settings?err=voice");
-  await enqueue(user.orgId, "voice_scan", { identifier });
+  // blank is fine — the worker resolves the connected account itself
+  await enqueue(user.orgId, "voice_scan", { identifier: identifier || "me" });
   redirect("/settings?ok=voice");
 }

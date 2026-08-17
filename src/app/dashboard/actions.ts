@@ -11,6 +11,35 @@ import { markSelection } from "@/modules/matching/service-fit";
 /** One-click morning ritual: select the next tranche (guardrail-clamped,
  *  default 30) AND queue the enrichment run. The daily cap still rules the
  *  worker — leftovers wait for the reset. */
+/** The sentence-form picker: "Research my top [N] matches [in country]
+ *  [who posted recently]". Selects by rank WITHIN the filters, then runs. */
+export async function researchPick(batchId: string, formData: FormData) {
+  const user = await requireUser();
+  const { enrichLimit } = await getOrgSettings(user.orgId);
+  const want = Number(formData.get("n") ?? 30) || 30;
+  const country = String(formData.get("country") ?? "").trim();
+  const posted = String(formData.get("posted") ?? "any");
+  const n = clampToLimit(Math.min(Math.max(want, 1), 80), enrichLimit);
+
+  const conds = [
+    eq(connection.orgId, user.orgId), eq(connection.batchId, batchId),
+    eq(connection.bucket, "pitchable"), eq(connection.selectedForEnrich, false),
+  ];
+  if (country) conds.push(sql`trim(split_part(location, ',', greatest(1, array_length(string_to_array(location, ','), 1)))) = ${country}`);
+  if (posted === "7" || posted === "30") {
+    conds.push(sql`last_post_at >= now() - (${posted + " days"})::interval`);
+  }
+  const next = await db.select({ id: connection.id }).from(connection)
+    .where(and(...conds)).orderBy(asc(connection.rank)).limit(n);
+  if (next.length === 0) redirect(`/dashboard?c=${batchId}&picked=0`);
+  await markSelection(batchId, next.map((t) => t.id), true);
+  const queued = await db.select({ id: connection.id }).from(connection)
+    .where(and(eq(connection.orgId, user.orgId), eq(connection.batchId, batchId),
+      eq(connection.selectedForEnrich, true), eq(connection.enrichStatus, "queued")));
+  if (queued.length > 0) await enqueue(user.orgId, "deep_enrich", { connectionIds: queued.map((q) => q.id) });
+  redirect(`/dashboard?c=${batchId}&picked=${next.length}`);
+}
+
 export async function runTodaysTranche(batchId: string) {
   const user = await requireUser();
   const { enrichLimit } = await getOrgSettings(user.orgId);

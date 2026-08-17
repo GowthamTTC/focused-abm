@@ -7,14 +7,14 @@ import { UsageMeter } from "@/components/usage-meter";
 import { ago, Soon, CampaignSwitcher, NoCampaign, resolveBatch } from "@/components/dash-bits";
 import { getDailyEnrichUsage, resetsIn } from "@/modules/enrich/usage";
 import { bucketCounts } from "@/modules/matching/service-fit";
-import { runTodaysTranche } from "./actions";
+import { researchPick } from "./actions";
 import { startConnect } from "@/app/settings/actions";
 
 export default async function DashboardPage({ searchParams }: {
-  searchParams: Promise<{ c?: string }>;
+  searchParams: Promise<{ c?: string; picked?: string }>;
 }) {
   const user = await requirePage();
-  const { c } = await searchParams;
+  const { c, picked } = await searchParams;
   const { batch, batches } = await resolveBatch(user.orgId, c);
   if (!batch) return <Shell user={user} active="dashboard"><NoCampaign /></Shell>;
 
@@ -38,6 +38,12 @@ export default async function DashboardPage({ searchParams }: {
     done: sql<number>`count(*) filter (where enrich_status = 'done')::int`,
     total: sql<number>`count(*)::int`,
   }).from(connection).where(and(eq(connection.batchId, batch.id), eq(connection.selectedForEnrich, true)));
+  const countries = (await db.select({
+    c: sql<string>`trim(split_part(location, ',', greatest(1, array_length(string_to_array(location, ','), 1))))`,
+    n: sql<number>`count(*)::int`,
+  }).from(connection)
+    .where(and(eq(connection.batchId, batch.id), eq(connection.bucket, "pitchable"), sql`location is not null`))
+    .groupBy(sql`1`).orderBy(desc(sql`count(*)`)).limit(12)).filter((x) => x.c);
   const [t1Remaining] = await db.select({ n: sql<number>`count(*)::int` }).from(connection)
     .where(and(eq(connection.batchId, batch.id), eq(connection.tier, 1), ne(connection.enrichStatus, "done")));
 
@@ -69,7 +75,11 @@ export default async function DashboardPage({ searchParams }: {
   return (
     <Shell user={user} active="dashboard">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Dashboard</h1>
+        <div>
+          <h1 className="text-xl font-semibold">Dashboard</h1>
+          {picked === "0" && <p className="mt-1 text-sm text-[#B54708]">Nobody matched those filters — try widening the country or activity window, or run a post scan first so activity is known.</p>}
+          {picked && picked !== "0" && <p className="mt-1 text-sm text-[#067647]">Researching {picked} people now — drafts land in Review as each finishes.</p>}
+        </div>
         <CampaignSwitcher batches={batches} batch={batch} basePath="/dashboard" totalRows={totalRows} />
       </div>
 
@@ -90,17 +100,31 @@ export default async function DashboardPage({ searchParams }: {
               : <div key={label} className="px-1">{body}</div>;
           })}
           <div className="min-w-52"><UsageMeter used={usage.used} cap={usage.cap} resetsAt={usage.resetsAt} bar /></div>
-          <div className="ml-auto text-right">
-            <form action={runTodaysTranche.bind(null, batch.id)}>
+          <div className="ml-auto max-w-xl text-right">
+            <form action={researchPick.bind(null, batch.id)} className="flex flex-wrap items-center justify-end gap-2 text-[13px] text-[#475467]">
+              <span>Research my top</span>
+              <select name="n" defaultValue="30" className="rounded-[8px] border border-[#DDE2EE] bg-white px-2 py-1.5">
+                {[10, 20, 30, 50].map((v) => <option key={v} value={v}>{v}</option>)}
+              </select>
+              <span>matches</span>
+              <select name="country" defaultValue="" className="max-w-44 rounded-[8px] border border-[#DDE2EE] bg-white px-2 py-1.5">
+                <option value="">anywhere</option>
+                {countries.map((x) => <option key={x.c} value={x.c}>in {x.c} ({x.n})</option>)}
+              </select>
+              <select name="posted" defaultValue="any" className="rounded-[8px] border border-[#DDE2EE] bg-white px-2 py-1.5">
+                <option value="any">any activity</option>
+                <option value="7">who posted in the last 7 days</option>
+                <option value="30">who posted in the last 30 days</option>
+              </select>
               <button disabled={capReached}
                 className={capReached
                   ? "cursor-not-allowed rounded-[10px] bg-[#F4F6FB] px-5 py-3 text-sm font-semibold text-[#98A2B3]"
                   : "rounded-[10px] bg-[#263BAA] px-5 py-3 text-sm font-semibold text-white hover:bg-[#1D2E86]"}>
-                Research next 30
+                Start researching
               </button>
             </form>
             <p className="tnum mt-1.5 text-[11px] text-[#98A2B3]">
-              {capReached ? "today's run limit is spent — resumes at reset" : "researches the next 30 · within today's run limit"}
+              {capReached ? "today's run limit is spent — resumes at reset" : "best-ranked first, within your filters and today's budget"}
             </p>
           </div>
         </div>

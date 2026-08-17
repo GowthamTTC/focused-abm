@@ -8,6 +8,7 @@ import { requestStop } from "@/app/jobs/actions";
 import { NavIcon } from "@/components/nav-icons";
 import { CommandPalette, PaletteTrigger } from "@/components/command-palette";
 import { LiveJob } from "@/components/live-job";
+import { DismissibleBanner } from "@/components/dismissible-banner";
 
 export async function requirePage(): Promise<Ctx> {
   const user = await currentUser();
@@ -20,6 +21,18 @@ async function signOut() {
   "use server";
   await logout();
   redirect("/login");
+}
+
+/** Turn provider noise into something a salesperson can act on. The raw text
+ *  stays available on hover. */
+function plainError(raw: string | null): string {
+  const e = raw ?? "something went wrong";
+  if (/invalid_recipient|cannot be reached/i.test(e))
+    return "LinkedIn wouldn't return that profile. Re-scan from Settings — leave the URL blank to use your connected account.";
+  if (/429|rate.?limit/i.test(e)) return "LinkedIn rate limit hit — wait a few minutes and try again.";
+  if (/401|403|reauth|unauthor/i.test(e)) return "the LinkedIn seat needs reconnecting (Settings → seat).";
+  if (/timeout|ETIMEDOUT|ECONNRESET/i.test(e)) return "the connection dropped mid-run. Try again.";
+  return e.length > 140 ? e.slice(0, 140) + "…" : e;
 }
 
 const KIND_LABEL: Record<string, string> = {
@@ -58,7 +71,8 @@ export async function Shell({ user, active, children }: {
   ]);
   const latest = jobs[0];
   const running = latest && ["running", "queued", "stopping"].includes(latest.status) ? latest : null;
-  const failed = latest && latest.status === "failed" ? latest : null;
+  const dismissed = Boolean((latest?.payloadJson as { dismissed?: boolean } | null)?.dismissed);
+  const failed = latest && latest.status === "failed" && !dismissed ? latest : null;
   const pct = running && (running.total ?? 0) > 0
     ? Math.min(100, Math.round(((running.progress ?? 0) / running.total) * 100)) : 0;
   const reviewBadge = (badges?.decisions ?? 0) + (badges?.ready ?? 0);
@@ -166,9 +180,9 @@ export async function Shell({ user, active, children }: {
           </div>
         )}
         {failed && (
-          <div className="flex items-center gap-3 border-b border-[#FDA29B] bg-[#FFFBFA] px-5 py-2 text-[12px] text-[#B42318]">
-            <span className="truncate">{KIND_LABEL[failed.kind] ?? failed.kind} failed — {failed.error}</span>
-          </div>
+          <DismissibleBanner jobId={failed.id} title={failed.error ?? undefined}>
+            {KIND_LABEL[failed.kind] ?? failed.kind} failed — {plainError(failed.error)}
+          </DismissibleBanner>
         )}
         <main className="pane-scroll min-h-0 flex-1">
           <div className="mx-auto max-w-[1240px] px-6 pb-14 pt-[22px]">{children}</div>
