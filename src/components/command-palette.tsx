@@ -14,7 +14,7 @@ const SCREENS: { label: string; hint: string; href: string }[] = [
   { label: "Network — Recency", hint: "who is going quiet", href: "/network?view=recency" },
   { label: "Alerts", hint: "real pipeline events", href: "/alerts" },
   { label: "Sources", hint: "imports and syncs", href: "/sources" },
-  { label: "Offers", hint: "what you sell, one ICP each", href: "/offers" },
+  { label: "ICPs", hint: "what you sell, one ICP each", href: "/offers" },
   { label: "Exports", hint: "the workbook", href: "/exports" },
 ];
 

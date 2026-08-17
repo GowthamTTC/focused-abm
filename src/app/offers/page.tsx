@@ -33,7 +33,7 @@ export default async function ServicesPage(props: { searchParams: Promise<{ dele
         ))}
         <Link href="/offers/new"
           className="flex min-h-[140px] items-center justify-center rounded-[14px] border border-dashed border-[#DDE2EE] text-sm text-[#98A2B3] hover:border-[#263BAA]/40 hover:text-[#263BAA]">
-          + Add another offer
+          + Add another ICP
         </Link>
       </div>
     </Shell>

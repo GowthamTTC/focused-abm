@@ -67,7 +67,7 @@ export default async function AdminPage({ searchParams }: {
               Push your workspace&rsquo;s current services (names + ICPs) to every TTC-managed workspace,
               replacing theirs. Client workspaces that define their own offers are skipped.
             </p>
-            {ok === "synced" && <p className="mt-2 text-sm text-[#263BAA]">Catalogue synced to {n} workspace(s).{Number(skipped) > 0 && ` ${skipped} client workspace(s) skipped — they own their offers.`}</p>}
+            {ok === "synced" && <p className="mt-2 text-sm text-[#263BAA]">Catalogue synced to {n} workspace(s).{Number(skipped) > 0 && ` ${skipped} client workspace(s) skipped — they own their ICPs.`}</p>}
           </div>
           <form action={syncCatalogToAllWorkspaces}>
             <button className="rounded-[8px] border border-[#263BAA]/40 bg-[#EEF1FC] px-4 py-2 text-sm font-medium text-[#263BAA] hover:bg-[#EEF1FC]">

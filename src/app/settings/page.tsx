@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { db, channelAccount } from "@/db";
 import { unipileConfigured } from "@/lib/env";
 import { Shell, requirePage } from "@/app/shell";
-import { disconnect, refreshStatus, saveClassifyCap, saveEnrichLimit, startConnect } from "./actions";
+import { disconnect, refreshStatus, saveClassifyCap, saveEnrichLimit, scanVoice, startConnect } from "./actions";
 import { CLASSIFY_CAP_OPTIONS, ENRICH_LIMIT_OPTIONS, getOrgSettings } from "@/modules/settings/org-settings";
 import { getDailyEnrichUsage } from "@/modules/enrich/usage";
 import { UsageMeter } from "@/components/usage-meter";
@@ -119,6 +119,31 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         {!unipileConfigured && (
           <p className="mt-3 text-sm text-[#98A2B3]">Running in mock mode — add Unipile keys to go live.</p>
         )}
+      </section>
+      <section className="mt-6 rounded-[14px] border border-[#DDE2EE] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,.04)]">
+        <h2 className="font-medium">Your voice</h2>
+        <p className="mt-1 max-w-2xl text-sm text-[#475467]">
+          The system reads your own recent posts once, distils how you actually write — tone, rhythm,
+          phrases, sign-offs — and every drafted message then follows it. Prospects hear you, not a template.
+        </p>
+        {settings.voiceProfile ? (
+          <div className="mt-4 rounded-[10px] border border-[#DDE2EE] bg-[#F4F6FB] p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#98A2B3]">
+              Current profile · sampled {settings.voiceSampledAt?.slice(0, 10)}
+            </p>
+            <p className="mt-2 text-sm text-[#475467]">{settings.voiceProfile}</p>
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-[#B54708]">No voice sampled yet — drafts use the house style until you scan.</p>
+        )}
+        <form action={scanVoice} className="mt-4 flex flex-wrap items-center gap-3">
+          <input name="profileUrl" required placeholder="https://www.linkedin.com/in/your-handle"
+            className="w-96 rounded-[10px] border border-[#DDE2EE] bg-white px-4 py-2.5 text-sm" />
+          <button className="rounded-[10px] bg-[#263BAA] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#1D2E86]">
+            {settings.voiceProfile ? "Re-scan my voice" : "Scan my voice"}
+          </button>
+          <span className="text-xs text-[#98A2B3]">Reads your 5 latest posts · one light seat touch · no AI reads anyone else</span>
+        </form>
       </section>
     </Shell>
   );

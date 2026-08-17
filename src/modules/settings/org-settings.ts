@@ -18,6 +18,8 @@ const settingsSchema = z.object({
   /** "managed"  — TTC-run seat; the admin catalog sync may overwrite services.
    *  "own"      — client-defined offers; sync NEVER touches this workspace. */
   catalogMode: z.enum(["managed", "own"]).default("managed"),
+  voiceProfile: z.string().optional(),
+  voiceSampledAt: z.string().optional(),
 });
 
 export async function getOrgSettings(orgId: string): Promise<OrgSettings> {

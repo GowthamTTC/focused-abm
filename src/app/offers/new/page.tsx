@@ -40,16 +40,16 @@ export default async function NewServicePage({ searchParams }: {
   const { err } = await searchParams;
   return (
     <Shell user={user} active="offers">
-      <h1 className="text-2xl font-semibold">Add a service</h1>
+      <h1 className="text-2xl font-semibold">Add an ICP</h1>
       <p className="mt-1 max-w-2xl text-sm text-[#98A2B3]">
-        One per offering you sell. Name it the way you say it on a sales call — every connection
+        One per ICP you sell. Name it the way you say it on a sales call — every connection
         will be routed to the offer they are most likely to buy, so the names appear on your
         workbook and in every drafted message.
       </p>
       {err && <p className="mt-3 text-sm text-[#B42318]">{err}</p>}
 
       <form action={createService} className="mt-6 max-w-2xl bg-white border border-[#DDE2EE] rounded-[14px] shadow-[0_1px_2px_rgba(16,24,40,.04)] p-5">
-        <label className="block text-sm text-[#475467]">Offer name
+        <label className="block text-sm text-[#475467]">ICP name
           <input name="name" required placeholder="e.g. Fractional CMO, ERP Implementation, Brand Sprint"
             className="mt-1.5 w-full bg-white border border-[#DDE2EE] rounded-[10px] shadow-[0_1px_2px_rgba(16,24,40,.04)] px-4 py-3 text-sm" />
         </label>

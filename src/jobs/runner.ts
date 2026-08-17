@@ -10,6 +10,9 @@ import { env } from "@/lib/env";
 import { classifyBatch } from "@/modules/matching/service-fit";
 import { rankBatch } from "@/modules/scoring/rank";
 import { deepEnrichOne } from "@/modules/enrich/deep-dive";
+import { z } from "zod";
+import { complete } from "@/llm/client";
+import { updateOrgSettings } from "@/modules/settings/org-settings";
 
 export async function enqueue(orgId: string, kind: string, payload: Record<string, unknown>) {
   const [row] = await db.insert(job).values({ orgId, kind, payloadJson: payload }).returning();
@@ -92,6 +95,29 @@ export async function processNext(): Promise<boolean> {
         const gap = env.DEEP_ENRICH_MIN_GAP_SECONDS * 1000;
         await sleep(gap + Math.random() * gap);
       }
+    } else if (next.kind === "voice_scan") {
+      const { identifier } = next.payloadJson as { identifier: string };
+      const [seat] = await db.select().from(channelAccount)
+        .where(and(eq(channelAccount.orgId, next.orgId), eq(channelAccount.status, "operational")));
+      if (!seat) throw new Error("No operational LinkedIn seat.");
+      await setProgress(next.id, 0, 2);
+      const provider = getChannelProvider();
+      const posts = await provider.fetchRecentPosts({ accountId: seat.unipileAccountId, identifier, limit: 5 });
+      const sample = posts.map((p: { text: string }) => p.text.slice(0, 600)).filter(Boolean).join("\n---\n");
+      if (!sample) throw new Error("No posts found on that profile — post something first, or check the URL.");
+      await setProgress(next.id, 1, 2);
+      const out = await complete({
+        stage: "deepdive",
+        prompt: "voice-profile",
+        vars: { posts_sample: sample },
+        schema: z.object({ profile: z.string().min(20) }),
+        maxTokens: 400,
+      });
+      await updateOrgSettings(next.orgId, {
+        voiceProfile: out.profile,
+        voiceSampledAt: new Date().toISOString(),
+      });
+      await setProgress(next.id, 2, 2);
     } else if (next.kind === "activity_scan") {
       // Lightweight recency check: posts only, no LLM, no profile analysis.
       // Uses the stored member_id when the batch came from sync (1 request);

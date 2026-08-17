@@ -43,7 +43,7 @@ export async function logout(): Promise<void> {
   (await cookies()).delete(COOKIE);
 }
 
-export interface Ctx { userId: string; orgId: string; email: string; name: string }
+export interface Ctx { userId: string; orgId: string; email: string; name: string; mustChangePassword: boolean }
 
 export async function currentUser(): Promise<Ctx | null> {
   const token = (await cookies()).get(COOKIE)?.value;
@@ -54,7 +54,7 @@ export async function currentUser(): Promise<Ctx | null> {
   if (!userId || Number(expStr) < Date.now() / 1000) return null;
   const [u] = await db.select().from(appUser).where(eq(appUser.id, userId));
   if (!u) return null;
-  return { userId: u.id, orgId: u.orgId, email: u.email, name: u.name };
+  return { userId: u.id, orgId: u.orgId, email: u.email, name: u.name, mustChangePassword: u.mustChangePassword };
 }
 
 export async function requireUser(): Promise<Ctx> {

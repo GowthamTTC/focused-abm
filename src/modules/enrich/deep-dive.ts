@@ -1,3 +1,4 @@
+import { getOrgSettings } from "@/modules/settings/org-settings";
 /**
  * Stage B — one connection at a time: fetch profile + posts through the
  * connected LinkedIn seat, run the deep-dive prompt, then draft the message.
@@ -88,12 +89,15 @@ export async function deepEnrichOne(orgId: string, connectionId: string): Promis
       maxTokens: 1600,
     });
 
-    // 3 — outreach draft.
+    // 3 — outreach draft, in the seat owner's own voice when sampled.
+    const voice = (await getOrgSettings(c.orgId)).voiceProfile;
     const msg = await complete({
       stage: "deepdive",
       prompt: "outreach-message",
       vars: {
-        sender_context: SENDER_CONTEXT,
+        sender_context: SENDER_CONTEXT + (voice
+          ? `\n\nWRITE IN THE SENDER'S OWN VOICE — follow this style profile exactly (it overrides generic tone rules, but never the hard rules):\n${voice}`
+          : ""),
         target_block: [
           `${c.firstName} ${c.lastName} — ${c.positionRaw ?? headline} at ${c.companyRaw ?? "?"}`,
           `About: ${dive.about_summary}`,

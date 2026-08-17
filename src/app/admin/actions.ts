@@ -43,6 +43,7 @@ export async function addUser(formData: FormData) {
   await db.insert(appUser).values({
     orgId: newOrg.id, email, name,
     passwordHash: await bcrypt.hash(password, 10),
+    mustChangePassword: true,
   });
   redirect("/admin?ok=1");
 }

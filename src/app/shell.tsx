@@ -11,6 +11,7 @@ import { CommandPalette, PaletteTrigger } from "@/components/command-palette";
 export async function requirePage(): Promise<Ctx> {
   const user = await currentUser();
   if (!user) redirect("/login");
+  if (user.mustChangePassword) redirect("/change-password");
   return user;
 }
 
@@ -37,7 +38,7 @@ const NAV: { section: string; items: [key: string, href: string, label: string][
   ]},
   { section: "Setup", items: [
     ["sources", "/sources", "Sources"],
-    ["offers", "/offers", "Offers"],
+    ["offers", "/offers", "ICPs"],
     ["exports", "/exports", "Exports"],
     ["settings", "/settings", "Settings"],
   ]},

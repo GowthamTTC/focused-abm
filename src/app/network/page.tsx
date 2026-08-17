@@ -3,6 +3,8 @@ import { and, desc, eq, gte, isNull, lt, or, sql } from "drizzle-orm";
 import { db, connection } from "@/db";
 import { Shell, requirePage } from "@/app/shell";
 import { StatCard, Donut, HBars, LineChart } from "@/components/charts";
+import { topicCloud } from "@/modules/insights/topics";
+import { TopicCloud } from "@/components/topic-cloud";
 import { networkStats, serviceSplit, countrySplit, snapshotToday, weekdayActivity } from "@/modules/insights/stats";
 
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -12,6 +14,7 @@ export default async function NetworkPage({ searchParams }: {
   searchParams: Promise<{ view?: string }>;
 }) {
   const user = await requirePage();
+  const cloud = await topicCloud(user.orgId);
   const sp = await searchParams;
   const view = (["composition", "activity", "recency"].includes(sp.view ?? "") ? sp.view : "composition") as View;
   const [s, services, countries, snaps, dows, recentPosters] = await Promise.all([
@@ -72,7 +75,7 @@ export default async function NetworkPage({ searchParams }: {
               { label: "Unmatched", n: s.unclassified },
             ]} />
           </Card>
-          <Card title="Matched, by offer" sub="Which of your offers your network maps to.">
+          <Card title="Matched, by ICP" sub="Which of your offers your network maps to.">
             <HBars items={services.map((x) => ({ label: x.slug, n: x.n }))} />
           </Card>
           <Card title="Top locations" sub="From synced profile locations; CSV-imported rows have none.">
@@ -145,6 +148,12 @@ export default async function NetworkPage({ searchParams }: {
           </Card>
         </div>
       </>)}
+      {view === "composition" && (
+        <div className="mt-4 rounded-[14px] border border-[#DDE2EE] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,.04)]">
+          <h2 className="font-medium">What your researched prospects struggle with</h2>
+          <div className="mt-3"><TopicCloud terms={cloud.terms} people={cloud.people} /></div>
+        </div>
+      )}
     </Shell>
   );
 }

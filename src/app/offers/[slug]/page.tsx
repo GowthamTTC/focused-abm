@@ -58,7 +58,7 @@ export default async function ServiceDetail(props: {
             <p className="mt-3 text-[#475467]">
               Delete this service permanently.
               {routed > 0 && <> <span className="text-[#B54708]">{routed.toLocaleString()} people are currently routed here</span> —
-              their verdicts keep the label, and the next re-match will redistribute them across your remaining offers.</>}
+              their verdicts keep the label, and the next re-match will redistribute them across your remaining ICPs.</>}
             </p>
             <form action={deleteService.bind(null, s.slug)} className="mt-3 space-y-3">
               <label className="flex items-start gap-2 text-xs text-[#475467]">

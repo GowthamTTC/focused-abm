@@ -30,7 +30,7 @@ export default async function ExportsPage() {
             <th className="py-1.5 pr-4">Tab</th><th className="py-1.5">Contents</th></tr></thead>
           <tbody className="divide-y divide-[#EEF1F8] text-[#475467]">
             {([["Instructions","How to read the workbook and what each verdict means"],
-               ["Top N — Batch","Researched prospects: opener draft, pain points, routed offer, evidence"],
+               ["Top N — Batch","Researched prospects: opener draft, pain points, routed ICP, evidence"],
                ["Target Pool (ranked)","Every matched person in rank order with score math"],
                ["Review — off-target","People the machine ruled out, with the rule that fired"],
                ["Peers & Competitors","Held out of outreach; the retention watchlist starts here"],

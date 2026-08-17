@@ -2,7 +2,7 @@
 import { redirect } from "next/navigation";
 import { enqueue } from "@/jobs/runner";
 import { and, eq } from "drizzle-orm";
-import { db, channelAccount } from "@/db";
+import { db, channelAccount, connection, connectionBatch } from "@/db";
 import { requireUser } from "@/auth/session";
 import { parseConnectionsCsv } from "@/modules/connections/import-csv";
 import { createBatchFromCsv, createBatchFromRelations } from "@/modules/connections/create-batch";
@@ -31,4 +31,14 @@ export async function syncRelations() {
   if (!seat) redirect("/connections?err=Connect+a+LinkedIn+account+in+Settings+first");
   await enqueue(user.orgId, "sync", { accountId: seat.unipileAccountId, seatId: seat.id });
   redirect("/connections");
+}
+
+/** Permanently remove a batch and every row in it. The warning in the UI is
+ *  the contract: classifications and research go with it. */
+export async function deleteBatch(batchId: string, formData: FormData) {
+  const user = await requireUser();
+  if (String(formData.get("confirm")) !== "on") redirect(`/sources?err=confirm`);
+  await db.delete(connection).where(and(eq(connection.orgId, user.orgId), eq(connection.batchId, batchId)));
+  await db.delete(connectionBatch).where(and(eq(connectionBatch.orgId, user.orgId), eq(connectionBatch.id, batchId)));
+  redirect("/sources?deleted=1");
 }

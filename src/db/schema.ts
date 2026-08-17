@@ -30,6 +30,10 @@ export interface OrgSettings {
   /** "managed" — TTC-run seat, admin catalog sync may overwrite the services.
    *  "own"     — client defines their own offers; sync never touches them. */
   catalogMode?: "managed" | "own";
+  /** Compact style profile distilled from the user's own LinkedIn posts;
+   *  injected into every drafted message so outreach sounds like THEM. */
+  voiceProfile?: string;
+  voiceSampledAt?: string;
 }
 export const DEFAULT_ORG_SETTINGS: OrgSettings = {
   enrichLimit: 10, classifyLlmPeopleCap: 1000, catalogMode: "managed",
@@ -48,6 +52,8 @@ export const appUser = pgTable("app_user", {
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   name: text("name").notNull(),
+  /** true for admin-issued temporary passwords — forces a change on first login */
+  mustChangePassword: boolean("must_change_password").notNull().default(false),
   createdAt: ts("created_at").notNull().defaultNow(),
 });
 
