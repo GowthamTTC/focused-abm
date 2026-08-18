@@ -145,6 +145,14 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           <span className="text-xs text-[#98A2B3]">Reads your last 6 months of posts + your About section from your connected seat · one light touch</span>
         </form>
       </section>
+      <section className="mt-6 rounded-[14px] border border-[#DDE2EE] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,.04)]">
+        <h2 className="font-medium">Password</h2>
+        <p className="mt-1 text-sm text-[#475467]">Change the password you sign in with.</p>
+        <a href="/change-password"
+          className="mt-3 inline-block rounded-[10px] border border-[#DDE2EE] px-4 py-2.5 text-sm text-[#475467] hover:bg-[#F4F6FB]">
+          Change password
+        </a>
+      </section>
     </Shell>
   );
 }
