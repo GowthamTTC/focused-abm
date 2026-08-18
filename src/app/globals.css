@@ -147,3 +147,28 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
   outline-offset: 1px;
 }
 ::selection { background: #DEE4F8; }
+
+
+/* Sidebar tooltips — rendered from data-tip, switched by the "i" button.
+   Default ON: the attribute is set by the client on mount. */
+[data-tips="off"] .nav-tip::after { display: none; }
+.nav-tip::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 60;
+  width: max-content;
+  max-width: 260px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: #101828;
+  color: #FFFFFF;
+  font-size: 12px;
+  line-height: 1.35;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 130ms ease;
+}
+.nav-tip:hover::after { opacity: 1; }

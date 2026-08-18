@@ -3,7 +3,7 @@ export function TopicCloud({ terms, people }: {
 }) {
   if (terms.length === 0) return (
     <p className="text-sm text-[#98A2B3]">
-      Appears once prospects have been researched — the cloud is built from their recorded pain points.
+      Appears once prospects have been researched — the cloud is built from their recorded signals.
     </p>
   );
   const max = terms[0].n, min = terms[terms.length - 1].n;
@@ -20,7 +20,7 @@ export function TopicCloud({ terms, people }: {
         ))}
       </div>
       <p className="mt-3 text-xs text-[#98A2B3]">
-        From the recorded pain points of {people.toLocaleString()} researched prospects — real reads, not network-wide guesses.
+        From the recorded signals of {people.toLocaleString()} researched prospects — real reads, not network-wide guesses.
       </p>
     </div>
   );

@@ -105,8 +105,8 @@ export async function Shell({ user, active, children }: {
                   const isActive = active === key;
                   const badge = badgeFor(key);
                   return (
-                    <Link key={key} href={href} title={tip}
-                      className={`flex w-full items-center justify-between gap-2 rounded-[8px] px-[10px] py-[7px] text-[13px] transition-colors duration-[130ms] ${isActive
+                    <Link key={key} href={href} data-tip={tip}
+                      className={`nav-tip relative flex w-full items-center justify-between gap-2 rounded-[8px] px-[10px] py-[7px] text-[13px] transition-colors duration-[130ms] ${isActive
                         ? "bg-[#EEF1FC] font-medium text-[#263BAA]"
                         : "text-[#475467] hover:bg-[#F4F6FB] hover:text-[#101828]"}`}>
                       <span className="flex min-w-0 flex-1 items-center gap-[9px]">

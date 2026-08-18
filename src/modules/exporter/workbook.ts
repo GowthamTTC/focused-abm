@@ -74,23 +74,28 @@ export async function buildWorkbook(
   const top = wb.addWorksheet(`Top ${enriched.length} — Batch`);
   const topHeaders = [
     "Rank", "First Name", "Last Name", "Company", "Position", "LinkedIn URL",
-    "Provisional Service", "Why (from role + company)",
-    "LinkedIn About — Summary", "Last 5 Posts (activity-feed link)",
-    "Pain Points / Notes (from posts or inferred)",
+    // ── classify pass (whole network, cheap) ──
+    "Classify — Bucket", "Classify — ICP", "Classify — Why (role + company)",
+    // ── research pass (top matches only, expensive) ──
+    "Research — About Summary", "Research — Last 5 Posts (activity link)",
+    "Research — Signals (from posts or inferred)",
+    "Research — Flag", "Research — Verdict", "Research — Correction reason",
     "Service to Pitch (confirm/correct)", "Personalized Outreach Message",
   ];
   styleHeader(top.addRow(topHeaders));
   top.columns = topHeaders.map((h, i) => ({
     header: h, key: String(i),
-    width: i < 6 ? 18 : i < 8 ? 30 : 55,
+    width: i < 6 ? 18 : i < 9 ? 30 : 55,
   }));
   for (const c of enriched) {
     const row = top.addRow([
       c.rank, c.firstName, c.lastName, c.companyRaw, c.positionRaw, c.linkedinUrl,
-      c.serviceSlug, c.matchWhy,
+      c.bucket, c.serviceSlug, c.matchWhy,
       c.aboutSummary,
       c.activityUrl ? `${c.activityUrl}\n${c.postsSummary ?? ""}` : c.postsSummary,
-      c.painPoints, serviceCell(c), c.outreachMessage,
+      c.painPoints,
+      c.flag ?? "none", c.flagVerdict ?? "", c.correctionReason ?? "",
+      serviceCell(c), c.outreachMessage,
     ]);
     row.alignment = { vertical: "top", wrapText: true };
     for (let col = 1; col <= 8; col += 1)
@@ -132,7 +137,7 @@ export async function buildWorkbook(
       "Rank", "First Name", "Last Name", "Company", "Position", "Bucket",
       "Service (slug)", "Confidence", "Method", "Score",
       "Seniority", "Function", "Conf pts", "Founder", "Company pts", "Svc bonus", "Tier",
-      "Selected", "Enrich status", "Enrich error", "Flag", "Pain inferred",
+      "Selected", "Enrich status", "Enrich error", "Flag", "Signals inferred",
       "Correction reason", "LinkedIn URL",
     ];
     styleHeader(ops.addRow(opsHeaders));

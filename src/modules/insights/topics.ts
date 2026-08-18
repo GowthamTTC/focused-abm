@@ -1,4 +1,4 @@
-/** Topic frequencies from the pain points of researched prospects.
+/** Topic frequencies from the signals recorded for researched prospects.
  *  Honest scope: this is what the machine actually read and wrote — not a
  *  guess about the whole network. */
 import { and, eq, isNotNull } from "drizzle-orm";

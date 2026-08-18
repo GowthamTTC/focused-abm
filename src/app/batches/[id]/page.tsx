@@ -7,7 +7,7 @@ import { LedgerStrip } from "@/components/ledger";
 import { ExportCard } from "@/components/export-card";
 import { CopyButton } from "@/components/copy-button";
 import { bucketCounts } from "@/modules/matching/service-fit";
-import { moveToPitchable, reclassifyAllAction, retryPerson, runClassify, runDeepEnrich, selectTopN, scanActivity } from "./actions";
+import { moveToPitchable, reclassifyAllAction, retryPerson, runClassify, scanActivity } from "./actions";
 import { getOrgSettings } from "@/modules/settings/org-settings";
 import { getDailyEnrichUsage } from "@/modules/enrich/usage";
 import { UsageMeter } from "@/components/usage-meter";
@@ -119,33 +119,10 @@ export default async function BatchPage(props: {
             </form>
           )}
           {counts.pitchable > 0 && (
-            <form action={selectTopN.bind(null, id)} className="flex items-center gap-2">
-              <select name="n" defaultValue={defaultN}
-                className="rounded-[8px] bg-white border border-[#DDE2EE] rounded-[10px] px-2 py-2 text-sm">
-                {nOptions.map((o) => <option key={o} value={o}>{o}</option>)}
-              </select>
-              <button title="Queue the next N un-enriched people by rank — already-enriched people are never re-taken."
-                className="rounded-[8px] bg-[#263BAA] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1D2E86]">
-                Queue for research: N
-              </button>
-              <Link href="/settings" className="text-xs text-[#98A2B3] underline decoration-[#DDE2EE] hover:text-[#475467]"
-                title="Per-run enrichment cap — change in Settings">
-                run limit {enrichLimit === "all" ? "off" : enrichLimit}
-              </Link>
-            </form>
-          )}
-          {selTotal > 0 && (
-            <form action={runDeepEnrich.bind(null, id)}>
-              <button disabled={selQueued === 0}
-                title={selQueued === 0
-                  ? "Nothing queued — press Queue for research: N to queue the next block of the pool."
-                  : `Run enrichment for the ${selQueued} queued people`}
-                className={selQueued > 0
-                  ? "rounded-[8px] bg-[#263BAA] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1D2E86]"
-                  : "cursor-not-allowed rounded-[8px] border border-[#DDE2EE] bg-[#F4F6FB] px-3 py-2 text-sm text-[#98A2B3]"}>
-                Research queued{selQueued > 0 ? ` (${selQueued})` : ""}
-              </button>
-            </form>
+            <Link href="/dashboard"
+              className="rounded-[8px] bg-[#263BAA] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1D2E86]">
+              Research from Today →
+            </Link>
           )}
           <ExportCard batchId={id} topN={selTotal} targetPool={counts.pitchable}
             review={counts.off_icp} peers={counts.peer_competitor} />
@@ -267,7 +244,7 @@ export default async function BatchPage(props: {
                     </div>
                     <div>
                       <p className="text-xs text-[#B54708]">
-                        Pain points{" "}
+                        Signals{" "}
                         {person.painInferred && (
                           <span className="rounded border border-[#B54708]/50 px-1.5 py-px text-[10px] text-[#B54708]">inferred</span>
                         )}
