@@ -129,6 +129,7 @@ export const connection = pgTable("connection", {
   publicIdentifier: text("public_identifier"),
   memberId: text("member_id"),               // Unipile provider-internal id (posts endpoint needs it)
   location: text("location"),                // e.g. "Chennai, Tamil Nadu, India" — country = last segment
+  country: text("country"),                  // normalised from location; null until known
   connectedOn: text("connected_on"),
 
   // Stage A — service fit + rank

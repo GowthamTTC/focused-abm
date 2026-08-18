@@ -78,9 +78,17 @@ export default async function NetworkPage({ searchParams }: {
           <Card title="Matched, by ICP" sub="Which of your offers your network maps to.">
             <HBars items={services.map((x) => ({ label: x.slug, n: x.n }))} />
           </Card>
-          <Card title="Top locations" sub="From synced profile locations; CSV-imported rows have none.">
-            {countries.length > 0 ? <HBars items={countries.map((x) => ({ label: x.country, n: x.n }))} />
-              : <p className="text-sm text-[#98A2B3]">No location data yet — locations arrive with LinkedIn sync.</p>}
+          <Card title="Top countries" sub="Country is learned when a person is researched — the connections list never carries it.">
+            {countries.length > 0 ? (<>
+              <HBars items={countries.map((x) => ({ label: x.country, n: x.n }))} />
+              <p className="mt-3 text-xs text-[#98A2B3]">
+                Known for {(countries as unknown as { known: number }).known.toLocaleString()} people so far · grows with every research run
+              </p>
+            </>) : (
+              <p className="text-sm text-[#98A2B3]">
+                No countries known yet. Research a batch of matches and their countries appear here — then you can research by country from Today.
+              </p>
+            )}
           </Card>
         </div>
       </>)}

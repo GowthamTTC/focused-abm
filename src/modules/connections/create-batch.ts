@@ -1,3 +1,4 @@
+import { toCountry } from "./country";
 import { db, connection, connectionBatch } from "@/db";
 import type { ParsedConnectionRow } from "./import-csv";
 import { splitHeadline } from "./import-csv";
@@ -37,6 +38,7 @@ export async function createBatchFromRelations(orgId: string, label: string, rel
         publicIdentifier: r.publicIdentifier ?? r.memberId,
         memberId: r.memberId ?? null,
         location: r.location ?? null,
+        country: toCountry(r.location),
         connectedOn: r.connectedAt,
       };
     }));

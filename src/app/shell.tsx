@@ -9,6 +9,7 @@ import { NavIcon } from "@/components/nav-icons";
 import { CommandPalette, PaletteTrigger } from "@/components/command-palette";
 import { LiveJob } from "@/components/live-job";
 import { DismissibleBanner } from "@/components/dismissible-banner";
+import { HelpCenter } from "@/components/help-center";
 
 export async function requirePage(): Promise<Ctx> {
   const user = await currentUser();
@@ -40,21 +41,21 @@ const KIND_LABEL: Record<string, string> = {
   import: "Importing", activity_scan: "Scanning posts", voice_scan: "Sampling voice",
 };
 
-const NAV: { section: string; items: [key: string, href: string, label: string][] }[] = [
+const NAV: { section: string; items: [key: string, href: string, label: string, tip: string][] }[] = [
   { section: "Work", items: [
-    ["dashboard", "/dashboard", "Today"],
-    ["review", "/review", "Review"],
-    ["people", "/people", "People"],
+    ["dashboard", "/dashboard", "Today", "Your daily numbers and the research button"],
+    ["review", "/review", "Review", "Verdicts, ready-to-send drafts, and your sent log"],
+    ["people", "/people", "People", "Every person in your network, searchable"],
   ]},
   { section: "Analysis", items: [
-    ["network", "/network", "Network"],
-    ["alerts", "/alerts", "Alerts"],
+    ["network", "/network", "Network", "Composition by ICP and country, activity, and freshness"],
+    ["alerts", "/alerts", "Alerts", "Failed runs, seats needing re-auth, people gone quiet"],
   ]},
   { section: "Setup", items: [
-    ["sources", "/sources", "Sources"],
-    ["offers", "/offers", "ICPs"],
-    ["exports", "/exports", "Exports"],
-    ["settings", "/settings", "Settings"],
+    ["sources", "/sources", "Sources", "Sync LinkedIn or upload a CSV; manage batches"],
+    ["offers", "/offers", "ICPs", "The customer profiles everything is scored against"],
+    ["exports", "/exports", "Exports", "Download the full workbook"],
+    ["settings", "/settings", "Settings", "LinkedIn seat, run limit, and your voice profile"],
   ]},
 ];
 
@@ -100,11 +101,11 @@ export async function Shell({ user, active, children }: {
             <div key={group.section} className="mb-4">
               <p className="mb-[6px] px-2 text-[9px] font-semibold uppercase tracking-[.12em] text-[#98A2B3]">{group.section}</p>
               <div className="space-y-[2px]">
-                {group.items.map(([key, href, label]) => {
+                {group.items.map(([key, href, label, tip]) => {
                   const isActive = active === key;
                   const badge = badgeFor(key);
                   return (
-                    <Link key={key} href={href}
+                    <Link key={key} href={href} title={tip}
                       className={`flex w-full items-center justify-between gap-2 rounded-[8px] px-[10px] py-[7px] text-[13px] transition-colors duration-[130ms] ${isActive
                         ? "bg-[#EEF1FC] font-medium text-[#263BAA]"
                         : "text-[#475467] hover:bg-[#F4F6FB] hover:text-[#101828]"}`}>
@@ -155,6 +156,7 @@ export async function Shell({ user, active, children }: {
           <div className="min-w-0 flex-initial overflow-hidden" id="campaign-slot" />
           <div className="ml-auto flex flex-none items-center gap-[14px]">
             <PaletteTrigger />
+            <HelpCenter />
             <Link href="/alerts" className="flex items-center gap-2 rounded-[10px] border border-[#DDE2EE] px-[10px] py-[6px] text-[13px] text-[#475467] transition-colors duration-[130ms] hover:border-[#98A2B3]">
               Alerts
             </Link>

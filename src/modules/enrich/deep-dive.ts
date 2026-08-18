@@ -1,4 +1,5 @@
 import { getOrgSettings } from "@/modules/settings/org-settings";
+import { toCountry } from "@/modules/connections/country";
 /**
  * Stage B — one connection at a time: fetch profile + posts through the
  * connected LinkedIn seat, run the deep-dive prompt, then draft the message.
@@ -42,10 +43,11 @@ export async function deepEnrichOne(orgId: string, connectionId: string): Promis
     let about = "";
     let postsBlock = "NONE";
     let lastPostAt: Date | null = null;
+    let fetchedLocation: string | null = null;
     if (seat && identifier) {
       const provider = getChannelProvider();
       const profile = await provider.fetchProfile({ accountId: seat.unipileAccountId, identifier });
-      if (profile) { headline = profile.headline ?? headline; about = profile.about ?? ""; }
+      if (profile) { headline = profile.headline ?? headline; about = profile.about ?? ""; fetchedLocation = profile.location ?? null; }
       // Unipile's posts endpoint requires the provider-internal id, not the
       // public identifier the profile endpoint accepts. Degrade to the
       // "no posts" reality on any posts hiccup — never kill the person for it.
@@ -113,6 +115,10 @@ export async function deepEnrichOne(orgId: string, connectionId: string): Promis
 
     await db.update(connection).set({
       enrichStatus: "done",
+      // The profile fetch is the first time we ever learn where someone is —
+      // the connections list does not carry it. Persist so filters work.
+      location: fetchedLocation ?? c.location,
+      country: toCountry(fetchedLocation) ?? c.country,
       aboutSummary: dive.about_summary,
       activityUrl,
       postsSummary: dive.posts_summary,

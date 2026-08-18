@@ -39,11 +39,12 @@ export default async function DashboardPage({ searchParams }: {
     total: sql<number>`count(*)::int`,
   }).from(connection).where(and(eq(connection.batchId, batch.id), eq(connection.selectedForEnrich, true)));
   const countries = (await db.select({
-    c: sql<string>`trim(split_part(location, ',', greatest(1, array_length(string_to_array(location, ','), 1))))`,
+    c: connection.country,
     n: sql<number>`count(*)::int`,
   }).from(connection)
-    .where(and(eq(connection.batchId, batch.id), eq(connection.bucket, "pitchable"), sql`location is not null`))
-    .groupBy(sql`1`).orderBy(desc(sql`count(*)`)).limit(12)).filter((x) => x.c);
+    .where(and(eq(connection.batchId, batch.id), eq(connection.bucket, "pitchable"), sql`country is not null`))
+    .groupBy(connection.country).orderBy(desc(sql`count(*)`)).limit(12))
+    .filter((x): x is { c: string; n: number } => Boolean(x.c));
   const [t1Remaining] = await db.select({ n: sql<number>`count(*)::int` }).from(connection)
     .where(and(eq(connection.batchId, batch.id), eq(connection.tier, 1), ne(connection.enrichStatus, "done")));
 

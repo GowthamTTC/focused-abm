@@ -25,7 +25,7 @@ export async function researchPick(batchId: string, formData: FormData) {
     eq(connection.orgId, user.orgId), eq(connection.batchId, batchId),
     eq(connection.bucket, "pitchable"), eq(connection.selectedForEnrich, false),
   ];
-  if (country) conds.push(sql`trim(split_part(location, ',', greatest(1, array_length(string_to_array(location, ','), 1)))) = ${country}`);
+  if (country) conds.push(eq(connection.country, country));
   if (posted === "7" || posted === "30") {
     conds.push(sql`last_post_at >= now() - (${posted + " days"})::interval`);
   }

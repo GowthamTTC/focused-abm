@@ -32,12 +32,15 @@ export async function serviceSplit(orgId: string) {
 
 export async function countrySplit(orgId: string, limit = 6) {
   const rows = await db.select({
-    country: sql<string>`trim(split_part(location, ',', greatest(1, array_length(string_to_array(location, ','), 1))))`,
+    country: connection.country,
     n: sql<number>`count(*)::int`,
   }).from(connection)
-    .where(and(eq(connection.orgId, orgId), isNotNull(connection.location)))
-    .groupBy(sql`1`).orderBy(desc(sql`count(*)`)).limit(limit);
-  return rows.filter((r) => r.country);
+    .where(and(eq(connection.orgId, orgId), isNotNull(connection.country)))
+    .groupBy(connection.country).orderBy(desc(sql`count(*)`)).limit(limit);
+  const [{ known = 0 } = {}] = await db.select({
+    known: sql<number>`count(*) filter (where country is not null)::int`,
+  }).from(connection).where(eq(connection.orgId, orgId));
+  return Object.assign(rows.filter((r) => r.country) as { country: string; n: number }[], { known });
 }
 
 /** Upsert today's snapshot — called from the Insights page load, so the
