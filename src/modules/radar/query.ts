@@ -1,6 +1,7 @@
 import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { db, connection } from "@/db";
 import { metroBySlug } from "@/modules/geo/metros";
+import { countryBySlug } from "@/modules/geo/countries";
 import { companyKey, scoreRadar, type Presence, type RadarInput } from "@/modules/radar/score";
 
 export interface RadarPerson {
@@ -49,18 +50,33 @@ export interface RadarView {
   unknownCity: number;
 }
 
-export async function loadRadar(orgId: string, slug: string, windowDays: number, pool: "first" | "extended" = "first"): Promise<RadarView | null> {
+export async function loadRadar(
+  orgId: string,
+  slug: string,
+  windowDays: number,
+  pool: "first" | "extended" = "first",
+  countrySlug = "united-states",
+): Promise<RadarView | null> {
   const metro = metroBySlug(slug);
-  if (!metro) return null;
+  const country = countryBySlug(countrySlug);
+  if (pool === "first" && !metro) return null;
+  if (pool === "extended" && !country) return null;
 
   const degree = pool === "extended"
     ? inArray(connection.networkDistance, ["2", "3"])
     : or(isNull(connection.networkDistance), eq(connection.networkDistance, "1"));
 
+  const place = pool === "extended"
+    ? and(
+        eq(connection.mentionKind, "event"),
+        or(eq(connection.country, country!.country), eq(connection.mentionMetro, country!.slug)),
+      )
+    : or(eq(connection.metro, slug), eq(connection.mentionMetro, slug));
+
   const rows = await db.select().from(connection).where(and(
     eq(connection.orgId, orgId),
     degree,
-    or(eq(connection.metro, slug), eq(connection.mentionMetro, slug)),
+    place,
   ));
 
   const byCompany = new Map<string, number>();
@@ -126,12 +142,14 @@ export async function loadRadar(orgId: string, slug: string, windowDays: number,
       sameCompanyCount: input.sameCompanyCount,
     });
 
+    if (pool === "extended" && r.mentionKind !== "event") continue;
+
     if (r.floorStatus === "met") {
       met.push(person("based_quiet", 0, "marked met on the floor"));
       continue;
     }
 
-    const s = scoreRadar(input, slug, windowDays);
+    const s = scoreRadar(input, pool === "extended" ? country!.slug : slug, windowDays);
     if (!s) continue;
     scored.push(person(s.presence, s.total, s.why));
   }
@@ -158,7 +176,7 @@ export async function loadRadar(orgId: string, slug: string, windowDays: number,
   }).from(connection).where(eq(connection.orgId, orgId));
 
   return {
-    metroLabel: metro.label,
+    metroLabel: pool === "extended" ? country!.label : metro!.label,
     windowDays,
     basedActive,
     mentioned,

@@ -1,13 +1,14 @@
 /**
  * 2nd + 3rd degree event search. Separate from the 1st-degree pool.
- * Event name is required. Hard cap 1000. Results land in their own batch.
+ * Event name is required. Country is US or India. Hard cap 1000.
  */
 import { and, eq } from "drizzle-orm";
 import { db, channelAccount, connection, connectionBatch } from "@/db";
 import { env } from "@/lib/env";
 import { getChannelProvider, type SearchHit } from "@/providers/channel";
 import { toCountry } from "@/modules/connections/country";
-import { isUsMetro, metroBySlug, stampMetro } from "@/modules/geo/metros";
+import { stampMetro } from "@/modules/geo/metros";
+import { countryBySlug } from "@/modules/geo/countries";
 import { runEventScan } from "@/modules/radar/scan";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -23,14 +24,14 @@ function splitHeadline(headline: string | null): { position: string | null; comp
 
 export async function runEventExtended(
   orgId: string,
-  payload: { metro: string; eventName: string; days?: number },
+  payload: { country: string; eventName: string; days?: number; metro?: string },
   onProgress?: (done: number, total: number) => Promise<void>,
   shouldStop?: () => Promise<boolean>,
 ): Promise<{ found: number; scanned: number; batchId: string }> {
   const eventName = payload.eventName.trim();
   if (!eventName) throw new Error("Event name is required for 2nd + 3rd degree search.");
-  const metro = metroBySlug(payload.metro);
-  if (!metro || !isUsMetro(metro.slug)) throw new Error("Pick a US metro — Radar is US-only for now.");
+  const scope = countryBySlug(payload.country);
+  if (!scope) throw new Error("Pick United States or India for 2nd + 3rd search.");
 
   const [seat] = await db.select().from(channelAccount)
     .where(and(eq(channelAccount.orgId, orgId), eq(channelAccount.status, "operational")));
@@ -38,7 +39,6 @@ export async function runEventExtended(
 
   const cap = env.EVENT_EXTENDED_CAP;
   const provider = getChannelProvider();
-  const keywords = `${eventName} ${metro.label}`.trim();
   const hits: SearchHit[] = [];
   let cursor: string | null = null;
   const seen = new Set<string>();
@@ -49,9 +49,9 @@ export async function runEventExtended(
     if (shouldStop && await shouldStop()) break;
     const page = await provider.searchPeople({
       accountId: seat.unipileAccountId,
-      keywords,
+      keywords: eventName,
       networkDistance: [2, 3],
-      locationIds: metro.linkedinLocationIds,
+      locationIds: scope.linkedinLocationIds,
       cursor,
       limit: 50,
     });
@@ -70,32 +70,31 @@ export async function runEventExtended(
   const [batch] = await db.insert(connectionBatch).values({
     orgId,
     source: "event_search",
-    label: `Event · ${eventName} · ${metro.label}`.slice(0, 120),
+    label: `Event · ${eventName} · ${scope.label}`.slice(0, 120),
     statsJson: { imported: hits.length },
   }).returning();
 
   const CHUNK = 200;
   for (let i = 0; i < hits.length; i += CHUNK) {
     await db.insert(connection).values(hits.slice(i, i + CHUNK).map((h) => {
-      const { position, company } = splitHeadline(h.headline);
-      const country = toCountry(h.location);
+      const locCountry = toCountry(h.location) ?? scope.country;
       return {
         orgId,
         batchId: batch.id,
         firstName: h.firstName || "(unknown)",
         lastName: h.lastName,
-        companyRaw: company,
-        positionRaw: position,
+        companyRaw: splitHeadline(h.headline).company,
+        positionRaw: splitHeadline(h.headline).position,
         headlineRaw: h.headline,
         linkedinUrl: h.profileUrl,
         publicIdentifier: h.publicIdentifier,
         memberId: h.memberId,
         location: h.location,
-        country,
-        ...stampMetro({ location: h.location, headline: h.headline, country }),
+        country: locCountry,
+        ...stampMetro({ location: h.location, headline: h.headline, country: locCountry }),
         networkDistance: h.networkDistance,
         bucket: "pitchable",
-        matchWhy: `LinkedIn ${h.networkDistance === "3" ? "3rd+" : "2nd"}-degree search for “${eventName}”.`,
+        matchWhy: `LinkedIn ${h.networkDistance === "3" ? "3rd+" : "2nd"}-degree search for “${eventName}” in ${scope.label}.`,
         matchMethod: "rule",
         matchConfidence: 60,
       };
@@ -104,7 +103,7 @@ export async function runEventExtended(
 
   const scan = await runEventScan(
     orgId,
-    { metro: metro.slug, eventName, batchId: batch.id, force: true },
+    { metro: "sf-bay-area", country: scope.slug, eventName, batchId: batch.id, force: true },
     async (done, total) => {
       if (onProgress) await onProgress(hits.length, hits.length + total);
       void done;

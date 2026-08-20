@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Shell, requirePage } from "@/app/shell";
 import { ActivityBadge, ago } from "@/components/dash-bits";
 import { US_METROS } from "@/modules/geo/metros";
+import { RADAR_COUNTRIES, countryBySlug } from "@/modules/geo/countries";
 import { loadRadar, type RadarPerson } from "@/modules/radar/query";
 import { startEventScan, markFloor, clearFloor } from "./actions";
 
@@ -23,16 +24,17 @@ function opener(p: RadarPerson): string {
 }
 
 export default async function RadarPage({ searchParams }: {
-  searchParams: Promise<{ metro?: string; days?: string; p?: string; tab?: string; scanning?: string; pool?: string; err?: string }>;
+  searchParams: Promise<{ metro?: string; days?: string; p?: string; tab?: string; scanning?: string; pool?: string; err?: string; country?: string }>;
 }) {
   const user = await requirePage();
   const sp = await searchParams;
   const metro = US_METROS.some((m) => m.slug === sp.metro) ? sp.metro! : "sf-bay-area";
   const days = [3, 7, 14].includes(Number(sp.days)) ? Number(sp.days) : 7;
   const pool = sp.pool === "extended" ? "extended" : "first";
+  const country = countryBySlug(sp.country)?.slug ?? "united-states";
   const tab = (["active", "mentioned", "based", "met"].includes(sp.tab ?? "") ? sp.tab : "active") as
     "active" | "mentioned" | "based" | "met";
-  const view = await loadRadar(user.orgId, metro, days, pool);
+  const view = await loadRadar(user.orgId, metro, days, pool, country);
 
   const lists = {
     active: view?.basedActive ?? [],
@@ -42,7 +44,7 @@ export default async function RadarPage({ searchParams }: {
   };
   const list = lists[tab];
   const person = list.find((p) => p.id === sp.p) ?? list[0] ?? null;
-  const base = `/radar?metro=${metro}&days=${days}&pool=${pool}`;
+  const base = `/radar?metro=${metro}&days=${days}&pool=${pool}&country=${country}`;
 
   return (
     <Shell user={user} active="radar">
@@ -50,9 +52,8 @@ export default async function RadarPage({ searchParams }: {
         <div>
           <h1 className="text-xl font-semibold">Event radar</h1>
           <p className="mt-1 max-w-xl text-sm text-[#475467]">
-            Two separate scans. 1st degree is your whole matchable network.
-            2nd + 3rd searches LinkedIn for the event name (max 1,000), then
-            fast-scans posts the same way. Metros are US-only for now.
+            1st degree uses a US metro. 2nd + 3rd searches by country
+            (US or India) and only keeps people who named the event in a post.
           </p>
         </div>
         <form action={startEventScan} className="flex flex-wrap items-center gap-2 text-[13px]">
@@ -60,9 +61,15 @@ export default async function RadarPage({ searchParams }: {
             <option value="first">1st degree — entire pool</option>
             <option value="extended">2nd + 3rd — event search (max 1,000)</option>
           </select>
-          <select name="metro" defaultValue={metro} className="rounded-[8px] border border-[#DDE2EE] bg-white px-2 py-1.5">
-            {US_METROS.map((m) => <option key={m.slug} value={m.slug}>{m.label}</option>)}
-          </select>
+          {pool === "extended" ? (
+            <select name="country" defaultValue={country} className="rounded-[8px] border border-[#DDE2EE] bg-white px-2 py-1.5">
+              {RADAR_COUNTRIES.map((c) => <option key={c.slug} value={c.slug}>{c.label}</option>)}
+            </select>
+          ) : (
+            <select name="metro" defaultValue={metro} className="rounded-[8px] border border-[#DDE2EE] bg-white px-2 py-1.5">
+              {US_METROS.map((m) => <option key={m.slug} value={m.slug}>{m.label}</option>)}
+            </select>
+          )}
           <select name="days" defaultValue={String(days)} className="rounded-[8px] border border-[#DDE2EE] bg-white px-2 py-1.5">
             <option value="3">last 3 days</option>
             <option value="7">last 7 days</option>
@@ -82,17 +89,17 @@ export default async function RadarPage({ searchParams }: {
       {sp.scanning === "1" && (
         <p className="mt-3 text-sm text-[#067647]">
           {pool === "extended"
-            ? "Event search queued — finding 2nd + 3rd degree people, then scanning posts (max 1,000)."
+            ? "Queued — search, then keep only people whose posts name the event."
             : "Scan queued — every 1st-degree matchable contact."}
         </p>
       )}
 
       <div className="mt-4 flex gap-1 rounded-[10px] border border-[#DDE2EE] bg-white p-1 w-fit">
-        <Link href={`/radar?metro=${metro}&days=${days}&pool=first`}
+        <Link href={`/radar?metro=${metro}&days=${days}&pool=first&country=${country}`}
           className={`rounded-[8px] px-3 py-[7px] text-[13px] ${pool === "first" ? "bg-[#EEF1FC] font-medium text-[#263BAA]" : "text-[#475467]"}`}>
           1st degree
         </Link>
-        <Link href={`/radar?metro=${metro}&days=${days}&pool=extended`}
+        <Link href={`/radar?metro=${metro}&days=${days}&pool=extended&country=${country}`}
           className={`rounded-[8px] px-3 py-[7px] text-[13px] ${pool === "extended" ? "bg-[#EEF1FC] font-medium text-[#263BAA]" : "text-[#475467]"}`}>
           2nd + 3rd
         </Link>
@@ -101,7 +108,7 @@ export default async function RadarPage({ searchParams }: {
       <section className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {([
           ["active", "Based + active", view?.basedActive.length ?? 0],
-          ["mentioned", "Mentioned travel", view?.mentioned.length ?? 0],
+          ["mentioned", pool === "extended" ? "Named the event" : "Mentioned travel", view?.mentioned.length ?? 0],
           ["based", "Based, quiet", view?.basedQuiet.length ?? 0],
           ["met", "Met on the floor", view?.met.length ?? 0],
         ] as const).map(([t, label, n]) => (
@@ -131,7 +138,9 @@ export default async function RadarPage({ searchParams }: {
         <div className="overflow-hidden rounded-[14px] border border-[#DDE2EE] bg-white">
           {list.length === 0 ? (
             <p className="p-8 text-sm text-[#98A2B3]">
-              {tab === "active"
+              {tab === "mentioned" && pool === "extended"
+                ? "Nobody in this window posted the event name. Scan again after the event, or try a shorter name (e.g. Unbound)."
+                : tab === "active"
                 ? "Nobody based here with a post in this window. Scan to refresh activity, or check Mentioned travel."
                 : "Nothing in this list yet."}
             </p>
@@ -190,17 +199,17 @@ export default async function RadarPage({ searchParams }: {
                     className="rounded-[8px] border border-[#DDE2EE] px-3 py-1.5 text-[12px]">Open profile</a>
                 )}
                 {person.floorStatus !== "met" && (
-                  <form action={markFloor.bind(null, person.id, "met", metro, days, pool)}>
+                  <form action={markFloor.bind(null, person.id, "met", metro, days, pool, country)}>
                     <button className="rounded-[8px] bg-[#263BAA] px-3 py-1.5 text-[12px] text-white">Mark met</button>
                   </form>
                 )}
                 {person.floorStatus !== "skipped" && (
-                  <form action={markFloor.bind(null, person.id, "skipped", metro, days, pool)}>
+                  <form action={markFloor.bind(null, person.id, "skipped", metro, days, pool, country)}>
                     <button className="rounded-[8px] border border-[#DDE2EE] px-3 py-1.5 text-[12px]">Skip</button>
                   </form>
                 )}
                 {person.floorStatus && (
-                  <form action={clearFloor.bind(null, person.id, metro, days, pool)}>
+                  <form action={clearFloor.bind(null, person.id, metro, days, pool, country)}>
                     <button className="text-[12px] text-[#475467] underline">Undo</button>
                   </form>
                 )}

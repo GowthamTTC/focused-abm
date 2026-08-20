@@ -9,7 +9,8 @@ import { env } from "@/lib/env";
 import { getChannelProvider } from "@/providers/channel";
 import { toCountry } from "@/modules/connections/country";
 import { metroBySlug, stampMetro } from "@/modules/geo/metros";
-import { mentionForSlug } from "@/modules/radar/mentions";
+import { mentionForEvent, mentionForSlug } from "@/modules/radar/mentions";
+import { countryBySlug } from "@/modules/geo/countries";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -18,6 +19,7 @@ export interface EventScanPayload {
   days?: number;
   eventName?: string;
   batchId?: string;
+  country?: string;
   /** Skip the "already scanned this window" filter — used after a fresh 2nd/3rd import. */
   force?: boolean;
 }
@@ -91,8 +93,9 @@ export async function runEventScan(
   onProgress?: (done: number, total: number) => Promise<void>,
   shouldStop?: () => Promise<boolean>,
 ): Promise<EventScanResult> {
+  const country = countryBySlug(payload.country);
   const metro = metroBySlug(payload.metro);
-  if (!metro) throw new Error(`Unknown metro "${payload.metro}".`);
+  if (!metro && !country) throw new Error(`Unknown place "${payload.metro}".`);
   const eventName = payload.eventName?.trim() || undefined;
   const concurrency = Math.max(1, env.EVENT_SCAN_CONCURRENCY);
   const gapMs = Math.max(0, env.EVENT_SCAN_MIN_GAP_SECONDS) * 1000;
@@ -187,7 +190,11 @@ export async function runEventScan(
       const d = post.postedAt ? new Date(post.postedAt) : null;
       if (d && !Number.isNaN(d.getTime()) && (!lastPostAt || d > lastPostAt)) lastPostAt = d;
     }
-    const mention = mentionForSlug(posts, metro.slug, eventName);
+    const mention = country && eventName
+      ? mentionForEvent(posts, eventName, country.slug)
+      : metro
+        ? mentionForSlug(posts, metro.slug, eventName)
+        : null;
     if (mention) result.mentioned += 1;
     await db.update(connection).set({
       lastPostAt: lastPostAt ?? c.lastPostAt,

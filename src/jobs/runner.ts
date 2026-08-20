@@ -219,13 +219,13 @@ export async function processNext(): Promise<boolean> {
         await sleep(gap + Math.random() * gap);
       }
     } else if (next.kind === "event_extended") {
-      const payload = next.payloadJson as { metro?: string; eventName?: string; days?: number };
-      if (!payload.metro) throw new Error("Event search needs a metro.");
+      const payload = next.payloadJson as { country?: string; metro?: string; eventName?: string; days?: number };
+      if (!payload.country) throw new Error("Event search needs a country.");
       if (!payload.eventName) throw new Error("Event search needs an event name.");
       const stoppedEarly = { v: false };
       const result = await runEventExtended(
         next.orgId,
-        { metro: payload.metro, eventName: payload.eventName, days: payload.days },
+        { country: payload.country, eventName: payload.eventName, days: payload.days },
         (done, total) => setProgress(next.id, done, total),
         async () => {
           const stop = await stopRequested(next.id);
