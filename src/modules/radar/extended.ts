@@ -1,15 +1,14 @@
 /**
- * 2nd + 3rd degree event search. Separate from the 1st-degree pool.
- * Event name is required. Country is US or India. Hard cap 1000.
+ * 2nd + 3rd: search LinkedIn posts for the event name, then keep authors.
  */
 import { and, eq } from "drizzle-orm";
 import { db, channelAccount, connection, connectionBatch } from "@/db";
 import { env } from "@/lib/env";
-import { getChannelProvider, type SearchHit } from "@/providers/channel";
+import { getChannelProvider } from "@/providers/channel";
 import { toCountry } from "@/modules/connections/country";
 import { stampMetro } from "@/modules/geo/metros";
 import { countryBySlug } from "@/modules/geo/countries";
-import { runEventScan } from "@/modules/radar/scan";
+import { mentionForEvent } from "@/modules/radar/mentions";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -20,6 +19,13 @@ function splitHeadline(headline: string | null): { position: string | null; comp
     return { position: parts[0].trim() || null, company: parts.slice(1).join(" at ").trim() || null };
   }
   return { position: headline, company: null };
+}
+
+function datePosted(days?: number): "past_day" | "past_week" | "past_month" {
+  const d = days ?? 7;
+  if (d <= 1) return "past_day";
+  if (d <= 7) return "past_week";
+  return "past_month";
 }
 
 export async function runEventExtended(
@@ -39,53 +45,76 @@ export async function runEventExtended(
 
   const cap = env.EVENT_EXTENDED_CAP;
   const provider = getChannelProvider();
-  const hits: SearchHit[] = [];
+  const authors = new Map<string, {
+    firstName: string; lastName: string; headline: string | null; location: string | null;
+    profileUrl: string | null; publicIdentifier: string | null; memberId: string | null;
+    networkDistance: "2" | "3"; snippet: string; postedAt: Date | null;
+  }>();
   let cursor: string | null = null;
-  const seen = new Set<string>();
+  let pages = 0;
 
   if (onProgress) await onProgress(0, cap);
 
   do {
     if (shouldStop && await shouldStop()) break;
-    const page = await provider.searchPeople({
+    const page = await provider.searchPosts({
       accountId: seat.unipileAccountId,
       keywords: eventName,
-      networkDistance: [2, 3],
-      locationQuery: scope.label,
-      locationIds: scope.linkedinLocationIds,
+      datePosted: datePosted(payload.days),
       cursor,
       limit: 50,
     });
-    for (const h of page.items) {
-      const key = (h.publicIdentifier || h.profileUrl || h.memberId || `${h.firstName}-${h.lastName}`).toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      hits.push(h);
-      if (hits.length >= cap) break;
+    for (const post of page.items) {
+      if (post.isCompany) continue;
+      const hit = mentionForEvent([{ text: post.text, postedAt: post.postedAt }], eventName, scope.slug);
+      if (!hit) continue;
+      const locCountry = toCountry(post.author.location);
+      if (locCountry && locCountry !== scope.country) continue;
+      const key = (post.author.publicIdentifier || post.author.profileUrl || post.author.memberId
+        || `${post.author.firstName}-${post.author.lastName}`).toLowerCase();
+      const when = hit.postedAt;
+      const prev = authors.get(key);
+      if (prev && prev.postedAt && when && when <= prev.postedAt) continue;
+      authors.set(key, {
+        firstName: post.author.firstName || "(unknown)",
+        lastName: post.author.lastName,
+        headline: post.author.headline,
+        location: post.author.location,
+        profileUrl: post.author.profileUrl,
+        publicIdentifier: post.author.publicIdentifier,
+        memberId: post.author.memberId,
+        networkDistance: post.author.networkDistance,
+        snippet: hit.snippet,
+        postedAt: when,
+      });
+      if (authors.size >= cap) break;
     }
-    if (onProgress) await onProgress(Math.min(hits.length, cap), cap);
-    cursor = hits.length >= cap ? null : page.cursor;
+    if (onProgress) await onProgress(authors.size, cap);
+    pages += 1;
+    cursor = authors.size >= cap || pages >= 6 ? null : page.cursor;
     if (cursor) await sleep(400);
-  } while (cursor && hits.length < cap);
+  } while (cursor);
 
+  const rows = [...authors.values()];
   const [batch] = await db.insert(connectionBatch).values({
     orgId,
     source: "event_search",
-    label: `Event · ${eventName} · ${scope.label}`.slice(0, 120),
-    statsJson: { imported: hits.length },
+    label: `Event posts · ${eventName} · ${scope.label}`.slice(0, 120),
+    statsJson: { imported: rows.length },
   }).returning();
 
   const CHUNK = 200;
-  for (let i = 0; i < hits.length; i += CHUNK) {
-    await db.insert(connection).values(hits.slice(i, i + CHUNK).map((h) => {
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    await db.insert(connection).values(rows.slice(i, i + CHUNK).map((h) => {
       const locCountry = toCountry(h.location) ?? scope.country;
+      const { position, company } = splitHeadline(h.headline);
       return {
         orgId,
         batchId: batch.id,
-        firstName: h.firstName || "(unknown)",
+        firstName: h.firstName,
         lastName: h.lastName,
-        companyRaw: splitHeadline(h.headline).company,
-        positionRaw: splitHeadline(h.headline).position,
+        companyRaw: company,
+        positionRaw: position,
         headlineRaw: h.headline,
         linkedinUrl: h.profileUrl,
         publicIdentifier: h.publicIdentifier,
@@ -94,22 +123,20 @@ export async function runEventExtended(
         country: locCountry,
         ...stampMetro({ location: h.location, headline: h.headline, country: locCountry }),
         networkDistance: h.networkDistance,
+        lastPostAt: h.postedAt,
+        lastScanAt: new Date(),
+        mentionMetro: scope.slug,
+        mentionAt: h.postedAt,
+        mentionSnippet: h.snippet,
+        mentionKind: "event",
         bucket: "pitchable",
-        matchWhy: `LinkedIn ${h.networkDistance === "3" ? "3rd+" : "2nd"}-degree search for “${eventName}” in ${scope.label}.`,
+        matchWhy: `Posted about "${eventName}": ${h.snippet}`,
         matchMethod: "rule",
-        matchConfidence: 60,
+        matchConfidence: 80,
       };
     }));
   }
 
-  const scan = await runEventScan(
-    orgId,
-    { metro: "sf-bay-area", country: scope.slug, eventName, batchId: batch.id, force: true },
-    async (done, total) => {
-      if (onProgress) await onProgress(hits.length + done, hits.length + Math.max(total, 1));
-    },
-    shouldStop,
-  );
-
-  return { found: hits.length, scanned: scan.scanned, batchId: batch.id };
+  if (onProgress) await onProgress(rows.length, Math.max(rows.length, 1));
+  return { found: rows.length, scanned: rows.length, batchId: batch.id };
 }

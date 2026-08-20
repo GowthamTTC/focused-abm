@@ -67,7 +67,10 @@ export async function loadRadar(
     : or(isNull(connection.networkDistance), eq(connection.networkDistance, "1"));
 
   const place = pool === "extended"
-    ? or(eq(connection.country, country!.country), eq(connection.mentionMetro, country!.slug))
+    ? and(
+        eq(connection.mentionKind, "event"),
+        or(eq(connection.country, country!.country), eq(connection.mentionMetro, country!.slug)),
+      )
     : or(eq(connection.metro, slug), eq(connection.mentionMetro, slug));
 
   const rows = await db.select().from(connection).where(and(

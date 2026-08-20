@@ -34,7 +34,7 @@ export default async function RadarPage({ searchParams }: {
   const country = countryBySlug(sp.country)?.slug ?? "united-states";
   const tab = (["active", "mentioned", "based", "met"].includes(sp.tab ?? "")
     ? sp.tab
-    : pool === "extended" ? "based" : "active") as "active" | "mentioned" | "based" | "met";
+    : pool === "extended" ? "mentioned" : "active") as "active" | "mentioned" | "based" | "met";
   const view = await loadRadar(user.orgId, metro, days, pool, country);
 
   const lists = {
@@ -53,7 +53,7 @@ export default async function RadarPage({ searchParams }: {
         <div>
           <h1 className="text-xl font-semibold">Event radar</h1>
           <p className="mt-1 max-w-xl text-sm text-[#475467]">
-            1st degree uses a US metro. 2nd + 3rd searches by country
+            1st degree uses a US metro. 2nd + 3rd searches LinkedIn posts by country
             (US or India) and only keeps people who named the event in a post.
           </p>
         </div>

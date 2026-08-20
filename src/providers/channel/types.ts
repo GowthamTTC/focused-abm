@@ -30,6 +30,13 @@ export interface FetchedPost {
 }
 
 /** People found via LinkedIn search (2nd / 3rd+), not the relations list. */
+export interface SearchPost {
+  text: string;
+  postedAt: string | null;
+  author: SearchHit;
+  isCompany: boolean;
+}
+
 export interface SearchHit {
   publicIdentifier: string | null;
   memberId: string | null;
@@ -71,6 +78,14 @@ export interface ChannelProvider {
     identifier: string;
     limit: number;
   }): Promise<FetchedPost[]>;
+
+  searchPosts(input: {
+    accountId: string;
+    keywords: string;
+    datePosted?: "past_day" | "past_week" | "past_month";
+    cursor?: string | null;
+    limit?: number;
+  }): Promise<{ items: SearchPost[]; cursor: string | null }>;
 
   searchPeople(input: {
     accountId: string;

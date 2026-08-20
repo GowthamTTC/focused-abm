@@ -2,7 +2,7 @@
  * Deterministic mock — the whole app runs and demos with ZERO keys.
  * Personas are synthetic-safe: no real names, companies, or data.
  */
-import type { ChannelProvider, FetchedPost, FetchedProfile, Relation, SearchHit } from "./types";
+import type { ChannelProvider, FetchedPost, FetchedProfile, Relation, SearchHit, SearchPost } from "./types";
 
 const FIRST = ["Asha", "Rahul", "Meera", "Vikram", "Priya", "Karthik", "Divya", "Arjun", "Sneha", "Manoj"];
 const LAST = ["Iyer", "Sharma", "Nair", "Menon", "Reddy", "Das", "Kulkarni", "Pillai", "Bose", "Rao"];
@@ -96,6 +96,21 @@ export class MockChannelProvider implements ChannelProvider {
       postedAt: new Date(Date.now() - recentHours * 3600000 - k * 86400000).toISOString(),
       url: `https://www.linkedin.com/feed/update/mock-${i}-${k}`,
     }));
+  }
+
+  async searchPosts(input: {
+    keywords: string; cursor?: string | null; limit?: number;
+  }): Promise<{ items: SearchPost[]; cursor: string | null }> {
+    const people = await this.searchPeople({ ...input, networkDistance: [2, 3] });
+    return {
+      items: people.items.map((a) => ({
+        text: `Heading to ${input.keywords} this week — see you on the floor.`,
+        postedAt: new Date(Date.now() - 36e5).toISOString(),
+        isCompany: false,
+        author: a,
+      })),
+      cursor: people.cursor,
+    };
   }
 
   async searchPeople(input: {

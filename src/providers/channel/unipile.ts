@@ -6,7 +6,7 @@
  */
 import { z } from "zod";
 import { env } from "@/lib/env";
-import type { ChannelProvider, FetchedPost, FetchedProfile, Relation, SearchHit } from "./types";
+import type { ChannelProvider, FetchedPost, FetchedProfile, Relation, SearchHit, SearchPost } from "./types";
 
 function base(): string {
   const dsn = env.UNIPILE_DSN!;
@@ -173,6 +173,66 @@ export class UnipileChannelProvider implements ChannelProvider {
       postedAt: p.parsed_datetime ?? p.date ?? null,
       url: p.share_url ?? null,
     })).filter((p) => p.text.trim().length > 0);
+  }
+
+  async searchPosts(input: {
+    accountId: string;
+    keywords: string;
+    datePosted?: "past_day" | "past_week" | "past_month";
+    cursor?: string | null;
+    limit?: number;
+  }): Promise<{ items: SearchPost[]; cursor: string | null }> {
+    const limit = Math.min(50, Math.max(10, input.limit ?? 50));
+    const qs = new URLSearchParams({ account_id: input.accountId, limit: String(limit) });
+    if (input.cursor) qs.set("cursor", input.cursor);
+    const body: Record<string, unknown> = {
+      api: "classic",
+      category: "posts",
+      keywords: input.keywords,
+      sort_by: "date",
+    };
+    if (input.datePosted) body.date_posted = input.datePosted;
+
+    let raw: unknown;
+    try {
+      raw = await uni(`/linkedin/search?${qs}`, { method: "POST", body: JSON.stringify(body) });
+    } catch {
+      raw = await uni(`/linkedin/search?${qs}`, {
+        method: "POST",
+        body: JSON.stringify({
+          url: `https://www.linkedin.com/search/results/content/?keywords=${encodeURIComponent(input.keywords)}&datePosted=%22past-week%22&origin=FACETED_SEARCH`,
+        }),
+      });
+    }
+    const page = z.object({ items: z.array(z.any()).default([]), cursor: z.string().nullish() }).passthrough().parse(raw);
+    const items: SearchPost[] = [];
+    for (const r of page.items as Record<string, any>[]) {
+      const author = r.author ?? r.user ?? {};
+      const isCompany = Boolean(author.is_company || author.type === "company");
+      const publicId = author.public_identifier
+        ?? author.profile_url?.split("/in/")[1]?.split(/[/?#]/)[0]
+        ?? null;
+      const fromParts = author.first_name || author.last_name
+        ? { first: author.first_name || "(unknown)", last: author.last_name || "" }
+        : splitName(author.name);
+      items.push({
+        text: String(r.text ?? r.commentary ?? ""),
+        postedAt: r.parsed_datetime ?? r.date ?? null,
+        isCompany,
+        author: {
+          publicIdentifier: publicId,
+          memberId: author.id ?? author.member_urn ?? null,
+          firstName: fromParts.first,
+          lastName: fromParts.last,
+          headline: author.headline ?? null,
+          location: author.location ?? null,
+          profileUrl: author.profile_url ?? author.public_profile_url
+            ?? (publicId ? `https://www.linkedin.com/in/${publicId}` : null),
+          networkDistance: distanceOf(author.network_distance) === "3" ? "3" : "2",
+        },
+      });
+    }
+    return { items, cursor: page.cursor ?? null };
   }
 
   async searchPeople(input: {
