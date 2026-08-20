@@ -13,6 +13,7 @@ import { deepEnrichOne } from "@/modules/enrich/deep-dive";
 import { z } from "zod";
 import { complete } from "@/llm/client";
 import { updateOrgSettings } from "@/modules/settings/org-settings";
+import { idleSweep, releaseIds } from "@/jobs/reap";
 
 export async function enqueue(orgId: string, kind: string, payload: Record<string, unknown>) {
   const [row] = await db.insert(job).values({ orgId, kind, payloadJson: payload }).returning();
@@ -50,7 +51,8 @@ async function enrichedToday(orgId: string): Promise<number> {
 export async function processNext(): Promise<boolean> {
   const [next] = await db.select().from(job)
     .where(eq(job.status, "queued")).orderBy(asc(job.createdAt)).limit(1);
-  if (!next) return false;
+  // Nothing to run means nobody may be holding a queued/running handle.
+  if (!next) { await idleSweep(); return false; }
 
   await db.update(job).set({ status: "running", updatedAt: new Date() }).where(eq(job.id, next.id));
   try {
@@ -102,17 +104,23 @@ export async function processNext(): Promise<boolean> {
       const ids = (next.payloadJson.connectionIds as string[]) ?? [];
       await setProgress(next.id, 0, ids.length);
       let done = 0;
-      for (const id of ids) {
-        if (await stopRequested(next.id)) { await markStopped(next.id, done, ids.length); return true; }
-        if ((await enrichedToday(next.orgId)) >= env.DEEP_ENRICH_DAILY_CAP) {
-          throw new Error(`Daily enrichment cap (${env.DEEP_ENRICH_DAILY_CAP}) reached — remaining rows stay queued; re-run tomorrow.`);
+      // However this run ends — finished, stopped, capped, crashed — nobody is
+      // left holding a queued handle. There is no queue to inherit tomorrow.
+      try {
+        for (const id of ids) {
+          if (await stopRequested(next.id)) { await markStopped(next.id, done, ids.length); return true; }
+          if ((await enrichedToday(next.orgId)) >= env.DEEP_ENRICH_DAILY_CAP) {
+            throw new Error(`Daily enrichment cap (${env.DEEP_ENRICH_DAILY_CAP}) reached after ${done} — the remaining ${ids.length - done} went back to the pool; pick them again after the reset.`);
+          }
+          try { await deepEnrichOne(next.orgId, id); } catch { /* row carries its own error */ }
+          done += 1;
+          await setProgress(next.id, done, ids.length);
+          // LinkedIn-respectful pacing: base gap + jitter between profile fetches.
+          const gap = env.DEEP_ENRICH_MIN_GAP_SECONDS * 1000;
+          await sleep(gap + Math.random() * gap);
         }
-        try { await deepEnrichOne(next.orgId, id); } catch { /* row carries its own error */ }
-        done += 1;
-        await setProgress(next.id, done, ids.length);
-        // LinkedIn-respectful pacing: base gap + jitter between profile fetches.
-        const gap = env.DEEP_ENRICH_MIN_GAP_SECONDS * 1000;
-        await sleep(gap + Math.random() * gap);
+      } finally {
+        await releaseIds(ids);
       }
     } else if (next.kind === "voice_scan") {
       const { identifier } = next.payloadJson as { identifier: string };

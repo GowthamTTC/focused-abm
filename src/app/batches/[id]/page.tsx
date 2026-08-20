@@ -7,7 +7,7 @@ import { LedgerStrip } from "@/components/ledger";
 import { ExportCard } from "@/components/export-card";
 import { CopyButton } from "@/components/copy-button";
 import { bucketCounts } from "@/modules/matching/service-fit";
-import { clearQueue, enrichOne, enrichSelected, moveToPitchable, reclassifyAllAction, retryPerson, runClassify, scanActivity } from "./actions";
+import { enrichOne, enrichSelected, moveToPitchable, reclassifyAllAction, retryPerson, runClassify, scanActivity } from "./actions";
 import { SelectRows } from "@/components/select-rows";
 import { MAX_MANUAL_SELECT } from "@/modules/enrich/limits";
 import { getDailyEnrichUsage } from "@/modules/enrich/usage";
@@ -18,20 +18,23 @@ const BUCKET_LABEL: Record<string, string> = {
 };
 
 function StatusChip({ s }: { s: string }) {
-  const cls = s === "done" ? "bg-[#EEF1FC] text-[#263BAA]"
-    : s === "running" ? "bg-[#FDF6E7] text-[#B54708]"
-    : s === "failed" ? "bg-red-500/15 text-[#B42318]"
-    : "bg-[#EEF1FC] text-[#475467]";
-  return <span className={`rounded px-1.5 py-0.5 text-[11px] ${cls}`}>{s}</span>;
+  // "queued" is never shown to a human — a handle held by a live run reads as
+  // "researching", and a handle held by nothing does not survive the worker.
+  const label = s === "queued" ? "researching" : s;
+  const cls = label === "done" ? "bg-[#EEF1FC] text-[#263BAA]"
+    : label === "failed" ? "bg-red-500/15 text-[#B42318]"
+    : label === "pending" ? "bg-[#EEF1FC] text-[#475467]"
+    : "bg-[#FDF6E7] text-[#B54708]";
+  return <span className={`rounded px-1.5 py-0.5 text-[11px] ${cls}`}>{label}</span>;
 }
 
 export default async function BatchPage(props: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ view?: string; p?: string; country?: string; posted?: string; order?: string; run?: string; cleared?: string }>;
+  searchParams: Promise<{ view?: string; p?: string; country?: string; posted?: string; order?: string; run?: string }>;
 }) {
   const user = await requirePage();
   const { id } = await props.params;
-  const { view = "pitchable", p, country = "", posted = "", order = "rank", run, cleared } = await props.searchParams;
+  const { view = "pitchable", p, country = "", posted = "", order = "rank", run } = await props.searchParams;
   // Every row action returns to the exact tab + filters it was fired from.
   const qs = new URLSearchParams(
     Object.entries({ view, country, posted, order }).filter(([, v]) => v) as [string, string][],
@@ -56,10 +59,11 @@ export default async function BatchPage(props: {
     .from(connection).where(eq(connection.batchId, id)).groupBy(connection.enrichStatus);
   const st = Object.fromEntries(stAgg.map((r) => [r.s, r.n])) as Record<string, number>;
   const researched = st.done ?? 0;
-  const queuedN = st.queued ?? 0;
-  const runningN = st.running ?? 0;
+  // queued and running are the same fact to a human: a live run has them.
+  // Nothing can sit here after a run ends — the worker releases it.
+  const busyN = (st.queued ?? 0) + (st.running ?? 0);
   const failedN = st.failed ?? 0;
-  const touched = researched + queuedN + runningN + failedN;
+  const touched = researched + busyN + failedN;
   const capReached = usage.used >= usage.cap;
 
   const rows = await db.select().from(connection)
@@ -91,7 +95,6 @@ export default async function BatchPage(props: {
           <p className="tnum mt-1 text-[#98A2B3]">
             {batch.source} · {batch.createdAt.toISOString().slice(0, 10)} · {totalRows.toLocaleString()} rows
           </p>
-          {cleared && <p className="mt-1 text-sm text-[#475467]">Queue cleared — those people are back in the pool and pickable again.</p>}
           {run === "0" && <p className="mt-1 text-sm text-[#B54708]">Nothing was selected — tick a row or press Enrich on one.</p>}
           {run && run !== "0" && (
             <p className="mt-1 text-sm text-[#067647]">
@@ -137,14 +140,6 @@ export default async function BatchPage(props: {
               Research from Today →
             </Link>
           )}
-          {queuedN > 0 && (
-            <form action={clearQueue.bind(null, id, qs)}>
-              <button title="Release everyone stuck in the queue back into the pool. Researched people are untouched."
-                className="rounded-[8px] border border-[#DDE2EE] px-3 py-2 text-sm text-[#475467] hover:border-[#B54708] hover:text-[#B54708]">
-                Clear queue ({queuedN.toLocaleString()})
-              </button>
-            </form>
-          )}
           <ExportCard batchId={id} topN={researched} targetPool={counts.pitchable}
             review={counts.off_icp} peers={counts.peer_competitor} />
         </div>
@@ -165,8 +160,7 @@ export default async function BatchPage(props: {
             {touched > 0 && (
               <span className="text-[#263BAA]">
                 {researched.toLocaleString()} researched
-                {runningN > 0 && <span className="text-[#B54708]"> · {runningN} running</span>}
-                {queuedN > 0 && <span className="text-[#98A2B3]"> · {queuedN} queued</span>}
+                {busyN > 0 && <span className="text-[#B54708]"> · {busyN} researching now</span>}
                 {failedN > 0 && <span className="text-[#B42318]"> · {failedN} failed</span>}
               </span>
             )}
@@ -248,7 +242,9 @@ export default async function BatchPage(props: {
                   </div>
                 ) : person.enrichStatus !== "done" ? (
                   <p className="mt-2 bg-white border border-[#DDE2EE] rounded-[10px] shadow-[0_1px_2px_rgba(16,24,40,.04)] p-4 text-sm text-[#98A2B3]">
-                    {person.enrichStatus === "running" ? "Reading profile now…" : "Queued — press Research to run."}
+                    {person.enrichStatus === "pending"
+                      ? "Not researched yet — press Enrich on their row in Matched."
+                      : "Reading profile now…"}
                   </p>
                 ) : (
                   <div className="mt-2 space-y-5 rounded-[10px] border border-[#B54708]/15 bg-[#B54708]/[.04] p-4 text-sm">
@@ -363,7 +359,8 @@ export default async function BatchPage(props: {
                           disabled={c.enrichStatus === "done" || c.enrichStatus === "running" || c.enrichStatus === "queued"}
                           title={c.enrichStatus === "pending" || c.enrichStatus === "failed"
                             ? "Select for research"
-                            : `Already ${c.enrichStatus} — nothing to spend here`}
+                            : c.enrichStatus === "done" ? "Already researched — nothing to spend here"
+                            : "In the run happening right now"}
                           className="h-4 w-4 accent-[#263BAA] disabled:opacity-30" />
                       </td>
                       <td className="tnum px-3 py-2.5 text-[#98A2B3]">{c.rank ?? "—"}</td>
@@ -413,7 +410,7 @@ export default async function BatchPage(props: {
                             {c.enrichStatus === "failed" ? "Retry" : "Enrich"}
                           </button>
                         ) : (
-                          <StatusChip s={c.enrichStatus} />
+                          <StatusChip s={c.enrichStatus === "done" ? "done" : "researching"} />
                         )}
                       </td>
                     </>) : (<>

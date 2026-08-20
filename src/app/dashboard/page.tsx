@@ -191,9 +191,9 @@ export default async function DashboardPage({ searchParams }: {
               </span>
             </div>
           )}
-          {capReached && (selAgg?.queued ?? 0) > 0 && (
+          {capReached && (
             <div className="tnum bg-white border border-[#DDE2EE] rounded-[14px] shadow-[0_1px_2px_rgba(16,24,40,.04)] p-4 text-sm text-[#475467]">
-              {selAgg.queued} queued — waiting for daily reset ({resetsIn(usage.resetsAt)})
+              Today&apos;s budget is spent — resets in {resetsIn(usage.resetsAt)}. Anyone not reached went back to the pool.
             </div>
           )}
         </div>

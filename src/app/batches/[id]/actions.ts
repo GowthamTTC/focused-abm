@@ -76,21 +76,6 @@ export async function runDeepEnrich(batchId: string) {
   redirect(`/batches/${batchId}`);
 }
 
-/** Release rows stuck in 'queued' back into the pool.
- *  A deep-enrich job that hits the daily cap throws and dies — its rows stay
- *  'queued' forever, keep inflating every "selected" number on screen, and used
- *  to be skipped by the next-N frontier. This is the eject button. Nothing
- *  researched is touched: done and running rows are left exactly as they are. */
-export async function clearQueue(batchId: string, back: string = "") {
-  const user = await requireUser();
-  await db.update(connection).set({ selectedForEnrich: false, enrichStatus: "pending" })
-    .where(and(
-      eq(connection.orgId, user.orgId), eq(connection.batchId, batchId),
-      inArray(connection.enrichStatus, ["queued", "pending"]),
-    ));
-  redirect(backTo(batchId, back, "cleared=1"));
-}
-
 /** Tick-and-run: research exactly the people the user checked, nobody else.
  *  Hard-clamped to MAX_MANUAL_SELECT on the server as well as in the UI. */
 export async function enrichSelected(batchId: string, back: string, formData: FormData) {
