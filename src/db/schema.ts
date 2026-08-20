@@ -135,6 +135,15 @@ export const connection = pgTable("connection", {
   memberId: text("member_id"),               // Unipile provider-internal id (posts endpoint needs it)
   location: text("location"),                // e.g. "Chennai, Tamil Nadu, India" — country = last segment
   country: text("country"),                  // normalised from location; null until known
+  /** Home metro slug (sf-bay-area). Profile location, never live GPS. */
+  metro: text("metro"),
+  metroEvidence: text("metro_evidence"),     // profile | headline
+  mentionMetro: text("mention_metro"),       // weaker: they named this metro in a recent post
+  mentionAt: ts("mention_at"),
+  mentionSnippet: text("mention_snippet"),
+  mentionKind: text("mention_kind"),         // travel | event | place
+  floorStatus: text("floor_status"),         // met | skipped
+  floorAt: ts("floor_at"),
   connectedOn: text("connected_on"),
 
   // Stage A — service fit + rank
@@ -173,13 +182,14 @@ export const connection = pgTable("connection", {
 }, (t) => [
   index("connection_batch_idx").on(t.batchId),
   index("connection_bucket_idx").on(t.batchId, t.bucket),
+  index("connection_metro_idx").on(t.orgId, t.metro),
 ]);
 
 // ── DB-backed jobs (no Redis in the standalone) ──────────────────────
 export const job = pgTable("job", {
   id: id(),
   orgId: text("org_id").notNull().references(() => org.id),
-  kind: text("kind").notNull(), // classify | deep_enrich | sync_relations
+  kind: text("kind").notNull(), // classify | deep_enrich | sync | activity_scan | event_scan
   payloadJson: jsonb("payload_json").$type<Record<string, unknown>>().notNull(),
   status: text("status").notNull().default("queued"), // queued | running | done | failed
   progress: integer("progress").notNull().default(0),

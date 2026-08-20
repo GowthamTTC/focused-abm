@@ -1,5 +1,6 @@
 import { getOrgSettings } from "@/modules/settings/org-settings";
 import { toCountry } from "@/modules/connections/country";
+import { stampMetro } from "@/modules/geo/metros";
 /**
  * Stage B — one connection at a time: fetch profile + posts through the
  * connected LinkedIn seat, run the deep-dive prompt, then draft the message.
@@ -119,6 +120,11 @@ export async function deepEnrichOne(orgId: string, connectionId: string): Promis
       // the connections list does not carry it. Persist so filters work.
       location: fetchedLocation ?? c.location,
       country: toCountry(fetchedLocation) ?? c.country,
+      ...stampMetro({
+        location: fetchedLocation ?? c.location,
+        headline: headline || c.headlineRaw || c.positionRaw,
+        country: toCountry(fetchedLocation) ?? c.country,
+      }),
       aboutSummary: dive.about_summary,
       activityUrl,
       postsSummary: dive.posts_summary,

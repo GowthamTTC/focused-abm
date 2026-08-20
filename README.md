@@ -5,6 +5,7 @@ Top-N deep enrichment → the five-tab TTC workbook.
 
 - **Guide:** `IMPLEMENTATION.md` — the full Day 1 → Day 9 plan.
 - **UI design:** `docs/CLAUDE-DESIGN-PROMPT.md` — paste into Claude Design.
+- **Event radar:** `/radar` — metro + last-7-days activity. Home city from profile/headline, travel from posts. Not live GPS. After migrate, `npm run db:migrate`.
 
 ## Quickstart
 

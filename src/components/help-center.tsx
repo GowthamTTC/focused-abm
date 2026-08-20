@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 const MENUS: [label: string, what: string][] = [
   ["Today", "Your daily cockpit: the five numbers that matter, and the sentence that starts a research run."],
   ["Review", "Where drafted messages live. Decisions need a verdict, Ready can be copied and sent, Sent is your log."],
+  ["Radar", "Event mode: who is based in a metro and posted recently. Not live GPS."],
   ["People", "Every person in your network, searchable and filterable."],
   ["Network", "Who you know: composition by ICP and country, posting activity, relationship freshness."],
   ["Alerts", "Failed runs, seats needing re-auth, people who went quiet."],
@@ -40,6 +41,9 @@ const STEPS: { title: string; body: string; href: string; cta: string }[] = [
   { title: "Review and send",
     body: "Drafts land in Review. Give flagged people a verdict, copy the ready ones into LinkedIn, mark them sent. That log becomes your reply-rate evidence.",
     href: "/review", cta: "Open Review" },
+  { title: "Scan a city before an event",
+    body: "Open Radar, pick the metro, optionally the event name, and scan. You get people based there who posted in the last week — plus anyone whose recent posts say they are heading there. Mark who you met on the floor.",
+    href: "/radar", cta: "Open Radar" },
 ];
 
 const STEP_KEY = "fabm-tutorial-step";

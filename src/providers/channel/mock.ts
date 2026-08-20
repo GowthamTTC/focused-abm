@@ -27,7 +27,15 @@ function relationAt(i: number): Relation {
     memberId: `mock:${i}`,
     firstName: fn,
     lastName: ln,
-    location: ["Chennai, Tamil Nadu, India", "Bengaluru, Karnataka, India", "Mumbai, Maharashtra, India", "Singapore", "Dubai, United Arab Emirates", "London, England, United Kingdom", "Austin, Texas, United States"][i % 7],
+    location: [
+      "San Francisco, California, United States",
+      "Palo Alto, California, United States",
+      "Oakland, California, United States",
+      "Bengaluru, Karnataka, India",
+      "Chennai, Tamil Nadu, India",
+      "London, England, United Kingdom",
+      "Austin, Texas, United States",
+    ][i % 7],
     headline: `${role} at ${co}`,
     profileUrl: `https://www.linkedin.com/in/${pid}`,
     connectedAt: new Date(Date.now() - i * 86400000).toISOString(),
@@ -62,7 +70,7 @@ export class MockChannelProvider implements ChannelProvider {
         ? "15+ years in B2B marketing. Building pipeline programs and a small content team; writes about attribution, ABM, and doing more with less."
         : null,
       company: COS[(i * 7) % COS.length],
-      location: "Chennai, India",
+      location: relationAt(i).location,
       providerId: `mock:${i}`,
     };
   }
@@ -70,14 +78,22 @@ export class MockChannelProvider implements ChannelProvider {
   async fetchRecentPosts(input: { identifier: string; limit: number }): Promise<FetchedPost[]> {
     const i = Number(input.identifier.split("-").pop() ?? 0) || 0;
     if (i % 3 === 0) return []; // the no-posts reality
+    const loc = relationAt(i).location ?? "";
+    const bay = /San Francisco|Palo Alto|Oakland/i.test(loc);
+    const traveling = i % 7 === 3; // Bengaluru-based, talking about the Bay
+    const recentHours = bay ? (8 + (i % 40)) : traveling ? 20 : (24 * (2 + (i % 10)));
     return Array.from({ length: Math.min(3, input.limit) }, (_, k) => ({
       id: `mock-post-${i}-${k}`,
       text: [
-        "Our attribution model still can't explain half the pipeline. Boards want certainty; buyers want fewer forms. Something has to give.",
+        traveling
+          ? "Flying to the Bay this week for SaaStr — if you're around SF, let's grab coffee."
+          : bay
+            ? "In the South Bay today thinking about pipeline, not booth swag."
+            : "Our attribution model still can't explain half the pipeline. Boards want certainty; buyers want fewer forms. Something has to give.",
         "Hot take: most ABM programs fail at the handoff, not the targeting. Sales rejects what marketing celebrates.",
         "We cut our content calendar in half and doubled engagement. Less, but sharper, wins in B2B.",
       ][k],
-      postedAt: new Date(Date.now() - (k + 1) * 5 * 86400000).toISOString(),
+      postedAt: new Date(Date.now() - recentHours * 3600000 - k * 86400000).toISOString(),
       url: `https://www.linkedin.com/feed/update/mock-${i}-${k}`,
     }));
   }

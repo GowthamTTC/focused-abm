@@ -39,6 +39,7 @@ function plainError(raw: string | null): string {
 const KIND_LABEL: Record<string, string> = {
   classify: "Matching", deep_enrich: "Researching", sync: "Syncing",
   import: "Importing", activity_scan: "Scanning posts", voice_scan: "Sampling voice",
+  event_scan: "Event scan",
 };
 
 const NAV: { section: string; items: [key: string, href: string, label: string, tip: string][] }[] = [
@@ -46,6 +47,9 @@ const NAV: { section: string; items: [key: string, href: string, label: string, 
     ["dashboard", "/dashboard", "Today", "Your daily numbers and the research button"],
     ["review", "/review", "Review", "Verdicts, ready-to-send drafts, and your sent log"],
     ["people", "/people", "People", "Every person in your network, searchable"],
+  ]},
+  { section: "On site", items: [
+    ["radar", "/radar", "Radar", "Event metro scan — separate from matching and research"],
   ]},
   { section: "Analysis", items: [
     ["network", "/network", "Network", "Composition by ICP and country, activity, and freshness"],

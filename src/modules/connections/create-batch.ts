@@ -1,4 +1,5 @@
 import { toCountry } from "./country";
+import { stampMetro } from "@/modules/geo/metros";
 import { db, connection, connectionBatch } from "@/db";
 import type { ParsedConnectionRow } from "./import-csv";
 import { splitHeadline } from "./import-csv";
@@ -39,6 +40,7 @@ export async function createBatchFromRelations(orgId: string, label: string, rel
         memberId: r.memberId ?? null,
         location: r.location ?? null,
         country: toCountry(r.location),
+        ...stampMetro({ location: r.location, headline: r.headline, country: toCountry(r.location) }),
         connectedOn: r.connectedAt,
       };
     }));
