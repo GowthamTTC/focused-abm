@@ -71,7 +71,7 @@ export async function runEventExtended(
     orgId,
     source: "event_search",
     label: `Event · ${eventName} · ${metro.label}`.slice(0, 120),
-    statsJson: { imported: hits.length, event: eventName, metro: metro.slug },
+    statsJson: { imported: hits.length },
   }).returning();
 
   const CHUNK = 200;
