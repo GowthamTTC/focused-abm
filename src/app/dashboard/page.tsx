@@ -7,6 +7,7 @@ import { UsageMeter } from "@/components/usage-meter";
 import { ago, Soon, CampaignSwitcher, NoCampaign, resolveBatch } from "@/components/dash-bits";
 import { getDailyEnrichUsage, resetsIn } from "@/modules/enrich/usage";
 import { bucketCounts } from "@/modules/matching/service-fit";
+import { getOrgSettings } from "@/modules/settings/org-settings";
 import { researchPick } from "./actions";
 import { startConnect } from "@/app/settings/actions";
 
@@ -36,8 +37,8 @@ export default async function DashboardPage({ searchParams }: {
     queued: sql<number>`count(*) filter (where enrich_status in ('queued','running'))::int`,
     failed: sql<number>`count(*) filter (where enrich_status = 'failed')::int`,
     done: sql<number>`count(*) filter (where enrich_status = 'done')::int`,
-    total: sql<number>`count(*)::int`,
-  }).from(connection).where(and(eq(connection.batchId, batch.id), eq(connection.selectedForEnrich, true)));
+    total: sql<number>`count(*) filter (where enrich_status <> 'pending')::int`,
+  }).from(connection).where(eq(connection.batchId, batch.id));
   const countries = (await db.select({
     c: connection.country,
     n: sql<number>`count(*)::int`,
@@ -47,6 +48,12 @@ export default async function DashboardPage({ searchParams }: {
     .filter((x): x is { c: string; n: number } => Boolean(x.c));
   const [t1Remaining] = await db.select({ n: sql<number>`count(*)::int` }).from(connection)
     .where(and(eq(connection.batchId, batch.id), eq(connection.tier, 1), ne(connection.enrichStatus, "done")));
+
+  const { pickN, pickCountry, pickPosted } = await getOrgSettings(user.orgId);
+  const nOptions = [10, 20, 30, 50];
+  const defaultN = String(nOptions.includes(pickN ?? 0) ? pickN : 30);
+  const defaultCountry = countries.some((x) => x.c === pickCountry) ? pickCountry! : "";
+  const defaultPosted = pickPosted === "7" || pickPosted === "30" ? pickPosted : "any";
 
   const seats = await db.select().from(channelAccount).where(eq(channelAccount.orgId, user.orgId));
   const seat = seats.find((s) => s.status === "operational") ?? seats.find((s) => s.status === "needs_reauth");
@@ -104,15 +111,15 @@ export default async function DashboardPage({ searchParams }: {
           <div className="ml-auto max-w-xl text-right">
             <form action={researchPick.bind(null, batch.id)} className="flex flex-wrap items-center justify-end gap-2 text-[13px] text-[#475467]">
               <span>Research my top</span>
-              <select name="n" defaultValue="30" className="rounded-[8px] border border-[#DDE2EE] bg-white px-2 py-1.5">
-                {[10, 20, 30, 50].map((v) => <option key={v} value={v}>{v}</option>)}
+              <select name="n" defaultValue={defaultN} className="rounded-[8px] border border-[#DDE2EE] bg-white px-2 py-1.5">
+                {nOptions.map((v) => <option key={v} value={v}>{v}</option>)}
               </select>
               <span>matches</span>
-              <select name="country" defaultValue="" className="max-w-44 rounded-[8px] border border-[#DDE2EE] bg-white px-2 py-1.5">
+              <select name="country" defaultValue={defaultCountry} className="max-w-44 rounded-[8px] border border-[#DDE2EE] bg-white px-2 py-1.5">
                 <option value="">anywhere</option>
                 {countries.map((x) => <option key={x.c} value={x.c}>in {x.c} ({x.n})</option>)}
               </select>
-              <select name="posted" defaultValue="any" className="rounded-[8px] border border-[#DDE2EE] bg-white px-2 py-1.5">
+              <select name="posted" defaultValue={defaultPosted} className="rounded-[8px] border border-[#DDE2EE] bg-white px-2 py-1.5">
                 <option value="any">any activity</option>
                 <option value="7">who posted in the last 7 days</option>
                 <option value="30">who posted in the last 30 days</option>

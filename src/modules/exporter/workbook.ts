@@ -38,7 +38,7 @@ export async function buildWorkbook(
     .orderBy(asc(connection.rank), asc(connection.createdAt));
 
   const pitchable = rows.filter((r) => r.bucket === "pitchable");
-  const enriched = pitchable.filter((r) => r.selectedForEnrich)
+  const enriched = pitchable.filter((r) => ["done", "running", "failed"].includes(r.enrichStatus))
     .sort((a, b) => (a.rank ?? 1e9) - (b.rank ?? 1e9));
   const offIcp = rows.filter((r) => r.bucket === "off_icp");
   const peers = rows.filter((r) => r.bucket === "peer_competitor");
@@ -154,7 +154,7 @@ export async function buildWorkbook(
         b?.seniority ?? null, b?.function_fit ?? null, b?.confidence ?? null,
         b?.founder_bonus ?? null, b?.company_present ?? null, b?.service_bonus ?? null,
         c.tier ? `T${c.tier}` : null,
-        c.selectedForEnrich ? "yes" : "", c.selectedForEnrich ? c.enrichStatus : "",
+        c.enrichStatus === "pending" ? "" : "yes", c.enrichStatus === "pending" ? "" : c.enrichStatus,
         c.enrichError, c.flag, c.painInferred == null ? "" : c.painInferred ? "yes" : "no",
         c.correctionReason, c.linkedinUrl,
       ]);

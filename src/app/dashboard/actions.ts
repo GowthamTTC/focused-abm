@@ -5,7 +5,7 @@ import { desc } from "drizzle-orm";
 import { db, connection } from "@/db";
 import { requireUser } from "@/auth/session";
 import { enqueue } from "@/jobs/runner";
-import { getOrgSettings, clampToLimit } from "@/modules/settings/org-settings";
+import { getOrgSettings, updateOrgSettings, clampToLimit } from "@/modules/settings/org-settings";
 import { markSelection } from "@/modules/matching/service-fit";
 
 /** One-click morning ritual: select the next tranche (guardrail-clamped,
@@ -20,10 +20,14 @@ export async function researchPick(batchId: string, formData: FormData) {
   const country = String(formData.get("country") ?? "").trim();
   const posted = String(formData.get("posted") ?? "any");
   const n = clampToLimit(Math.min(Math.max(want, 1), 80), enrichLimit);
+  await updateOrgSettings(user.orgId, { pickN: want, pickCountry: country, pickPosted: posted });
 
+  // The frontier is "never researched", NOT "never selected". A tranche that
+  // died against the daily cap left rows flagged selected forever — they were
+  // then skipped by every later pick, so the pool silently shrank.
   const conds = [
     eq(connection.orgId, user.orgId), eq(connection.batchId, batchId),
-    eq(connection.bucket, "pitchable"), eq(connection.selectedForEnrich, false),
+    eq(connection.bucket, "pitchable"), eq(connection.enrichStatus, "pending"),
   ];
   if (country) conds.push(eq(connection.country, country));
   if (posted === "7" || posted === "30") {
@@ -32,12 +36,13 @@ export async function researchPick(batchId: string, formData: FormData) {
   const next = await db.select({ id: connection.id }).from(connection)
     .where(and(...conds)).orderBy(asc(connection.rank)).limit(n);
   if (next.length === 0) redirect(`/dashboard?c=${batchId}&picked=0`);
-  await markSelection(batchId, next.map((t) => t.id), true);
-  const queued = await db.select({ id: connection.id }).from(connection)
-    .where(and(eq(connection.orgId, user.orgId), eq(connection.batchId, batchId),
-      eq(connection.selectedForEnrich, true), eq(connection.enrichStatus, "queued")));
-  if (queued.length > 0) await enqueue(user.orgId, "deep_enrich", { connectionIds: queued.map((q) => q.id) });
-  redirect(`/dashboard?c=${batchId}&picked=${next.length}`);
+  const ids = next.map((t) => t.id);
+  await markSelection(batchId, ids, true);
+  // Enqueue EXACTLY what was picked. Sweeping up every 'queued' row meant one
+  // stuck tranche rode along with every later run — "my top 10" quietly became
+  // 86 people and the number on screen stopped meaning anything.
+  await enqueue(user.orgId, "deep_enrich", { connectionIds: ids });
+  redirect(`/dashboard?c=${batchId}&picked=${ids.length}`);
 }
 
 export async function runTodaysTranche(batchId: string) {
@@ -46,13 +51,13 @@ export async function runTodaysTranche(batchId: string) {
   const n = clampToLimit(30, enrichLimit);
   const next = await db.select({ id: connection.id }).from(connection)
     .where(and(eq(connection.orgId, user.orgId), eq(connection.batchId, batchId),
-      eq(connection.bucket, "pitchable"), eq(connection.selectedForEnrich, false)))
+      eq(connection.bucket, "pitchable"), eq(connection.enrichStatus, "pending")))
     .orderBy(asc(connection.rank)).limit(n);
-  if (next.length > 0) await markSelection(batchId, next.map((t) => t.id), true);
-  const queued = await db.select({ id: connection.id }).from(connection)
-    .where(and(eq(connection.orgId, user.orgId), eq(connection.batchId, batchId),
-      eq(connection.selectedForEnrich, true), eq(connection.enrichStatus, "queued")));
-  if (queued.length > 0) await enqueue(user.orgId, "deep_enrich", { connectionIds: queued.map((q) => q.id) });
+  if (next.length > 0) {
+    const ids = next.map((t) => t.id);
+    await markSelection(batchId, ids, true);
+    await enqueue(user.orgId, "deep_enrich", { connectionIds: ids });
+  }
   redirect(`/dashboard?c=${batchId}`);
 }
 

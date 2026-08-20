@@ -20,6 +20,9 @@ const settingsSchema = z.object({
   catalogMode: z.enum(["managed", "own"]).default("managed"),
   voiceProfile: z.string().optional(),
   voiceSampledAt: z.string().optional(),
+  pickN: z.number().int().positive().max(80).optional(),
+  pickCountry: z.string().optional(),
+  pickPosted: z.string().optional(),
 });
 
 export async function getOrgSettings(orgId: string): Promise<OrgSettings> {

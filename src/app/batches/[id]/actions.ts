@@ -1,11 +1,18 @@
 "use server";
 import { redirect } from "next/navigation";
-import { and, asc, eq, gte, ilike, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, gte, ilike, inArray, isNull, sql } from "drizzle-orm";
 import { db, connection } from "@/db";
 import { requireUser } from "@/auth/session";
 import { enqueue } from "@/jobs/runner";
 import { markSelection } from "@/modules/matching/service-fit";
 import { clampToLimit, getOrgSettings } from "@/modules/settings/org-settings";
+import { MAX_MANUAL_SELECT } from "@/modules/enrich/limits";
+
+/** Return to exactly the tab + filters the click came from. */
+function backTo(batchId: string, back: string, extra: string) {
+  const q = [back, extra].filter(Boolean).join("&");
+  return `/batches/${batchId}${q ? `?${q}` : ""}`;
+}
 
 export async function runClassify(batchId: string) {
   const user = await requireUser();
@@ -41,7 +48,7 @@ export async function selectTopN(batchId: string, formData: FormData) {
   const next = await db.select({ id: connection.id }).from(connection)
     .where(and(
       eq(connection.orgId, user.orgId), eq(connection.batchId, batchId),
-      eq(connection.bucket, "pitchable"), eq(connection.selectedForEnrich, false),
+      eq(connection.bucket, "pitchable"), eq(connection.enrichStatus, "pending"),
       ...(country ? [ilike(connection.location, `%${country}`)] : []),
       ...(posted === "none" ? [isNull(connection.lastPostAt)] : []),
       ...(["3", "7", "15"].includes(posted)
@@ -67,6 +74,53 @@ export async function runDeepEnrich(batchId: string) {
     await enqueue(user.orgId, "deep_enrich", { connectionIds: capped });
   }
   redirect(`/batches/${batchId}`);
+}
+
+/** Release rows stuck in 'queued' back into the pool.
+ *  A deep-enrich job that hits the daily cap throws and dies — its rows stay
+ *  'queued' forever, keep inflating every "selected" number on screen, and used
+ *  to be skipped by the next-N frontier. This is the eject button. Nothing
+ *  researched is touched: done and running rows are left exactly as they are. */
+export async function clearQueue(batchId: string, back: string = "") {
+  const user = await requireUser();
+  await db.update(connection).set({ selectedForEnrich: false, enrichStatus: "pending" })
+    .where(and(
+      eq(connection.orgId, user.orgId), eq(connection.batchId, batchId),
+      inArray(connection.enrichStatus, ["queued", "pending"]),
+    ));
+  redirect(backTo(batchId, back, "cleared=1"));
+}
+
+/** Tick-and-run: research exactly the people the user checked, nobody else.
+ *  Hard-clamped to MAX_MANUAL_SELECT on the server as well as in the UI. */
+export async function enrichSelected(batchId: string, back: string, formData: FormData) {
+  const user = await requireUser();
+  const picked = formData.getAll("ids").map(String).filter(Boolean).slice(0, MAX_MANUAL_SELECT);
+  if (picked.length === 0) redirect(backTo(batchId, back, "run=0"));
+  const mine = await db.select({ id: connection.id }).from(connection)
+    .where(and(
+      eq(connection.orgId, user.orgId), eq(connection.batchId, batchId),
+      inArray(connection.id, picked),
+    ));
+  if (mine.length === 0) redirect(backTo(batchId, back, "run=0"));
+  const ids = mine.map((m) => m.id);
+  await markSelection(batchId, ids, true);
+  await enqueue(user.orgId, "deep_enrich", { connectionIds: ids });
+  redirect(backTo(batchId, back, `run=${ids.length}`));
+}
+
+/** One row, one decision — the per-record Enrich button. */
+export async function enrichOne(batchId: string, connId: string, back: string = "") {
+  const user = await requireUser();
+  const [mine] = await db.select({ id: connection.id }).from(connection)
+    .where(and(
+      eq(connection.orgId, user.orgId), eq(connection.batchId, batchId),
+      eq(connection.id, connId),
+    ));
+  if (!mine) redirect(backTo(batchId, back, "run=0"));
+  await markSelection(batchId, [connId], true);
+  await enqueue(user.orgId, "deep_enrich", { connectionIds: [connId] });
+  redirect(backTo(batchId, back, "run=1"));
 }
 
 /** Quiet rescue action on Off-ICP / Peers rows (design 1d footer): promote a

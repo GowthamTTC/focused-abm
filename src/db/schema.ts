@@ -34,6 +34,11 @@ export interface OrgSettings {
    *  injected into every drafted message so outreach sounds like THEM. */
   voiceProfile?: string;
   voiceSampledAt?: string;
+  /** Last-used research sentence — the picker reopens where you left it
+   *  instead of snapping back to 30 after every run. */
+  pickN?: number;
+  pickCountry?: string;
+  pickPosted?: string;
 }
 export const DEFAULT_ORG_SETTINGS: OrgSettings = {
   enrichLimit: 10, classifyLlmPeopleCap: 1000, catalogMode: "managed",

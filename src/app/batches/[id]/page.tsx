@@ -1,14 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { and, asc, desc, eq, gte, ilike, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { db, connection, connectionBatch } from "@/db";
 import { Shell, requirePage } from "@/app/shell";
 import { LedgerStrip } from "@/components/ledger";
 import { ExportCard } from "@/components/export-card";
 import { CopyButton } from "@/components/copy-button";
 import { bucketCounts } from "@/modules/matching/service-fit";
-import { moveToPitchable, reclassifyAllAction, retryPerson, runClassify, scanActivity } from "./actions";
-import { getOrgSettings } from "@/modules/settings/org-settings";
+import { clearQueue, enrichOne, enrichSelected, moveToPitchable, reclassifyAllAction, retryPerson, runClassify, scanActivity } from "./actions";
+import { SelectRows } from "@/components/select-rows";
+import { MAX_MANUAL_SELECT } from "@/modules/enrich/limits";
 import { getDailyEnrichUsage } from "@/modules/enrich/usage";
 import { UsageMeter } from "@/components/usage-meter";
 
@@ -26,11 +27,15 @@ function StatusChip({ s }: { s: string }) {
 
 export default async function BatchPage(props: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ view?: string; p?: string; country?: string; posted?: string; order?: string }>;
+  searchParams: Promise<{ view?: string; p?: string; country?: string; posted?: string; order?: string; run?: string; cleared?: string }>;
 }) {
   const user = await requirePage();
   const { id } = await props.params;
-  const { view = "pitchable", p, country = "", posted = "", order = "rank" } = await props.searchParams;
+  const { view = "pitchable", p, country = "", posted = "", order = "rank", run, cleared } = await props.searchParams;
+  // Every row action returns to the exact tab + filters it was fired from.
+  const qs = new URLSearchParams(
+    Object.entries({ view, country, posted, order }).filter(([, v]) => v) as [string, string][],
+  ).toString();
   const locRows = await db.selectDistinct({ l: connection.location }).from(connection)
     .where(and(eq(connection.batchId, id), isNotNull(connection.location)));
   const countries = [...new Set(locRows.map((r) => (r.l ?? "").split(",").pop()!.trim()).filter(Boolean))].sort();
@@ -42,23 +47,25 @@ export default async function BatchPage(props: {
   const counts = await bucketCounts(id);
   const totalRows = Object.values(counts).reduce((a, b) => a + b, 0);
   const classifiedRows = totalRows - counts.unclassified;
-  const { enrichLimit } = await getOrgSettings(user.orgId);
   const usage = await getDailyEnrichUsage(user.orgId);
 
-  // Selection status (batch-wide, independent of the current tab).
-  const selAgg = await db.select({ s: connection.enrichStatus, n: sql<number>`count(*)::int` })
-    .from(connection)
-    .where(and(eq(connection.batchId, id), eq(connection.selectedForEnrich, true)))
-    .groupBy(connection.enrichStatus);
-  const sel = Object.fromEntries(selAgg.map((r) => [r.s, r.n])) as Record<string, number>;
-  const selTotal = selAgg.reduce((a, r) => a + r.n, 0);
-  const selDone = sel.done ?? 0;
-  const selQueued = (sel.queued ?? 0) + (sel.running ?? 0);
+  // Research state, batch-wide. Read from enrich_status ONLY — selected_for_enrich
+  // is a worker handle, not a fact about a person, and reading it is what let a
+  // dead tranche keep announcing "120 selected" for days.
+  const stAgg = await db.select({ s: connection.enrichStatus, n: sql<number>`count(*)::int` })
+    .from(connection).where(eq(connection.batchId, id)).groupBy(connection.enrichStatus);
+  const st = Object.fromEntries(stAgg.map((r) => [r.s, r.n])) as Record<string, number>;
+  const researched = st.done ?? 0;
+  const queuedN = st.queued ?? 0;
+  const runningN = st.running ?? 0;
+  const failedN = st.failed ?? 0;
+  const touched = researched + queuedN + runningN + failedN;
+  const capReached = usage.used >= usage.cap;
 
   const rows = await db.select().from(connection)
     .where(and(
       eq(connection.batchId, id),
-      view === "enriched" ? eq(connection.selectedForEnrich, true) : eq(connection.bucket, view),
+      view === "enriched" ? ne(connection.enrichStatus, "pending") : eq(connection.bucket, view),
       ...(country ? [ilike(connection.location, `%${country}`)] : []),
       ...(posted === "none" ? [isNull(connection.lastPostAt)] : []),
       ...(["3", "7", "15"].includes(posted)
@@ -73,8 +80,6 @@ export default async function BatchPage(props: {
     )
     .limit(400);
 
-  const nOptions = [10, 20, 30, 50, 80].filter((o) => enrichLimit === "all" || o <= enrichLimit);
-  const defaultN = nOptions.includes(30) ? 30 : (nOptions[nOptions.length - 1] ?? 10);
   const person = view === "enriched" ? (rows.find((r) => r.id === p) ?? rows[0]) : undefined;
 
   return (
@@ -86,6 +91,14 @@ export default async function BatchPage(props: {
           <p className="tnum mt-1 text-[#98A2B3]">
             {batch.source} · {batch.createdAt.toISOString().slice(0, 10)} · {totalRows.toLocaleString()} rows
           </p>
+          {cleared && <p className="mt-1 text-sm text-[#475467]">Queue cleared — those people are back in the pool and pickable again.</p>}
+          {run === "0" && <p className="mt-1 text-sm text-[#B54708]">Nothing was selected — tick a row or press Enrich on one.</p>}
+          {run && run !== "0" && (
+            <p className="mt-1 text-sm text-[#067647]">
+              Researching {run} {Number(run) === 1 ? "person" : "people"} now — drafts land in Review as each finishes.
+              {capReached && <span className="text-[#B54708]"> Today&apos;s budget is spent, so they run after the reset.</span>}
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {counts.unclassified > 0 && (
@@ -124,7 +137,15 @@ export default async function BatchPage(props: {
               Research from Today →
             </Link>
           )}
-          <ExportCard batchId={id} topN={selTotal} targetPool={counts.pitchable}
+          {queuedN > 0 && (
+            <form action={clearQueue.bind(null, id, qs)}>
+              <button title="Release everyone stuck in the queue back into the pool. Researched people are untouched."
+                className="rounded-[8px] border border-[#DDE2EE] px-3 py-2 text-sm text-[#475467] hover:border-[#B54708] hover:text-[#B54708]">
+                Clear queue ({queuedN.toLocaleString()})
+              </button>
+            </form>
+          )}
+          <ExportCard batchId={id} topN={researched} targetPool={counts.pitchable}
             review={counts.off_icp} peers={counts.peer_competitor} />
         </div>
       </div>
@@ -132,8 +153,8 @@ export default async function BatchPage(props: {
       {/* Ledger strip */}
       <div className="mt-5">
         <LedgerStrip counts={{
-          topDone: selDone, topPending: selTotal - selDone,
-          pitchable: Math.max(0, counts.pitchable - selTotal),
+          topDone: researched, topPending: touched - researched,
+          pitchable: Math.max(0, counts.pitchable - touched),
           peers: counts.peer_competitor, offIcp: counts.off_icp,
           excluded: counts.excluded, unclassified: counts.unclassified,
         }} />
@@ -141,8 +162,13 @@ export default async function BatchPage(props: {
           <span className="text-[#98A2B3]">One tick per connection, rank order — lime Top-N ignites as research completes.</span>
           <span className="flex items-baseline gap-5">
             <UsageMeter used={usage.used} cap={usage.cap} resetsAt={usage.resetsAt} />
-            {selTotal > 0 && (
-              <span className="text-[#263BAA]">{selTotal} selected — {selQueued} queued · {selDone} done</span>
+            {touched > 0 && (
+              <span className="text-[#263BAA]">
+                {researched.toLocaleString()} researched
+                {runningN > 0 && <span className="text-[#B54708]"> · {runningN} running</span>}
+                {queuedN > 0 && <span className="text-[#98A2B3]"> · {queuedN} queued</span>}
+                {failedN > 0 && <span className="text-[#B42318]"> · {failedN} failed</span>}
+              </span>
             )}
           </span>
         </div>
@@ -156,7 +182,7 @@ export default async function BatchPage(props: {
               ? "border-[#263BAA] font-medium text-[#263BAA]"
               : "border-transparent text-[#98A2B3] hover:text-[#101828]"}`}>
             {v === "enriched"
-              ? `Batch (${selDone} done)`
+              ? `Batch (${researched} done)`
               : `${BUCKET_LABEL[v]} (${(counts[v] ?? 0).toLocaleString()})`}
           </Link>
         ))}
@@ -166,7 +192,7 @@ export default async function BatchPage(props: {
         /* ── Two-pane enrichment view (design 1e) ── */
         rows.length === 0 ? (
           <div className="mt-6 rounded-[14px] border border-dashed border-[#DDE2EE] p-10 text-center text-sm text-[#98A2B3]">
-            Queue top N in the Matched tab to build a batch.
+            Nobody researched yet — tick rows in Matched and press Enrich selected, or run the research sentence on Today.
           </div>
         ) : (
           <div className="mt-6 flex flex-col gap-5 lg:flex-row">
@@ -305,15 +331,19 @@ export default async function BatchPage(props: {
         </div>
       ) : (
         /* ── Bucket tables ── */
+        <SelectRows enabled={view === "pitchable"} max={MAX_MANUAL_SELECT}
+          action={enrichSelected.bind(null, id, qs)}>
         <div className="mt-4 overflow-x-auto bg-white border border-[#DDE2EE] rounded-[14px] shadow-[0_1px_2px_rgba(16,24,40,.04)]">
           <table className="w-full text-left text-sm">
             <thead className="bg-[#F4F6FB] text-xs uppercase tracking-wide text-[#98A2B3]">
               <tr>
                 {view === "pitchable" ? (
-                  <><th className="px-3 py-2.5">Rank</th><th className="px-3 py-2.5">Tier</th><th className="px-3 py-2.5">Name</th>
+                  <><th className="w-9 px-3 py-2.5"><span className="sr-only">Select</span></th>
+                    <th className="px-3 py-2.5">Rank</th><th className="px-3 py-2.5">Tier</th><th className="px-3 py-2.5">Name</th>
                     <th className="px-3 py-2.5">Company</th><th className="px-3 py-2.5">Position</th>
                     <th className="px-3 py-2.5">Service</th><th className="px-3 py-2.5">Why</th>
-                    <th className="px-3 py-2.5 text-right">Score</th></>
+                    <th className="px-3 py-2.5 text-right">Score</th>
+                    <th className="px-3 py-2.5 text-right">Research</th></>
                 ) : (
                   <><th className="px-3 py-2.5">Name</th><th className="px-3 py-2.5">Company</th>
                     <th className="px-3 py-2.5">Position</th><th className="px-3 py-2.5">Why</th>
@@ -325,9 +355,17 @@ export default async function BatchPage(props: {
               {rows.map((c) => {
                 const b = c.scoreBreakdownJson;
                 return (
-                  <tr key={c.id} className={c.selectedForEnrich && view === "pitchable"
+                  <tr key={c.id} className={c.enrichStatus === "done" && view === "pitchable"
                     ? "border-l-2 border-l-[#263BAA] bg-[#263BAA]/5" : ""}>
                     {view === "pitchable" ? (<>
+                      <td className="px-3 py-2.5">
+                        <input type="checkbox" name="ids" value={c.id}
+                          disabled={c.enrichStatus === "done" || c.enrichStatus === "running" || c.enrichStatus === "queued"}
+                          title={c.enrichStatus === "pending" || c.enrichStatus === "failed"
+                            ? "Select for research"
+                            : `Already ${c.enrichStatus} — nothing to spend here`}
+                          className="h-4 w-4 accent-[#263BAA] disabled:opacity-30" />
+                      </td>
                       <td className="tnum px-3 py-2.5 text-[#98A2B3]">{c.rank ?? "—"}</td>
                       <td className="px-3 py-2.5">
                         {c.tier && (
@@ -365,6 +403,19 @@ export default async function BatchPage(props: {
                         </div>
                       </td>
                       <td className="tnum px-3 py-2.5 text-right text-[#475467]">{c.score ?? "—"}</td>
+                      <td className="px-3 py-2.5 text-right">
+                        {c.enrichStatus === "pending" || c.enrichStatus === "failed" ? (
+                          <button formAction={enrichOne.bind(null, id, c.id, qs)}
+                            title={c.enrichStatus === "failed"
+                              ? `Research ${c.firstName} again`
+                              : `Research ${c.firstName} now — one person, one credit`}
+                            className="whitespace-nowrap rounded-[8px] border border-[#DDE2EE] px-2.5 py-1 text-xs text-[#475467] hover:border-[#263BAA] hover:text-[#263BAA]">
+                            {c.enrichStatus === "failed" ? "Retry" : "Enrich"}
+                          </button>
+                        ) : (
+                          <StatusChip s={c.enrichStatus} />
+                        )}
+                      </td>
                     </>) : (<>
                       <td className="px-3 py-2.5 font-medium">
                         {c.linkedinUrl
@@ -390,6 +441,7 @@ export default async function BatchPage(props: {
             </tbody>
           </table>
         </div>
+        </SelectRows>
       )}
     </Shell>
   );
