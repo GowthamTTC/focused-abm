@@ -99,9 +99,19 @@ export class MockChannelProvider implements ChannelProvider {
   }
 
   async searchPosts(input: {
-    keywords: string; cursor?: string | null; limit?: number;
+    accountId: string;
+    keywords: string;
+    datePosted?: "past_day" | "past_week" | "past_month";
+    cursor?: string | null;
+    limit?: number;
   }): Promise<{ items: SearchPost[]; cursor: string | null }> {
-    const people = await this.searchPeople({ ...input, networkDistance: [2, 3] });
+    const people = await this.searchPeople({
+      accountId: input.accountId,
+      keywords: input.keywords,
+      networkDistance: [2, 3],
+      cursor: input.cursor,
+      limit: input.limit,
+    });
     return {
       items: people.items.map((a) => ({
         text: `Heading to ${input.keywords} this week — see you on the floor.`,
@@ -114,7 +124,13 @@ export class MockChannelProvider implements ChannelProvider {
   }
 
   async searchPeople(input: {
-    keywords: string; cursor?: string | null; limit?: number;
+    accountId: string;
+    keywords: string;
+    networkDistance: Array<2 | 3>;
+    locationIds?: number[];
+    locationQuery?: string;
+    cursor?: string | null;
+    limit?: number;
   }): Promise<{ items: SearchHit[]; cursor: string | null }> {
     const start = input.cursor ? Number(input.cursor) : 0;
     const page = Math.min(50, input.limit ?? 50);
