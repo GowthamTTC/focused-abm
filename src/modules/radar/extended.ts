@@ -106,8 +106,7 @@ export async function runEventExtended(
     orgId,
     { metro: "sf-bay-area", country: scope.slug, eventName, batchId: batch.id, force: true },
     async (done, total) => {
-      if (onProgress) await onProgress(hits.length, hits.length + total);
-      void done;
+      if (onProgress) await onProgress(hits.length + done, hits.length + Math.max(total, 1));
     },
     shouldStop,
   );

@@ -16,6 +16,7 @@ function base(): string {
 async function uni<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${base()}/api/v1${path}`, {
     ...init,
+    signal: AbortSignal.timeout(25_000),
     headers: {
       "X-API-KEY": env.UNIPILE_API_KEY!,
       accept: "application/json",
