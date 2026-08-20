@@ -59,7 +59,7 @@ export default async function RadarPage({ searchParams }: {
         <form action={startEventScan} className="flex flex-wrap items-center gap-2 text-[13px]">
           <select name="pool" defaultValue={pool} className="rounded-[8px] border border-[#DDE2EE] bg-white px-2 py-1.5">
             <option value="first">1st degree — entire pool</option>
-            <option value="extended">2nd + 3rd — event search (max 1,000)</option>
+            <option value="extended">2nd + 3rd — event search (max 100)</option>
           </select>
           {pool === "extended" ? (
             <select name="country" defaultValue={country} className="rounded-[8px] border border-[#DDE2EE] bg-white px-2 py-1.5">

@@ -51,6 +51,7 @@ export async function runEventExtended(
       accountId: seat.unipileAccountId,
       keywords: eventName,
       networkDistance: [2, 3],
+      locationQuery: scope.label,
       locationIds: scope.linkedinLocationIds,
       cursor,
       limit: 50,

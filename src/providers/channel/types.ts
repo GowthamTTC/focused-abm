@@ -77,6 +77,7 @@ export interface ChannelProvider {
     keywords: string;
     networkDistance: Array<2 | 3>;
     locationIds?: number[];
+    locationQuery?: string;
     cursor?: string | null;
     limit?: number;
   }): Promise<{ items: SearchHit[]; cursor: string | null }>;

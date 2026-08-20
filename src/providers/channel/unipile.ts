@@ -179,43 +179,52 @@ export class UnipileChannelProvider implements ChannelProvider {
     keywords: string;
     networkDistance: Array<2 | 3>;
     locationIds?: number[];
+    locationQuery?: string;
     cursor?: string | null;
     limit?: number;
   }): Promise<{ items: SearchHit[]; cursor: string | null }> {
     const limit = Math.min(50, Math.max(10, input.limit ?? 50));
     const qs = new URLSearchParams({ account_id: input.accountId, limit: String(limit) });
     if (input.cursor) qs.set("cursor", input.cursor);
-    const body: Record<string, unknown> = {
-      api: "classic",
-      category: "people",
-      keywords: input.keywords,
-      network_distance: input.networkDistance,
-    };
-    if (input.locationIds && input.locationIds.length > 0) body.location = input.locationIds;
 
-    let page;
-    try {
-      page = searchPage.parse(await uni(`/linkedin/search?${qs}`, {
-        method: "POST",
-        body: JSON.stringify(body),
-      }));
-    } catch (e) {
-      // Classic search sometimes rejects network_distance — retry without it and filter here.
-      const msg = e instanceof Error ? e.message : "";
-      if (!/400|network_distance/i.test(msg)) throw e;
-      const { network_distance: _, ...rest } = body;
-      page = searchPage.parse(await uni(`/linkedin/search?${qs}`, {
-        method: "POST",
-        body: JSON.stringify(rest),
-      }));
+    const location = await this.resolveLocationIds(input.accountId, input.locationQuery);
+    const attempts: Record<string, unknown>[] = [];
+    if (location.length > 0) {
+      attempts.push({
+        api: "classic",
+        category: "people",
+        keywords: input.keywords,
+        location,
+      });
     }
+    attempts.push({ api: "classic", category: "people", keywords: input.keywords });
+    attempts.push({
+      url: `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(input.keywords)}`,
+    });
+
+    let page = searchPage.parse({ items: [], cursor: null });
+    let lastErr: unknown;
+    for (const body of attempts) {
+      try {
+        page = searchPage.parse(await uni(`/linkedin/search?${qs}`, {
+          method: "POST",
+          body: JSON.stringify(body),
+        }));
+        lastErr = null;
+        break;
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    if (lastErr) return { items: [], cursor: null };
 
     const want = new Set(input.networkDistance.map(String));
     const items: SearchHit[] = [];
     for (const r of page.items) {
       const dist = distanceOf(r.network_distance);
-      if (dist === "1" || (dist && !want.has(dist))) continue;
-      if (!dist) continue;
+      if (dist === "1") continue;
+      if (dist && !want.has(dist)) continue;
+      const degree: "2" | "3" = dist === "3" ? "3" : "2";
       const fromParts = r.first_name || r.last_name
         ? { first: r.first_name || "(unknown)", last: r.last_name || "" }
         : splitName(r.name);
@@ -232,9 +241,43 @@ export class UnipileChannelProvider implements ChannelProvider {
         location: r.location ?? null,
         profileUrl: r.profile_url ?? r.public_profile_url
           ?? (publicId ? `https://www.linkedin.com/in/${publicId}` : null),
-        networkDistance: dist,
+        networkDistance: degree,
       });
     }
     return { items, cursor: page.cursor ?? null };
+  }
+
+  private async resolveLocationIds(accountId: string, query?: string): Promise<string[]> {
+    if (!query) return [];
+    const want = query.trim().toLowerCase();
+    try {
+      const qs = new URLSearchParams({
+        account_id: accountId,
+        type: "LOCATION",
+        service: "CLASSIC",
+        keywords: query,
+        limit: "20",
+      });
+      const out = await uni<{ items?: { id?: string | number; title?: string }[] }>(
+        `/linkedin/search/parameters?${qs}`,
+      );
+      const items = out.items ?? [];
+      const scored = items
+        .map((it) => {
+          const title = (it.title ?? "").trim().toLowerCase();
+          const id = it.id != null ? String(it.id) : "";
+          if (!id || !title) return null;
+          let rank = 99;
+          if (title === want) rank = 0;
+          else if (title.startsWith(want)) rank = 1;
+          else if (title.includes(want)) rank = 2;
+          else return null;
+          return { id, rank };
+        })
+        .filter((x): x is { id: string; rank: number } => Boolean(x))
+        .sort((a, b) => a.rank - b.rank);
+      if (scored[0]) return [scored[0].id];
+    } catch { /* keywords-only search is the fallback */ }
+    return [];
   }
 }
