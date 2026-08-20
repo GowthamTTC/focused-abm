@@ -13,6 +13,8 @@ export interface Metro {
   /** Hits that need extra country/context before we trust them. */
   ambiguous: string[];
   anti: string[];
+  /** LinkedIn Classic location IDs for Unipile people search, when known. */
+  linkedinLocationIds?: number[];
 }
 
 export const METROS: Metro[] = [
@@ -38,6 +40,7 @@ export const METROS: Metro[] = [
       "san diego", "tampa bay", "green bay", "hudson bay", "mission bay san diego",
       "costa rica", "san jose costa", "san jose del cabo",
     ],
+    linkedinLocationIds: [102277331],
   },
   {
     slug: "los-angeles",
@@ -196,6 +199,12 @@ export const METROS: Metro[] = [
 
 export function metroBySlug(slug: string): Metro | undefined {
   return METROS.find((m) => m.slug === slug);
+}
+
+export const US_METROS = METROS.filter((m) => m.country === "United States");
+
+export function isUsMetro(slug: string): boolean {
+  return US_METROS.some((m) => m.slug === slug);
 }
 
 export function normalizePlace(raw: string): string {

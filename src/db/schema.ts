@@ -145,6 +145,8 @@ export const connection = pgTable("connection", {
   floorStatus: text("floor_status"),         // met | skipped
   floorAt: ts("floor_at"),
   connectedOn: text("connected_on"),
+  /** 1 = 1st-degree (CSV/sync). 2 / 3 = event search. Null treated as 1st. */
+  networkDistance: text("network_distance"),
 
   // Stage A — service fit + rank
   bucket: text("bucket"), // pitchable | off_icp | peer_competitor | excluded

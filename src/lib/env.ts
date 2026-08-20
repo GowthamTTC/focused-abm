@@ -21,6 +21,10 @@ const schema = z.object({
   DEEP_ENRICH_MIN_GAP_SECONDS: z.coerce.number().int().positive().default(25),
   ACTIVITY_SCAN_DAILY_CAP: z.coerce.number().int().positive().default(100),
   ACTIVITY_SCAN_MIN_GAP_SECONDS: z.coerce.number().int().positive().default(12),
+  EVENT_SCAN_CONCURRENCY: z.coerce.number().int().positive().default(8),
+  EVENT_SCAN_MIN_GAP_SECONDS: z.coerce.number().int().min(0).default(0),
+  EVENT_SCAN_SKIP_HOURS: z.coerce.number().int().min(0).default(6),
+  EVENT_EXTENDED_CAP: z.coerce.number().int().positive().default(1000),
 });
 
 export const env = schema.parse(process.env);

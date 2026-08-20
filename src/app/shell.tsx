@@ -40,6 +40,7 @@ const KIND_LABEL: Record<string, string> = {
   classify: "Matching", deep_enrich: "Researching", sync: "Syncing",
   import: "Importing", activity_scan: "Scanning posts", voice_scan: "Sampling voice",
   event_scan: "Event scan",
+  event_extended: "Event search",
 };
 
 const NAV: { section: string; items: [key: string, href: string, label: string, tip: string][] }[] = [

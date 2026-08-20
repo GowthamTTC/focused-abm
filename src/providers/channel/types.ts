@@ -11,7 +11,7 @@ export interface Relation {
   headline: string | null;
   location: string | null;
   profileUrl: string | null;
-  connectedAt: string | null; // ISO when the provider exposes it
+  connectedAt: string | null;
 }
 
 export interface FetchedProfile {
@@ -19,7 +19,6 @@ export interface FetchedProfile {
   about: string | null;
   company: string | null;
   location: string | null;
-  /** Provider-internal id (e.g. LinkedIn ACoAAA…) — required by the posts endpoint. */
   providerId: string | null;
 }
 
@@ -28,6 +27,18 @@ export interface FetchedPost {
   text: string;
   postedAt: string | null;
   url: string | null;
+}
+
+/** People found via LinkedIn search (2nd / 3rd+), not the relations list. */
+export interface SearchHit {
+  publicIdentifier: string | null;
+  memberId: string | null;
+  firstName: string;
+  lastName: string;
+  headline: string | null;
+  location: string | null;
+  profileUrl: string | null;
+  networkDistance: "2" | "3";
 }
 
 export type AccountStatus = "operational" | "needs_reauth" | "disconnected";
@@ -44,7 +55,6 @@ export interface ChannelProvider {
 
   getAccountStatus(accountId: string): Promise<{ status: AccountStatus; displayName: string | null }>;
 
-  /** Paginated 1st-degree connections of the connected account. */
   fetchRelations(input: {
     accountId: string;
     cursor: string | null;
@@ -53,7 +63,7 @@ export interface ChannelProvider {
 
   fetchProfile(input: {
     accountId: string;
-    identifier: string; // public identifier, member id, or profile URL
+    identifier: string;
   }): Promise<FetchedProfile | null>;
 
   fetchRecentPosts(input: {
@@ -61,4 +71,13 @@ export interface ChannelProvider {
     identifier: string;
     limit: number;
   }): Promise<FetchedPost[]>;
+
+  searchPeople(input: {
+    accountId: string;
+    keywords: string;
+    networkDistance: Array<2 | 3>;
+    locationIds?: number[];
+    cursor?: string | null;
+    limit?: number;
+  }): Promise<{ items: SearchHit[]; cursor: string | null }>;
 }

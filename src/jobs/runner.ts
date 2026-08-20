@@ -15,6 +15,7 @@ import { complete } from "@/llm/client";
 import { updateOrgSettings } from "@/modules/settings/org-settings";
 import { idleSweep, releaseIds } from "@/jobs/reap";
 import { runEventScan } from "@/modules/radar/scan";
+import { runEventExtended } from "@/modules/radar/extended";
 
 export async function enqueue(orgId: string, kind: string, payload: Record<string, unknown>) {
   const [row] = await db.insert(job).values({ orgId, kind, payloadJson: payload }).returning();
@@ -216,6 +217,30 @@ export async function processNext(): Promise<boolean> {
         await setProgress(next.id, done, ids.length);
         const gap = env.ACTIVITY_SCAN_MIN_GAP_SECONDS * 1000;
         await sleep(gap + Math.random() * gap);
+      }
+    } else if (next.kind === "event_extended") {
+      const payload = next.payloadJson as { metro?: string; eventName?: string; days?: number };
+      if (!payload.metro) throw new Error("Event search needs a metro.");
+      if (!payload.eventName) throw new Error("Event search needs an event name.");
+      const stoppedEarly = { v: false };
+      const result = await runEventExtended(
+        next.orgId,
+        { metro: payload.metro, eventName: payload.eventName, days: payload.days },
+        (done, total) => setProgress(next.id, done, total),
+        async () => {
+          const stop = await stopRequested(next.id);
+          if (stop) stoppedEarly.v = true;
+          return stop;
+        },
+      );
+      await db.update(job).set({
+        payloadJson: { ...payload, result },
+        updatedAt: new Date(),
+      }).where(eq(job.id, next.id));
+      if (stoppedEarly.v) {
+        const [row] = await db.select({ p: job.progress, t: job.total }).from(job).where(eq(job.id, next.id));
+        await markStopped(next.id, row?.p ?? 0, row?.t ?? 0);
+        return true;
       }
     } else if (next.kind === "event_scan") {
       const payload = next.payloadJson as { metro?: string; days?: number; eventName?: string; batchId?: string };

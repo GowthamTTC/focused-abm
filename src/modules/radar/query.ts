@@ -1,4 +1,4 @@
-import { and, eq, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { db, connection } from "@/db";
 import { metroBySlug } from "@/modules/geo/metros";
 import { companyKey, scoreRadar, type Presence, type RadarInput } from "@/modules/radar/score";
@@ -49,12 +49,17 @@ export interface RadarView {
   unknownCity: number;
 }
 
-export async function loadRadar(orgId: string, slug: string, windowDays: number): Promise<RadarView | null> {
+export async function loadRadar(orgId: string, slug: string, windowDays: number, pool: "first" | "extended" = "first"): Promise<RadarView | null> {
   const metro = metroBySlug(slug);
   if (!metro) return null;
 
+  const degree = pool === "extended"
+    ? inArray(connection.networkDistance, ["2", "3"])
+    : or(isNull(connection.networkDistance), eq(connection.networkDistance, "1"));
+
   const rows = await db.select().from(connection).where(and(
     eq(connection.orgId, orgId),
+    degree,
     or(eq(connection.metro, slug), eq(connection.mentionMetro, slug)),
   ));
 

@@ -2,7 +2,7 @@
  * Deterministic mock — the whole app runs and demos with ZERO keys.
  * Personas are synthetic-safe: no real names, companies, or data.
  */
-import type { ChannelProvider, FetchedPost, FetchedProfile, Relation } from "./types";
+import type { ChannelProvider, FetchedPost, FetchedProfile, Relation, SearchHit } from "./types";
 
 const FIRST = ["Asha", "Rahul", "Meera", "Vikram", "Priya", "Karthik", "Divya", "Arjun", "Sneha", "Manoj"];
 const LAST = ["Iyer", "Sharma", "Nair", "Menon", "Reddy", "Das", "Kulkarni", "Pillai", "Bose", "Rao"];
@@ -96,5 +96,29 @@ export class MockChannelProvider implements ChannelProvider {
       postedAt: new Date(Date.now() - recentHours * 3600000 - k * 86400000).toISOString(),
       url: `https://www.linkedin.com/feed/update/mock-${i}-${k}`,
     }));
+  }
+
+  async searchPeople(input: {
+    keywords: string; cursor?: string | null; limit?: number;
+  }): Promise<{ items: SearchHit[]; cursor: string | null }> {
+    const start = input.cursor ? Number(input.cursor) : 0;
+    const page = Math.min(50, input.limit ?? 50);
+    const total = 80;
+    const end = Math.min(start + page, total);
+    const items: SearchHit[] = Array.from({ length: end - start }, (_, k) => {
+      const i = 200 + start + k;
+      const r = relationAt(i % 120);
+      return {
+        publicIdentifier: `evt-${r.publicIdentifier}`,
+        memberId: `mock-ext:${i}`,
+        firstName: r.firstName,
+        lastName: r.lastName,
+        headline: r.headline,
+        location: ["San Francisco, California, United States", "Oakland, California, United States"][i % 2],
+        profileUrl: `https://www.linkedin.com/in/evt-${r.publicIdentifier}`,
+        networkDistance: i % 3 === 0 ? "3" : "2",
+      };
+    });
+    return { items, cursor: end < total ? String(end) : null };
   }
 }
