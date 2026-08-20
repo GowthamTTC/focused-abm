@@ -32,8 +32,9 @@ export default async function RadarPage({ searchParams }: {
   const days = [3, 7, 14].includes(Number(sp.days)) ? Number(sp.days) : 7;
   const pool = sp.pool === "extended" ? "extended" : "first";
   const country = countryBySlug(sp.country)?.slug ?? "united-states";
-  const tab = (["active", "mentioned", "based", "met"].includes(sp.tab ?? "") ? sp.tab : "active") as
-    "active" | "mentioned" | "based" | "met";
+  const tab = (["active", "mentioned", "based", "met"].includes(sp.tab ?? "")
+    ? sp.tab
+    : pool === "extended" ? "based" : "active") as "active" | "mentioned" | "based" | "met";
   const view = await loadRadar(user.orgId, metro, days, pool, country);
 
   const lists = {
@@ -109,7 +110,7 @@ export default async function RadarPage({ searchParams }: {
         {([
           ["active", "Based + active", view?.basedActive.length ?? 0],
           ["mentioned", pool === "extended" ? "Named the event" : "Mentioned travel", view?.mentioned.length ?? 0],
-          ["based", "Based, quiet", view?.basedQuiet.length ?? 0],
+          ["based", pool === "extended" ? "Searched" : "Based, quiet", view?.basedQuiet.length ?? 0],
           ["met", "Met on the floor", view?.met.length ?? 0],
         ] as const).map(([t, label, n]) => (
           <Link key={t} href={`${base}&tab=${t}`}

@@ -67,10 +67,7 @@ export async function loadRadar(
     : or(isNull(connection.networkDistance), eq(connection.networkDistance, "1"));
 
   const place = pool === "extended"
-    ? and(
-        eq(connection.mentionKind, "event"),
-        or(eq(connection.country, country!.country), eq(connection.mentionMetro, country!.slug)),
-      )
+    ? or(eq(connection.country, country!.country), eq(connection.mentionMetro, country!.slug))
     : or(eq(connection.metro, slug), eq(connection.mentionMetro, slug));
 
   const rows = await db.select().from(connection).where(and(
@@ -142,14 +139,26 @@ export async function loadRadar(
       sameCompanyCount: input.sameCompanyCount,
     });
 
-    if (pool === "extended" && r.mentionKind !== "event") continue;
-
     if (r.floorStatus === "met") {
       met.push(person("based_quiet", 0, "marked met on the floor"));
       continue;
     }
 
-    const s = scoreRadar(input, pool === "extended" ? country!.slug : slug, windowDays);
+    if (pool === "extended") {
+      const named = r.mentionKind === "event";
+      scored.push(person(
+        named ? "mentioned_active" : "based_quiet",
+        named ? 80 : 30,
+        named
+          ? "Named the event in a recent post"
+          : r.lastScanAt
+            ? "Found in event search — no event name in recent posts"
+            : "Found in event search — posts not scanned yet",
+      ));
+      continue;
+    }
+
+    const s = scoreRadar(input, slug, windowDays);
     if (!s) continue;
     scored.push(person(s.presence, s.total, s.why));
   }
