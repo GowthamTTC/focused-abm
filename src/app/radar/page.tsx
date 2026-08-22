@@ -3,6 +3,8 @@ import { Shell, requirePage } from "@/app/shell";
 import { ActivityBadge, ago } from "@/components/dash-bits";
 import { RADAR_COUNTRIES, countryBySlug } from "@/modules/geo/countries";
 import { loadRadar, type RadarPerson } from "@/modules/radar/query";
+import { and, eq, inArray } from "drizzle-orm";
+import { db, job } from "@/db";
 import { startEventScan, markFloor, clearFloor } from "./actions";
 
 function evidenceLabel(p: RadarPerson): string {
@@ -39,6 +41,11 @@ export default async function RadarPage({ searchParams }: {
     ? sp.tab
     : "mentioned") as "active" | "mentioned" | "based" | "met";
   const view = await loadRadar(user.orgId, metro, days, pool, country, query || undefined);
+  const [activeJob] = await db.select({ id: job.id, status: job.status }).from(job).where(and(
+    eq(job.orgId, user.orgId),
+    inArray(job.status, ["queued", "running", "stopping"]),
+  )).limit(1);
+  const scanning = Boolean(activeJob) || (sp.scanning === "1" && Boolean(activeJob));
 
   const lists = {
     active: view?.basedActive ?? [],
@@ -78,8 +85,8 @@ export default async function RadarPage({ searchParams }: {
           </select>
           <input name="event" defaultValue={eventName} placeholder="Event name (required)"
             className="w-44 rounded-[8px] border border-[#DDE2EE] bg-white px-2 py-1.5" />
-          <button className={`rounded-[8px] bg-[#263BAA] px-3 py-1.5 font-medium text-white hover:bg-[#1D2E86] ${sp.scanning === "1" ? "radar-banner-text" : ""}`}>
-            {sp.scanning === "1" ? "Scanning" : "Scan"}
+          <button className={`rounded-[8px] bg-[#263BAA] px-3 py-1.5 font-medium text-white hover:bg-[#1D2E86] ${activeJob ? "radar-banner-text" : ""}`}>
+            {activeJob ? "Scanning" : "Scan"}
           </button>
         </form>
       </div>
@@ -87,14 +94,20 @@ export default async function RadarPage({ searchParams }: {
       {sp.err === "event" && (
         <p className="mt-3 text-sm text-[#B42318]">Event name is required.</p>
       )}
-      {sp.scanning === "1" && (
+      {activeJob && (
         <p className="radar-banner mt-3 text-sm text-[#067647]">
           <span className="radar-banner-text">
             {pool === "extended"
-              ? "Working — searching posts, then keeping 2nd/3rd authors who named the event and match ICP."
-              : "Working — searching posts, then keeping 1st-degree authors who named the event and match ICP."}
+              ? "Working — searching posts, then ICP-matching 2nd/3rd authors who named the event."
+              : "Working — scanning your 1st-degree pitchable network for the event name (max 100)."}
           </span>
           <span className="radar-dots" aria-hidden><span /><span /><span /></span>
+        </p>
+      )}
+      {!activeJob && sp.scanning === "1" && (
+        <p className="mt-3 text-sm text-[#475467]">
+          Scan finished. Open <span className="font-medium">Named the event</span>.
+          Empty means none of the scanned people posted that name in the window — try a shorter token (e.g. Dreamforce).
         </p>
       )}
 
@@ -132,7 +145,7 @@ export default async function RadarPage({ searchParams }: {
       <section className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {([
           ["active", "Based + active", view?.basedActive.length ?? 0],
-          ["mentioned", pool === "extended" ? "Named the event" : "Mentioned travel", view?.mentioned.length ?? 0],
+          ["mentioned", "Named the event", view?.mentioned.length ?? 0],
           ["based", pool === "extended" ? "Searched" : "Based, quiet", view?.basedQuiet.length ?? 0],
           ["met", "Met on the floor", view?.met.length ?? 0],
         ] as const).map(([t, label, n]) => (
@@ -162,10 +175,10 @@ export default async function RadarPage({ searchParams }: {
         <div className="overflow-hidden rounded-[14px] border border-[#DDE2EE] bg-white">
           {paged.length === 0 && list.length === 0 ? (
             <p className="p-8 text-sm text-[#98A2B3]">
-              {tab === "mentioned" && pool === "extended"
-                ? "Nobody in this window posted the event name. Scan again after the event, or try a shorter name (e.g. Unbound)."
+              {tab === "mentioned"
+                ? "Nobody pitchable in this scan posted the event name. Try a shorter query or a wider day window."
                 : tab === "active"
-                ? "Nobody based here with a post in this window. Scan to refresh activity, or check Mentioned travel."
+                ? "Nobody based here with a post in this window."
                 : "Nothing in this list yet."}
             </p>
           ) : (

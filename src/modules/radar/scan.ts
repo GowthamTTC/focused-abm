@@ -3,7 +3,7 @@
  * Target: ~1,500 people in about 5 minutes via concurrent Unipile calls.
  * Deep-enrich pacing (12–25s) is left alone.
  */
-import { and, asc, eq, or, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, or, sql } from "drizzle-orm";
 import { db, channelAccount, connection } from "@/db";
 import { env } from "@/lib/env";
 import { getChannelProvider } from "@/providers/channel";
@@ -22,6 +22,10 @@ export interface EventScanPayload {
   country?: string;
   /** Skip the "already scanned this window" filter — used after a fresh 2nd/3rd import. */
   force?: boolean;
+  /** Cap how many people to scan (1st-degree event search uses 100). */
+  limit?: number;
+  /** Restrict to 1st-degree (null or "1") network distance. */
+  firstDegreeOnly?: boolean;
 }
 
 export interface EventScanResult {
@@ -117,7 +121,11 @@ export async function runEventScan(
   const scope = [eq(connection.orgId, orgId), eq(connection.bucket, "pitchable")];
   if (payload.batchId) scope.push(eq(connection.batchId, payload.batchId));
 
-  const pool = await db.select({
+  if (payload.firstDegreeOnly) {
+    scope.push(or(isNull(connection.networkDistance), eq(connection.networkDistance, "1"))!);
+  }
+
+  let poolQuery = db.select({
     id: connection.id,
     memberId: connection.memberId,
     publicIdentifier: connection.publicIdentifier,
@@ -135,6 +143,11 @@ export async function runEventScan(
       sql`${connection.linkedinUrl} is not null`,
     ),
   )).orderBy(sql`last_scan_at asc nulls first`, asc(connection.rank));
+
+  if (payload.limit && payload.limit > 0) {
+    poolQuery = poolQuery.limit(payload.limit) as typeof poolQuery;
+  }
+  const pool = await poolQuery;
 
   const todo = pool.filter((c) => !c.lastScanAt || c.lastScanAt < skipAfter);
   result.skippedFresh = pool.length - todo.length;
@@ -203,6 +216,7 @@ export async function runEventScan(
       mentionAt: mention?.postedAt ?? null,
       mentionSnippet: mention?.snippet ?? null,
       mentionKind: mention?.kind ?? null,
+      ...(mention?.kind === "event" && eventName ? { eventQuery: eventName } : {}),
     }).where(eq(connection.id, c.id));
     result.scanned += 1;
   };
