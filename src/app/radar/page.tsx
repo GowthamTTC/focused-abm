@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { Shell, requirePage } from "@/app/shell";
 import { ActivityBadge, ago } from "@/components/dash-bits";
-import { US_METROS } from "@/modules/geo/metros";
 import { RADAR_COUNTRIES, countryBySlug } from "@/modules/geo/countries";
 import { loadRadar, type RadarPerson } from "@/modules/radar/query";
 import { startEventScan, markFloor, clearFloor } from "./actions";
@@ -24,18 +23,22 @@ function opener(p: RadarPerson): string {
 }
 
 export default async function RadarPage({ searchParams }: {
-  searchParams: Promise<{ metro?: string; days?: string; p?: string; tab?: string; scanning?: string; pool?: string; err?: string; country?: string }>;
+  searchParams: Promise<{ metro?: string; days?: string; p?: string; tab?: string; scanning?: string; pool?: string; err?: string; country?: string; q?: string; page?: string; size?: string; event?: string }>;
 }) {
   const user = await requirePage();
   const sp = await searchParams;
-  const metro = US_METROS.some((m) => m.slug === sp.metro) ? sp.metro! : "sf-bay-area";
+  const metro = "sf-bay-area";
   const days = [3, 7, 14].includes(Number(sp.days)) ? Number(sp.days) : 7;
   const pool = sp.pool === "extended" ? "extended" : "first";
   const country = countryBySlug(sp.country)?.slug ?? "united-states";
+  const query = (sp.q ?? "").trim();
+  const eventName = (sp.event ?? query).trim();
+  const size = [10, 25].includes(Number(sp.size)) ? Number(sp.size) : 10;
+  const page = Math.max(1, Number(sp.page) || 1);
   const tab = (["active", "mentioned", "based", "met"].includes(sp.tab ?? "")
     ? sp.tab
-    : pool === "extended" ? "mentioned" : "active") as "active" | "mentioned" | "based" | "met";
-  const view = await loadRadar(user.orgId, metro, days, pool, country);
+    : "mentioned") as "active" | "mentioned" | "based" | "met";
+  const view = await loadRadar(user.orgId, metro, days, pool, country, query || undefined);
 
   const lists = {
     active: view?.basedActive ?? [],
@@ -44,8 +47,11 @@ export default async function RadarPage({ searchParams }: {
     met: view?.met ?? [],
   };
   const list = lists[tab];
-  const person = list.find((p) => p.id === sp.p) ?? list[0] ?? null;
-  const base = `/radar?metro=${metro}&days=${days}&pool=${pool}&country=${country}`;
+  const pages = Math.max(1, Math.ceil(list.length / size));
+  const safePage = Math.min(page, pages);
+  const paged = list.slice((safePage - 1) * size, safePage * size);
+  const person = list.find((p) => p.id === sp.p) ?? paged[0] ?? null;
+  const base = `/radar?metro=${metro}&days=${days}&pool=${pool}&country=${country}${query ? `&q=${encodeURIComponent(query)}` : ""}${eventName ? `&event=${encodeURIComponent(eventName)}` : ""}&size=${size}`;
 
   return (
     <Shell user={user} active="radar">
@@ -53,45 +59,42 @@ export default async function RadarPage({ searchParams }: {
         <div>
           <h1 className="text-xl font-semibold">Event radar</h1>
           <p className="mt-1 max-w-xl text-sm text-[#475467]">
-            1st degree uses a US metro. 2nd + 3rd searches LinkedIn posts by country
-            (US or India) and only keeps people who named the event in a post.
+            Both pools search posts by country (US or India), cap 100, then keep
+            only ICP-pitchable people — Stage A classify, no deep enrich.
           </p>
         </div>
         <form action={startEventScan} className="flex flex-wrap items-center gap-2 text-[13px]">
           <select name="pool" defaultValue={pool} className="rounded-[8px] border border-[#DDE2EE] bg-white px-2 py-1.5">
-            <option value="first">1st degree — entire pool</option>
+            <option value="first">1st degree — event posts (max 100)</option>
             <option value="extended">2nd + 3rd — event search (max 100)</option>
           </select>
-          {pool === "extended" ? (
-            <select name="country" defaultValue={country} className="rounded-[8px] border border-[#DDE2EE] bg-white px-2 py-1.5">
-              {RADAR_COUNTRIES.map((c) => <option key={c.slug} value={c.slug}>{c.label}</option>)}
-            </select>
-          ) : (
-            <select name="metro" defaultValue={metro} className="rounded-[8px] border border-[#DDE2EE] bg-white px-2 py-1.5">
-              {US_METROS.map((m) => <option key={m.slug} value={m.slug}>{m.label}</option>)}
-            </select>
-          )}
+          <select name="country" defaultValue={country} className="rounded-[8px] border border-[#DDE2EE] bg-white px-2 py-1.5">
+            {RADAR_COUNTRIES.map((c) => <option key={c.slug} value={c.slug}>{c.label}</option>)}
+          </select>
           <select name="days" defaultValue={String(days)} className="rounded-[8px] border border-[#DDE2EE] bg-white px-2 py-1.5">
             <option value="3">last 3 days</option>
             <option value="7">last 7 days</option>
             <option value="14">last 14 days</option>
           </select>
-          <input name="event" placeholder={pool === "extended" ? "Event name (required)" : "Event name (optional)"}
+          <input name="event" defaultValue={eventName} placeholder="Event name (required)"
             className="w-44 rounded-[8px] border border-[#DDE2EE] bg-white px-2 py-1.5" />
-          <button className="rounded-[8px] bg-[#263BAA] px-3 py-1.5 font-medium text-white hover:bg-[#1D2E86]">
-            Scan
+          <button className={`rounded-[8px] bg-[#263BAA] px-3 py-1.5 font-medium text-white hover:bg-[#1D2E86] ${sp.scanning === "1" ? "radar-banner-text" : ""}`}>
+            {sp.scanning === "1" ? "Scanning" : "Scan"}
           </button>
         </form>
       </div>
 
       {sp.err === "event" && (
-        <p className="mt-3 text-sm text-[#B42318]">2nd + 3rd degree search needs an event name.</p>
+        <p className="mt-3 text-sm text-[#B42318]">Event name is required.</p>
       )}
       {sp.scanning === "1" && (
-        <p className="mt-3 text-sm text-[#067647]">
-          {pool === "extended"
-            ? "Queued — search, then keep only people whose posts name the event."
-            : "Scan queued — every 1st-degree matchable contact."}
+        <p className="radar-banner mt-3 text-sm text-[#067647]">
+          <span className="radar-banner-text">
+            {pool === "extended"
+              ? "Working — searching posts, then keeping 2nd/3rd authors who named the event and match ICP."
+              : "Working — searching posts, then keeping 1st-degree authors who named the event and match ICP."}
+          </span>
+          <span className="radar-dots" aria-hidden><span /><span /><span /></span>
         </p>
       )}
 
@@ -106,6 +109,26 @@ export default async function RadarPage({ searchParams }: {
         </Link>
       </div>
 
+      <div className="mt-4 flex flex-wrap items-center gap-2 text-[13px]">
+        <form action="/radar" method="get" className="flex flex-wrap items-center gap-2">
+          <input type="hidden" name="pool" value={pool} />
+          <input type="hidden" name="country" value={country} />
+          <input type="hidden" name="days" value={String(days)} />
+          <input type="hidden" name="tab" value={tab} />
+          <label className="text-[#98A2B3]">Query</label>
+          <select name="q" defaultValue={query} className="rounded-[8px] border border-[#DDE2EE] bg-white px-2 py-1.5">
+            <option value="">All queries</option>
+            {(view?.queries ?? []).map((q) => <option key={q} value={q}>{q}</option>)}
+          </select>
+          <label className="text-[#98A2B3]">Show</label>
+          <select name="size" defaultValue={String(size)} className="rounded-[8px] border border-[#DDE2EE] bg-white px-2 py-1.5">
+            <option value="10">10</option>
+            <option value="25">25</option>
+          </select>
+          <button className="rounded-[8px] border border-[#DDE2EE] bg-white px-3 py-1.5">Apply</button>
+        </form>
+      </div>
+
       <section className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {([
           ["active", "Based + active", view?.basedActive.length ?? 0],
@@ -114,7 +137,7 @@ export default async function RadarPage({ searchParams }: {
           ["met", "Met on the floor", view?.met.length ?? 0],
         ] as const).map(([t, label, n]) => (
           <Link key={t} href={`${base}&tab=${t}`}
-            className={`rounded-[14px] border bg-white p-4 ${tab === t ? "border-[#263BAA]" : "border-[#DDE2EE]"}`}>
+            className={`radar-stat rounded-[14px] border bg-white p-4 ${tab === t ? "border-[#263BAA]" : "border-[#DDE2EE]"}`}>
             <p className="tnum text-[26px] leading-8">{n}</p>
             <p className="mt-0.5 text-[10px] uppercase tracking-wider text-[#98A2B3]">{label}</p>
           </Link>
@@ -137,7 +160,7 @@ export default async function RadarPage({ searchParams }: {
 
       <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="overflow-hidden rounded-[14px] border border-[#DDE2EE] bg-white">
-          {list.length === 0 ? (
+          {paged.length === 0 && list.length === 0 ? (
             <p className="p-8 text-sm text-[#98A2B3]">
               {tab === "mentioned" && pool === "extended"
                 ? "Nobody in this window posted the event name. Scan again after the event, or try a shorter name (e.g. Unbound)."
@@ -147,12 +170,17 @@ export default async function RadarPage({ searchParams }: {
             </p>
           ) : (
             <ul className="divide-y divide-[#EEF1F8]">
-              {list.map((p) => (
+              {paged.map((p) => (
                 <li key={p.id}>
                   <Link href={`${base}&tab=${tab}&p=${p.id}`}
-                    className={`block px-4 py-3 hover:bg-[#F4F6FB] ${person?.id === p.id ? "bg-[#EEF1FC]" : ""}`}>
+                    className={`radar-row block px-4 py-3 hover:bg-[#F4F6FB] ${person?.id === p.id ? "bg-[#EEF1FC]" : ""}`}>
                     <div className="flex items-baseline justify-between gap-2">
-                      <span className="font-medium">{p.firstName} {p.lastName}</span>
+                      <span className="font-medium">
+                        {p.firstName} {p.lastName}
+                        {p.eventQuery && (
+                          <span className="ml-2 rounded-full bg-[#EEF1FC] px-2 py-[1px] text-[10px] font-medium text-[#263BAA]">{p.eventQuery}</span>
+                        )}
+                      </span>
                       <span className="tnum text-[11px] text-[#98A2B3]">{p.radarScore}</span>
                     </div>
                     <p className="text-[13px] text-[#475467]">
@@ -160,11 +188,22 @@ export default async function RadarPage({ searchParams }: {
                     </p>
                     <p className="mt-1 text-[12px] text-[#98A2B3]">
                       <ActivityBadge lastPostAt={p.lastPostAt} asOf={p.lastScanAt} />
+                      {p.serviceSlug && <span> · {p.serviceSlug}</span>}
+                      {p.sentAt && <span className="ml-2 text-[#B54708]">already sent</span>}
                     </p>
                   </Link>
                 </li>
               ))}
             </ul>
+          )}
+          {list.length > 0 && (
+            <div className="flex items-center justify-between border-t border-[#EEF1F8] px-4 py-2 text-[12px] text-[#475467]">
+              <span>{list.length} people · page {safePage} of {pages}</span>
+              <span className="flex gap-2">
+                {safePage > 1 && <Link href={`${base}&tab=${tab}&page=${safePage - 1}`}>Prev</Link>}
+                {safePage < pages && <Link href={`${base}&tab=${tab}&page=${safePage + 1}`}>Next</Link>}
+              </span>
+            </div>
           )}
         </div>
 
@@ -174,7 +213,12 @@ export default async function RadarPage({ searchParams }: {
           ) : (
             <>
               <p className="text-[11px] uppercase tracking-wider text-[#98A2B3]">Walk-up</p>
-              <h2 className="mt-1 text-lg font-semibold">{person.firstName} {person.lastName}</h2>
+              <h2 className="mt-1 text-lg font-semibold">
+                {person.firstName} {person.lastName}
+                {person.eventQuery && (
+                  <span className="ml-2 align-middle text-[12px] font-medium text-[#263BAA]">· {person.eventQuery}</span>
+                )}
+              </h2>
               <p className="text-sm text-[#475467]">
                 {person.positionRaw ?? "—"}{person.companyRaw ? ` at ${person.companyRaw}` : ""}
               </p>
@@ -186,6 +230,12 @@ export default async function RadarPage({ searchParams }: {
               <p className="mt-3 rounded-[8px] bg-[#F4F6FB] px-3 py-2 text-[12.5px] leading-5 text-[#475467]">
                 {evidenceLabel(person)}
               </p>
+              {person.sentAt && (
+                <p className="mt-2 text-[12px] text-[#B54708]">Already sent — skip unless you want a walk-up anyway.</p>
+              )}
+              {person.serviceSlug && (
+                <p className="mt-2 text-[12px] text-[#475467]">ICP · {person.serviceSlug}</p>
+              )}
               {person.mentionSnippet && (
                 <p className="mt-2 text-[12.5px] italic text-[#475467]">“{person.mentionSnippet}”</p>
               )}

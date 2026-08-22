@@ -142,6 +142,7 @@ export const connection = pgTable("connection", {
   mentionAt: ts("mention_at"),
   mentionSnippet: text("mention_snippet"),
   mentionKind: text("mention_kind"),         // travel | event | place
+  eventQuery: text("event_query"),           // event name used in the radar search
   floorStatus: text("floor_status"),         // met | skipped
   floorAt: ts("floor_at"),
   connectedOn: text("connected_on"),

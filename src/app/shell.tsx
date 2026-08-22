@@ -53,6 +53,7 @@ const NAV: { section: string; items: [key: string, href: string, label: string, 
     ["radar", "/radar", "Radar", "Event metro scan — separate from matching and research"],
   ]},
   { section: "Analysis", items: [
+    ["accounts", "/accounts", "Accounts", "Companies with pitchable coverage — warm ABM list"],
     ["network", "/network", "Network", "Composition by ICP and country, activity, and freshness"],
     ["alerts", "/alerts", "Alerts", "Failed runs, seats needing re-auth, people gone quiet"],
   ]},

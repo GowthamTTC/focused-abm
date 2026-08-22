@@ -1,7 +1,7 @@
 /**
  * 2nd + 3rd: search LinkedIn posts for the event name, then keep authors.
  */
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull, or } from "drizzle-orm";
 import { db, channelAccount, connection, connectionBatch } from "@/db";
 import { env } from "@/lib/env";
 import { getChannelProvider } from "@/providers/channel";
@@ -9,6 +9,8 @@ import { toCountry } from "@/modules/connections/country";
 import { stampMetro } from "@/modules/geo/metros";
 import { countryBySlug } from "@/modules/geo/countries";
 import { mentionForEvent } from "@/modules/radar/mentions";
+import { classifyBatch } from "@/modules/matching/service-fit";
+import { rankBatch } from "@/modules/scoring/rank";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -21,6 +23,29 @@ function splitHeadline(headline: string | null): { position: string | null; comp
   return { position: headline, company: null };
 }
 
+async function findFirstDegree(orgId: string, h: {
+  publicIdentifier: string | null;
+  memberId: string | null;
+  profileUrl: string | null;
+}) {
+  const keys = [
+    h.publicIdentifier ? eq(connection.publicIdentifier, h.publicIdentifier) : undefined,
+    h.memberId ? eq(connection.memberId, h.memberId) : undefined,
+    h.profileUrl ? eq(connection.linkedinUrl, h.profileUrl) : undefined,
+  ].filter(Boolean) as ReturnType<typeof eq>[];
+  if (keys.length === 0) return null;
+  const [row] = await db.select({
+    id: connection.id,
+    country: connection.country,
+    lastPostAt: connection.lastPostAt,
+  }).from(connection).where(and(
+    eq(connection.orgId, orgId),
+    or(isNull(connection.networkDistance), eq(connection.networkDistance, "1")),
+    or(...keys),
+  )).limit(1);
+  return row ?? null;
+}
+
 function datePosted(days?: number): "past_day" | "past_week" | "past_month" {
   const d = days ?? 7;
   if (d <= 1) return "past_day";
@@ -30,7 +55,7 @@ function datePosted(days?: number): "past_day" | "past_week" | "past_month" {
 
 export async function runEventExtended(
   orgId: string,
-  payload: { country: string; eventName: string; days?: number; metro?: string },
+  payload: { country: string; eventName: string; days?: number; metro?: string; degree?: "first" | "extended" },
   onProgress?: (done: number, total: number) => Promise<void>,
   shouldStop?: () => Promise<boolean>,
 ): Promise<{ found: number; scanned: number; batchId: string }> {
@@ -96,6 +121,32 @@ export async function runEventExtended(
   } while (cursor);
 
   const rows = [...authors.values()];
+  if (payload.degree === "first") {
+    let matched = 0;
+    for (const h of rows) {
+      if (shouldStop && await shouldStop()) break;
+      const existing = await findFirstDegree(orgId, h);
+      if (!existing) continue;
+      const locCountry = toCountry(h.location) ?? scope.country;
+      await db.update(connection).set({
+        country: existing.country ?? locCountry,
+        lastPostAt: h.postedAt ?? existing.lastPostAt,
+        lastScanAt: new Date(),
+        mentionMetro: scope.slug,
+        mentionAt: h.postedAt,
+        mentionSnippet: h.snippet,
+        mentionKind: "event",
+        eventQuery: eventName,
+        matchWhy: `Posted about "${eventName}": ${h.snippet}`,
+      }).where(eq(connection.id, existing.id));
+      matched += 1;
+      if (onProgress) await onProgress(matched, cap);
+      if (matched >= cap) break;
+    }
+    if (onProgress) await onProgress(matched, Math.max(matched, 1));
+    return { found: matched, scanned: matched, batchId: "" };
+  }
+
   const [batch] = await db.insert(connectionBatch).values({
     orgId,
     source: "event_search",
@@ -129,14 +180,22 @@ export async function runEventExtended(
         mentionAt: h.postedAt,
         mentionSnippet: h.snippet,
         mentionKind: "event",
-        bucket: "pitchable",
+        eventQuery: eventName,
+        bucket: null,
         matchWhy: `Posted about "${eventName}": ${h.snippet}`,
         matchMethod: "rule",
-        matchConfidence: 80,
+        matchConfidence: 60,
       };
     }));
   }
 
+  if (onProgress) await onProgress(rows.length, Math.max(rows.length * 2, 1));
+  if (rows.length > 0) {
+    await classifyBatch(orgId, batch.id, {}, async (done, total) => {
+      if (onProgress) await onProgress(rows.length + done, rows.length + total);
+    }, shouldStop);
+    await rankBatch(orgId, batch.id);
+  }
   if (onProgress) await onProgress(rows.length, Math.max(rows.length, 1));
   return { found: rows.length, scanned: rows.length, batchId: batch.id };
 }
