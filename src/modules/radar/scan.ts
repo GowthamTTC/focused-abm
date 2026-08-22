@@ -79,16 +79,23 @@ function isRateLimit(e: unknown): boolean {
 }
 
 async function withBackoff<T>(fn: () => Promise<T>): Promise<T> {
-  let wait = 1500;
+  let wait = 800;
   for (let attempt = 0; ; attempt += 1) {
     try {
       return await fn();
     } catch (e) {
-      if (!isRateLimit(e) || attempt >= 4) throw e;
-      await sleep(wait + Math.random() * 400);
-      wait = Math.min(wait * 2, 12000);
+      if (!isRateLimit(e) || attempt >= 2) throw e;
+      await sleep(wait + Math.random() * 200);
+      wait = Math.min(wait * 2, 4000);
     }
   }
+}
+
+function withDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    p.then((v) => { clearTimeout(t); resolve(v); }, (e) => { clearTimeout(t); reject(e); });
+  });
 }
 
 export async function runEventScan(
@@ -228,7 +235,7 @@ export async function runEventScan(
       next += 1;
       if (i >= todo.length) return;
       try {
-        await scanOne(todo[i]);
+        await withDeadline(scanOne(todo[i]), 35_000, `scan ${todo[i].id}`);
       } catch { /* one person must not kill the run */ }
       done += 1;
       if (onProgress) await onProgress(done, todo.length);

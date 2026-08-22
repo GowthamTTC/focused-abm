@@ -12,9 +12,9 @@ function stageOf(j: J): string {
   if (j.kind === "event_extended" || j.kind === "event_scan") {
     const total = j.total ?? 0;
     const prog = j.progress ?? 0;
-    if (total <= 0) return "Searching posts";
-    if (prog < total / 2) return "Searching posts";
-    return "Matching ICP";
+    if (total <= 0) return "Starting";
+    if (prog >= total) return "Finishing";
+    return `Scanning ${prog}/${total}`;
   }
   if (j.kind === "classify") return "Classifying";
   if (j.kind === "sync") return "Syncing connections";
