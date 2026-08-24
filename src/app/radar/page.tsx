@@ -185,7 +185,7 @@ export default async function RadarPage({ searchParams }: {
             <ul className="divide-y divide-[#EEF1F8]">
               {paged.map((p) => (
                 <li key={p.id}>
-                  <Link href={`${base}&tab=${tab}&p=${p.id}`}
+                  <Link href={`${base}&tab=${tab}&page=${safePage}&p=${p.id}`}
                     className={`radar-row block px-4 py-3 hover:bg-[#F4F6FB] ${person?.id === p.id ? "bg-[#EEF1FC]" : ""}`}>
                     <div className="flex items-baseline justify-between gap-2">
                       <span className="font-medium">
@@ -197,7 +197,9 @@ export default async function RadarPage({ searchParams }: {
                       <span className="tnum text-[11px] text-[#98A2B3]">{p.radarScore}</span>
                     </div>
                     <p className="text-[13px] text-[#475467]">
-                      {p.positionRaw ?? "—"}{p.companyRaw ? ` · ${p.companyRaw}` : ""}
+                      {p.positionRaw ?? "—"}
+                      {p.companyRaw ? ` · ${p.companyRaw}` : ""}
+                      {p.country || p.location ? ` · ${p.country || p.location}` : ""}
                     </p>
                     <p className="mt-1 text-[12px] text-[#98A2B3]">
                       <ActivityBadge lastPostAt={p.lastPostAt} asOf={p.lastScanAt} />
@@ -233,7 +235,9 @@ export default async function RadarPage({ searchParams }: {
                 )}
               </h2>
               <p className="text-sm text-[#475467]">
-                {person.positionRaw ?? "—"}{person.companyRaw ? ` at ${person.companyRaw}` : ""}
+                {person.positionRaw ?? "—"}
+                {person.companyRaw ? ` at ${person.companyRaw}` : ""}
+                {person.country || person.location ? ` · ${person.country || person.location}` : ""}
               </p>
               {person.sameCompanyCount > 1 && (
                 <p className="mt-1 text-[12px] text-[#263BAA]">

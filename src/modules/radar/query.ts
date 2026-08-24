@@ -12,6 +12,7 @@ export interface RadarPerson {
   positionRaw: string | null;
   linkedinUrl: string | null;
   location: string | null;
+  country: string | null;
   metro: string | null;
   metroEvidence: string | null;
   mentionSnippet: string | null;
@@ -130,6 +131,7 @@ export async function loadRadar(
       positionRaw: r.positionRaw,
       linkedinUrl: r.linkedinUrl,
       location: r.location,
+      country: r.country ?? null,
       metro: r.metro,
       metroEvidence: r.metroEvidence,
       mentionSnippet: r.mentionSnippet,

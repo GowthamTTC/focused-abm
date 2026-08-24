@@ -2,7 +2,7 @@
  * ABM account list — pitchable people rolled up by company.
  * No extra table: computed from Stage A results on demand.
  */
-import { and, eq, isNotNull, ne } from "drizzle-orm";
+import { and, eq, isNotNull, ne, sql } from "drizzle-orm";
 import { db, connection } from "@/db";
 import { companyKey } from "@/modules/radar/score";
 
@@ -36,7 +36,7 @@ export interface AccountRow {
 
 export async function loadAccounts(
   orgId: string,
-  opts: { service?: string; q?: string; minPeople?: number } = {},
+  opts: { service?: string; q?: string; minPeople?: number; minScore?: number } = {},
 ): Promise<AccountRow[]> {
   const rows = await db.select({
     id: connection.id,
@@ -58,6 +58,7 @@ export async function loadAccounts(
     isNotNull(connection.companyRaw),
     ne(connection.companyRaw, ""),
     ...(opts.service ? [eq(connection.serviceSlug, opts.service)] : []),
+    ...(opts.minScore && opts.minScore > 0 ? [sql`score >= ${opts.minScore}`] : []),
   ));
 
   const map = new Map<string, AccountRow>();

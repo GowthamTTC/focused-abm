@@ -59,7 +59,7 @@ const NAV: { section: string; items: [key: string, href: string, label: string, 
   ]},
   { section: "Setup", items: [
     ["sources", "/sources", "Sources", "Sync LinkedIn or upload a CSV; manage batches"],
-    ["offers", "/offers", "ICPs", "The customer profiles everything is scored against"],
+    ["offers", "/offers", "ICPs", "Who you sell to — people are matched to these profiles"],
     ["exports", "/exports", "Exports", "Download the full workbook"],
     ["settings", "/settings", "Settings", "LinkedIn seat, run limit, and your voice profile"],
   ]},

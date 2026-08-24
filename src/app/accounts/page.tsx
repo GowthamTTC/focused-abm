@@ -8,7 +8,7 @@ import { setAccountShortlist, startEnrichShortlist } from "./actions";
 export default async function AccountsPage({ searchParams }: {
   searchParams: Promise<{
     q?: string; svc?: string; min?: string; a?: string; page?: string; size?: string;
-    view?: string; enriched?: string;
+    view?: string; enriched?: string; minScore?: string;
   }>;
 }) {
   const user = await requirePage();
@@ -19,9 +19,10 @@ export default async function AccountsPage({ searchParams }: {
   const size = [10, 25].includes(Number(sp.size)) ? Number(sp.size) : 10;
   const page = Math.max(1, Number(sp.page) || 1);
   const view = sp.view === "shortlist" ? "shortlist" : "all";
+  const minScore = sp.minScore && Number(sp.minScore) > 0 ? Number(sp.minScore) : 0;
 
   const [allAccounts, services, shortKeys, nShort] = await Promise.all([
-    loadAccounts(user.orgId, { q: q || undefined, service: svc || undefined, minPeople: min }),
+    loadAccounts(user.orgId, { q: q || undefined, service: svc || undefined, minPeople: min, minScore: minScore || undefined }),
     accountServices(user.orgId),
     listShortlistedKeys(user.orgId),
     shortlistCount(user.orgId),
@@ -39,6 +40,7 @@ export default async function AccountsPage({ searchParams }: {
   const baseParams: Record<string, string> = {
     min: String(min),
     size: String(size),
+    ...(minScore ? { minScore: String(minScore) } : {}),
   };
   if (q) baseParams.q = q;
   if (svc) baseParams.svc = svc;
