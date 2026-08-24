@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db, connection } from "@/db";
 import { Shell, requirePage } from "@/app/shell";
 import { CopyButton } from "@/components/copy-button";
@@ -22,6 +22,9 @@ export default async function ReviewPage({ searchParams }: {
 
   const enriched = await db.select().from(connection)
     .where(and(eq(connection.batchId, batch.id), eq(connection.enrichStatus, "done")));
+  const [{ pendingN }] = await db.select({
+    pendingN: sql<number>`count(*) filter (where enrich_status is distinct from 'done' and bucket = 'pitchable')::int`,
+  }).from(connection).where(eq(connection.batchId, batch.id));
 
   const decisions = enriched.filter((p) => p.flag && !p.flagVerdict);
   const ready = enriched

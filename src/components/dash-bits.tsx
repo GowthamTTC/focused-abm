@@ -39,6 +39,10 @@ export function CampaignSwitcher({ batches, batch, basePath, totalRows }: {
   batches: { id: string; label: string }[]; batch: { id: string; label: string };
   basePath: string; totalRows?: number;
 }) {
+  function hrefFor(id: string) {
+    const join = basePath.includes("?") ? "&" : "?";
+    return `${basePath}${join}c=${id}`;
+  }
   return (
     <details className="relative inline-block">
       <summary className="bg-white border border-[#DDE2EE] rounded-[14px] shadow-[0_1px_2px_rgba(16,24,40,.04)] flex cursor-pointer list-none items-center gap-3 rounded-[10px] px-4 py-2">
@@ -47,10 +51,10 @@ export function CampaignSwitcher({ batches, batch, basePath, totalRows }: {
         <span className="text-[#98A2B3]">▾</span>
         <span className="text-xs text-[#98A2B3]">campaign</span>
       </summary>
-      <div className="bg-white border border-[#DDE2EE] rounded-[14px] shadow-[0_1px_2px_rgba(16,24,40,.04)] absolute z-30 mt-1 w-72 rounded-[10px] p-1 shadow-[0_12px_32px_rgba(16,24,40,.14)]">
+      <div className="bg-white border border-[#DDE2EE] rounded-[14px] shadow-[0_1px_2px_rgba(16,24,40,.04)] absolute z-30 mt-1 max-h-80 w-80 overflow-y-auto rounded-[10px] p-1 shadow-[0_12px_32px_rgba(16,24,40,.14)]">
         {batches.map((b) => (
-          <Link key={b.id} href={`${basePath}?c=${b.id}`}
-            className={`block rounded-[8px] px-3 py-2 text-sm hover:bg-[#F4F6FB] ${b.id === batch.id ? "text-[#263BAA]" : ""}`}>
+          <Link key={b.id} href={hrefFor(b.id)}
+            className={`block rounded-[8px] px-3 py-2 text-sm hover:bg-[#F4F6FB] ${b.id === batch.id ? "bg-[#EEF1FC] font-medium text-[#263BAA]" : ""}`}>
             {b.label}
           </Link>
         ))}
