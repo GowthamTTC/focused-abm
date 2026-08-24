@@ -6,6 +6,8 @@ import { loadRadar, type RadarPerson } from "@/modules/radar/query";
 import { and, eq, inArray } from "drizzle-orm";
 import { db, job } from "@/db";
 import { startEventScan, markFloor, clearFloor } from "./actions";
+import { CompanyPie } from "@/components/company-pie";
+import { companyKey } from "@/modules/radar/score";
 
 function evidenceLabel(p: RadarPerson): string {
   if (p.presence === "mentioned_active") {
@@ -25,7 +27,7 @@ function opener(p: RadarPerson): string {
 }
 
 export default async function RadarPage({ searchParams }: {
-  searchParams: Promise<{ metro?: string; days?: string; p?: string; tab?: string; scanning?: string; pool?: string; err?: string; country?: string; q?: string; page?: string; size?: string; event?: string }>;
+  searchParams: Promise<{ metro?: string; days?: string; p?: string; tab?: string; scanning?: string; pool?: string; err?: string; country?: string; q?: string; page?: string; size?: string; event?: string; company?: string }>;
 }) {
   const user = await requirePage();
   const sp = await searchParams;
@@ -53,12 +55,31 @@ export default async function RadarPage({ searchParams }: {
     based: view?.basedQuiet ?? [],
     met: view?.met ?? [],
   };
-  const list = lists[tab];
+  const companyFilter = (sp.company ?? "").trim();
+  const rawList = lists[tab];
+  // Pie always reflects the full tab (before company filter)
+  const companySlices = (() => {
+    const m = new Map<string, { key: string; name: string; count: number }>();
+    for (const p of rawList) {
+      const name = (p.companyRaw ?? "").trim();
+      if (!name) continue;
+      const key = companyKey(name);
+      if (key === "_none") continue;
+      const cur = m.get(key);
+      if (cur) cur.count += 1;
+      else m.set(key, { key, name, count: 1 });
+    }
+    return [...m.values()].sort((a, b) => b.count - a.count);
+  })();
+  const list = companyFilter
+    ? rawList.filter((p) => companyKey(p.companyRaw) === companyFilter || (p.companyRaw ?? "").trim() === companyFilter)
+    : rawList;
   const pages = Math.max(1, Math.ceil(list.length / size));
   const safePage = Math.min(page, pages);
   const paged = list.slice((safePage - 1) * size, safePage * size);
   const person = list.find((p) => p.id === sp.p) ?? paged[0] ?? null;
-  const base = `/radar?metro=${metro}&days=${days}&pool=${pool}&country=${country}${query ? `&q=${encodeURIComponent(query)}` : ""}${eventName ? `&event=${encodeURIComponent(eventName)}` : ""}&size=${size}`;
+  const base = `/radar?metro=${metro}&days=${days}&pool=${pool}&country=${country}${query ? `&q=${encodeURIComponent(query)}` : ""}${eventName ? `&event=${encodeURIComponent(eventName)}` : ""}&size=${size}${companyFilter ? `&company=${encodeURIComponent(companyFilter)}` : ""}`;
+  const baseForPie = `/radar?metro=${metro}&days=${days}&pool=${pool}&country=${country}${query ? `&q=${encodeURIComponent(query)}` : ""}${eventName ? `&event=${encodeURIComponent(eventName)}` : ""}&size=${size}&tab=${tab}`;
 
   return (
     <Shell user={user} active="radar">
@@ -169,6 +190,16 @@ export default async function RadarPage({ searchParams }: {
         <p className="mt-2 text-xs text-[#98A2B3]">
           {view.unknownCity.toLocaleString()} pitchable people still have no city — Scan backfills the top-ranked ones first.
         </p>
+      )}
+
+      {companySlices.length > 0 && (
+        <div className="mt-5">
+          <CompanyPie
+            slices={companySlices}
+            hrefBase={baseForPie}
+            activeKey={companyFilter || undefined}
+          />
+        </div>
       )}
 
       <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
