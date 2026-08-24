@@ -11,6 +11,7 @@ import { env } from "@/lib/env";
 
 const COOKIE = "fabm_session";
 const MAX_AGE = 60 * 60 * 24 * 14; // 14 days
+export const BCRYPT_ROUNDS = 12;
 
 function sign(payload: string): string {
   const mac = createHmac("sha256", env.SESSION_SECRET).update(payload).digest("base64url");
@@ -34,7 +35,12 @@ export async function login(email: string, password: string): Promise<boolean> {
   if (!ok) return false;
   const exp = Math.floor(Date.now() / 1000) + MAX_AGE;
   (await cookies()).set(COOKIE, sign(`${u.id}:${exp}`), {
-    httpOnly: true, sameSite: "lax", secure: env.APP_URL.startsWith("https"), maxAge: MAX_AGE, path: "/",
+    httpOnly: true,
+    sameSite: "lax",
+    secure: env.APP_URL.startsWith("https"),
+    maxAge: MAX_AGE,
+    path: "/",
+    // Mitigate session fixation; browser drops on browser-close only if maxAge omitted — we keep maxAge for UX.
   });
   return true;
 }

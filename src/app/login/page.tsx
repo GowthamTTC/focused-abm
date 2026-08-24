@@ -8,7 +8,8 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         className="w-full max-w-md bg-white border border-[#DDE2EE] rounded-[14px] shadow-[0_1px_2px_rgba(16,24,40,.04)] p-8">
         <h1 className="text-[26px] font-semibold text-[#263BAA]">Focused ABM</h1>
         <p className="mt-1.5 text-sm text-[#98A2B3]">Connections → ranked batches → workbook.</p>
-        {err && <p className="mt-5 text-sm text-[#B42318]">Wrong email or password.</p>}
+        {err === "rate" && <p className="mt-5 text-sm text-[#B42318]">Too many sign-in attempts. Try again in 15 minutes.</p>}
+        {err && err !== "rate" && <p className="mt-5 text-sm text-[#B42318]">Wrong email or password.</p>}
         {changed && <p className="mt-5 text-sm text-[#067647]">Password updated — sign in with it.</p>}
         <label className="mt-5 block text-sm text-[#475467]">Email
           <input name="email" autoComplete="email" type="email" required placeholder="you@tossthe.co.in"

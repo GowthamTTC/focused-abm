@@ -214,6 +214,19 @@ export const activityLog = pgTable("activity_log", {
 /** Daily network stats — one row per org per day, upserted on page view and
  *  after syncs. The growth charts begin the day this ships; we never invent
  *  history that was not observed. */
+
+/** User-shortlisted companies for account-led enrich (Stage B gate). */
+export const accountShortlist = pgTable("account_shortlist", {
+  id: id(),
+  orgId: text("org_id").notNull().references(() => org.id),
+  companyKey: text("company_key").notNull(),
+  companyName: text("company_name").notNull(),
+  createdAt: ts("created_at").notNull().defaultNow(),
+}, (t) => [
+  index("account_shortlist_org_idx").on(t.orgId),
+  index("account_shortlist_org_key_idx").on(t.orgId, t.companyKey),
+]);
+
 export const networkSnapshot = pgTable("network_snapshot", {
   id: id(),
   orgId: text("org_id").notNull().references(() => org.id),

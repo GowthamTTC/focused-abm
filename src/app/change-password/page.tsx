@@ -40,11 +40,11 @@ export default async function ChangePasswordPage(props: {
             </>
           )}
           <label className="block text-sm text-[#475467]">New password
-            <input name="password" type="password" autoComplete="new-password" required minLength={8}
+            <input name="password" type="password" autoComplete="new-password" required minLength={12}
               className="mt-1.5 w-full rounded-[10px] border border-[#DDE2EE] bg-white px-4 py-3 text-sm" />
           </label>
           <label className="block text-sm text-[#475467]">Repeat it
-            <input name="confirm" type="password" autoComplete="new-password" required minLength={8}
+            <input name="confirm" type="password" autoComplete="new-password" required minLength={12}
               className="mt-1.5 w-full rounded-[10px] border border-[#DDE2EE] bg-white px-4 py-3 text-sm" />
           </label>
           <button className="w-full rounded-[10px] bg-[#263BAA] py-3 text-sm font-semibold text-white hover:bg-[#1D2E86]">

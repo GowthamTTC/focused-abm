@@ -7,6 +7,9 @@ import { ne as neq } from "drizzle-orm";
 import { requireUser } from "@/auth/session";
 import { env } from "@/lib/env";
 import { SEED_SERVICES } from "@/modules/services/seed-data";
+import { checkPassword } from "@/lib/security/password-policy";
+import { BCRYPT_ROUNDS } from "@/auth/session";
+import { audit } from "@/lib/security/audit";
 
 async function requireAdmin() {
   const user = await requireUser();
@@ -40,9 +43,11 @@ export async function addUser(formData: FormData) {
       orgId: newOrg.id, slug: s.slug, name: s.name, icpJson: s.icp,
     })));
   }
+  const policy = checkPassword(password, email);
+  if (!policy.ok) redirect("/admin?err=password");
   await db.insert(appUser).values({
     orgId: newOrg.id, email, name,
-    passwordHash: await bcrypt.hash(password, 10),
+    passwordHash: await bcrypt.hash(password, BCRYPT_ROUNDS),
     mustChangePassword: true,
   });
   redirect("/admin?ok=1");

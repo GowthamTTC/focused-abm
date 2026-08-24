@@ -17,6 +17,8 @@ const schema = z.object({
   UNIPILE_DSN: z.string().optional().or(z.literal("")),
 
   APP_URL: z.string().url().default("http://localhost:3000"),
+  /** Shared secret for Unipile (or other) webhooks. Required in production. */
+  WEBHOOK_SECRET: z.string().min(16).optional().or(z.literal("")),
   DEEP_ENRICH_DAILY_CAP: z.coerce.number().int().positive().default(80),
   DEEP_ENRICH_MIN_GAP_SECONDS: z.coerce.number().int().positive().default(25),
   ACTIVITY_SCAN_DAILY_CAP: z.coerce.number().int().positive().default(100),
