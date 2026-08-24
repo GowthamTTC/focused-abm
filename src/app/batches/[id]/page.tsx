@@ -85,7 +85,16 @@ export default async function BatchPage(props: {
     )
     .limit(400);
 
-  const person = view === "enriched" ? (rows.find((r) => r.id === p) ?? rows[0]) : undefined;
+  // Detail card whenever ?p= is set (Matched + Batch), not only on enriched tab.
+  let person = p ? rows.find((r) => r.id === p) : (view === "enriched" ? rows[0] : undefined);
+  if (p && !person) {
+    const [fallback] = await db.select().from(connection).where(and(
+      eq(connection.batchId, id),
+      eq(connection.id, p),
+      eq(connection.orgId, user.orgId),
+    )).limit(1);
+    person = fallback;
+  }
 
   return (
     <Shell user={user} active="connections">
@@ -182,6 +191,50 @@ export default async function BatchPage(props: {
           </Link>
         ))}
       </nav>
+
+
+      {/* Selected person from Matched / People deeplink — show Enrich here */}
+      {person && view !== "enriched" && (
+        <div className="mt-6 bg-white border border-[#DDE2EE] rounded-[14px] shadow-[0_1px_2px_rgba(16,24,40,.04)] p-5 ui-fade-in">
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="text-xl font-semibold">{person.firstName} {person.lastName}</h2>
+            {person.linkedinUrl && (
+              <a href={person.linkedinUrl} target="_blank" className="text-sm text-[#263BAA] underline decoration-[#263BAA]/40 hover:text-[#1D2E86]">
+                Open profile ↗
+              </a>
+            )}
+            <span className="ml-auto"><StatusChip s={person.enrichStatus} /></span>
+          </div>
+          <p className="mt-1 text-sm text-[#475467]">
+            {person.positionRaw ?? person.headlineRaw ?? "—"}
+            {person.companyRaw ? ` · ${person.companyRaw}` : ""}
+            {person.country || person.location ? ` · ${person.country || person.location}` : ""}
+          </p>
+          <div className="mt-3 grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
+            <div><p className="text-xs text-[#98A2B3]">Fit</p>
+              <p className="mt-0.5">{person.serviceSlug ?? person.bucket ?? "—"} · score {person.score ?? "—"}</p></div>
+            <div><p className="text-xs text-[#98A2B3]">Why</p>
+              <p className="mt-0.5 text-[#475467]">{person.matchWhy ?? "—"}</p></div>
+          </div>
+          <div className="mt-4">
+            {person.enrichStatus === "done" ? (
+              <Link href={`/batches/${id}?view=enriched&p=${person.id}`}
+                className="text-sm text-[#263BAA] underline">View research →</Link>
+            ) : person.enrichStatus === "queued" || person.enrichStatus === "running" ? (
+              <div className="enrich-wait rounded-[10px] border border-[#E7CE96] bg-[#FEFBF3] p-4 text-sm text-[#B54708]">
+                <p className="font-medium radar-banner-text">Research in progress</p>
+                <p className="mt-1 text-[#475467]">Usually about a minute. Watch the top bar.</p>
+                <span className="mt-2 inline-flex radar-dots" aria-hidden><span /><span /><span /></span>
+              </div>
+            ) : (
+              <EnrichButton
+                label="Enrich"
+                action={enrichOne.bind(null, id, person.id, `view=${view}&p=${person.id}`)}
+              />
+            )}
+          </div>
+        </div>
+      )}
 
       {view === "enriched" ? (
         /* ── Two-pane enrichment view (design 1e) ── */
@@ -416,7 +469,7 @@ export default async function BatchPage(props: {
                         {c.enrichStatus === "pending" || c.enrichStatus === "failed" ? (
                           <EnrichRowButton
                             failed={c.enrichStatus === "failed"}
-                            action={enrichOne.bind(null, id, c.id, qs)}
+                            action={enrichOne.bind(null, id, c.id, `${qs}${qs ? "&" : ""}p=${c.id}`)}
                           />
                         ) : (
                           <StatusChip s={c.enrichStatus === "done" ? "done" : "researching"} />

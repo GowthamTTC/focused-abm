@@ -105,7 +105,11 @@ export async function enrichOne(batchId: string, connId: string, back: string = 
   if (!mine) redirect(backTo(batchId, back, "run=0"));
   await markSelection(batchId, [connId], true);
   await enqueue(user.orgId, "deep_enrich", { connectionIds: [connId] });
-  redirect(backTo(batchId, back, "run=1"));
+  // Always return to this person so the wait panel is visible (not a bare table).
+  const backQs = back && back.includes("p=")
+    ? back
+    : [back, `p=${connId}`].filter(Boolean).join("&");
+  redirect(backTo(batchId, backQs || `view=pitchable&p=${connId}`, "run=1"));
 }
 
 /** Quiet rescue action on Off-ICP / Peers rows (design 1d footer): promote a
