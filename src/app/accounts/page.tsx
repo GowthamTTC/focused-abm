@@ -3,7 +3,8 @@ import { Shell, requirePage } from "@/app/shell";
 import { ActivityBadge, ago } from "@/components/dash-bits";
 import { accountServices, loadAccounts } from "@/modules/accounts/query";
 import { listShortlistedKeys, shortlistCount } from "@/modules/accounts/shortlist";
-import { setAccountShortlist, startEnrichShortlist } from "./actions";
+import { setAccountShortlistState, startEnrichShortlist } from "./actions";
+import { ShortlistStar, ShortlistTextButton } from "@/components/shortlist-star";
 
 export default async function AccountsPage({ searchParams }: {
   searchParams: Promise<{
@@ -139,18 +140,15 @@ export default async function AccountsPage({ searchParams }: {
                 const starred = shortKeys.has(a.key);
                 return (
                   <li key={a.key} className="flex items-stretch">
-                    <form action={setAccountShortlist} className="flex items-center border-r border-[#EEF1F8] px-2">
-                      <input type="hidden" name="key" value={a.key} />
-                      <input type="hidden" name="name" value={a.name} />
-                      <input type="hidden" name="on" value={starred ? "0" : "1"} />
-                      <input type="hidden" name="view" value={view} />
-                      <button
-                        title={starred ? "Remove from shortlist" : "Add to shortlist"}
-                        className={`rounded px-2 py-1 text-[16px] leading-none ${starred ? "text-[#263BAA]" : "text-[#D0D5DD] hover:text-[#263BAA]"}`}
-                      >
-                        {starred ? "★" : "☆"}
-                      </button>
-                    </form>
+                    <div className="flex items-center border-r border-[#EEF1F8] px-2">
+                      <ShortlistStar
+                        starred={starred}
+                        companyKey={a.key}
+                        companyName={a.name}
+                        view={view}
+                        action={setAccountShortlistState}
+                      />
+                    </div>
                     <Link href={`${base}&a=${encodeURIComponent(a.key)}&page=${safePage}`}
                       className={`radar-row min-w-0 flex-1 block px-4 py-3 hover:bg-[#F4F6FB] ${selected?.key === a.key ? "bg-[#EEF1FC]" : ""}`}>
                       <div className="flex items-baseline justify-between gap-2">
@@ -196,19 +194,15 @@ export default async function AccountsPage({ searchParams }: {
                 {selected.tier1Count ? ` · ${selected.tier1Count} tier 1` : ""}
                 {selected.avgScore != null ? ` · avg score ${selected.avgScore}` : ""}
               </p>
-              <form action={setAccountShortlist} className="mt-3">
-                <input type="hidden" name="key" value={selected.key} />
-                <input type="hidden" name="name" value={selected.name} />
-                <input type="hidden" name="on" value={shortKeys.has(selected.key) ? "0" : "1"} />
-                <input type="hidden" name="view" value={view} />
-                <button className={`rounded-[8px] px-3 py-1.5 text-[12px] ${
-                  shortKeys.has(selected.key)
-                    ? "border border-[#DDE2EE] text-[#475467]"
-                    : "bg-[#263BAA] text-white"
-                }`}>
-                  {shortKeys.has(selected.key) ? "Remove from shortlist" : "Add to shortlist"}
-                </button>
-              </form>
+              <div className="mt-3">
+                <ShortlistTextButton
+                  starred={shortKeys.has(selected.key)}
+                  companyKey={selected.key}
+                  companyName={selected.name}
+                  view={view}
+                  action={setAccountShortlistState}
+                />
+              </div>
               {selected.services.length > 0 && (
                 <p className="mt-2 text-[12px] text-[#263BAA]">{selected.services.join(" · ")}</p>
               )}

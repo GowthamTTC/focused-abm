@@ -221,3 +221,24 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
   background-size: 200% 100%;
   animation: radar-shimmer 1.6s linear infinite;
 }
+
+@keyframes star-pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+@keyframes ui-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes soft-border-pulse {
+  0%, 100% { border-color: #E7CE96; box-shadow: 0 0 0 0 rgba(181, 71, 8, 0); }
+  50% { border-color: #D4A017; box-shadow: 0 0 0 3px rgba(181, 71, 8, 0.08); }
+}
+.star-pop { animation: star-pop 320ms ease; }
+.ui-fade-in { animation: ui-fade-in 220ms ease; }
+.enrich-wait {
+  animation: ui-fade-in 220ms ease, soft-border-pulse 1.8s ease-in-out infinite;
+}
+.btn-press:active { transform: scale(0.97); }
+.btn-press { transition: transform 120ms ease, background-color 130ms ease, opacity 130ms ease; }

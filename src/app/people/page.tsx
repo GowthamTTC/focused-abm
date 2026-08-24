@@ -73,7 +73,7 @@ export default async function PeoplePage(props: {
     <Shell user={user} active="people">
       <h1 className="text-2xl font-semibold">People</h1>
       <p className="mt-1 text-sm text-[#98A2B3]">
-        Fit people from Stage A. Company and country on every row. Open someone to see research — or an enrich prompt if not done yet.
+        Fit people from Stage A. Open someone to land on their batch card — research there, or press Enrich and wait.
       </p>
 
       <div className="mt-4 flex flex-wrap gap-1.5">
@@ -143,9 +143,14 @@ export default async function PeoplePage(props: {
               <tr key={p.id} className="hover:bg-[#F4F6FB]">
                 <td className="tnum py-2.5 pr-3 text-[#475467]">#{p.rank ?? "—"}</td>
                 <td className="py-2.5 pr-3 font-medium">
-                  <Link href={`/people/${p.id}`} className="text-[#101828] hover:text-[#263BAA]">
-                    {p.firstName} {p.lastName}
-                  </Link>
+                  {p.batchId ? (
+                    <Link href={`/batches/${p.batchId}?view=${p.enrichStatus === "done" ? "enriched" : "pitchable"}&p=${p.id}`}
+                      className="text-[#101828] hover:text-[#263BAA]">
+                      {p.firstName} {p.lastName}
+                    </Link>
+                  ) : (
+                    <span>{p.firstName} {p.lastName}</span>
+                  )}
                 </td>
                 <td className="max-w-[180px] truncate py-2.5 pr-3 text-[#475467]">{p.companyRaw ?? "—"}</td>
                 <td className="max-w-[120px] truncate py-2.5 pr-3 text-[#475467]">{p.country || p.location || "—"}</td>
@@ -166,9 +171,12 @@ export default async function PeoplePage(props: {
                   {p.lastPostAt ? p.lastPostAt.toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "—"}
                 </td>
                 <td className="py-2.5 text-right">
-                  <Link href={`/people/${p.id}`} className="text-xs text-[#263BAA] underline">
-                    {p.enrichStatus === "done" ? "research" : "open"}
-                  </Link>
+                  {p.batchId ? (
+                    <Link href={`/batches/${p.batchId}?view=${p.enrichStatus === "done" ? "enriched" : "pitchable"}&p=${p.id}`}
+                      className="text-xs text-[#263BAA] underline">
+                      {p.enrichStatus === "done" ? "research" : "open"}
+                    </Link>
+                  ) : "—"}
                 </td>
               </tr>
             ))}

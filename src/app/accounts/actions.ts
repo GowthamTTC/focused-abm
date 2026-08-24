@@ -20,6 +20,21 @@ export async function setAccountShortlist(formData: FormData) {
   redirect(`/accounts?${qs.toString()}`);
 }
 
+/** Client-friendly shortlist toggle (optimistic UI). */
+export async function setAccountShortlistState(
+  key: string,
+  name: string,
+  view: string,
+  on: boolean,
+) {
+  const user = await requireUser();
+  await toggleShortlist(user.orgId, key, name, on);
+  const qs = new URLSearchParams();
+  if (view === "shortlist") qs.set("view", "shortlist");
+  if (key) qs.set("a", key);
+  redirect(`/accounts?${qs.toString()}`);
+}
+
 export async function startEnrichShortlist() {
   const user = await requireUser();
   const result = await enrichShortlistedAccounts(user.orgId);

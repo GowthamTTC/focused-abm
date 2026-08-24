@@ -8,6 +8,7 @@ import { ExportCard } from "@/components/export-card";
 import { CopyButton } from "@/components/copy-button";
 import { bucketCounts } from "@/modules/matching/service-fit";
 import { enrichOne, enrichSelected, moveToPitchable, reclassifyAllAction, retryPerson, runClassify, scanActivity } from "./actions";
+import { EnrichButton, EnrichRowButton } from "@/components/enrich-button";
 import { SelectRows } from "@/components/select-rows";
 import { MAX_MANUAL_SELECT } from "@/modules/enrich/limits";
 import { getDailyEnrichUsage } from "@/modules/enrich/usage";
@@ -241,11 +242,22 @@ export default async function BatchPage(props: {
                     </form>
                   </div>
                 ) : person.enrichStatus !== "done" ? (
-                  <p className="mt-2 bg-white border border-[#DDE2EE] rounded-[10px] shadow-[0_1px_2px_rgba(16,24,40,.04)] p-4 text-sm text-[#98A2B3]">
-                    {person.enrichStatus === "pending"
-                      ? "Not researched yet — press Enrich on their row in Matched."
-                      : "Reading profile now…"}
-                  </p>
+                  person.enrichStatus === "queued" || person.enrichStatus === "running" ? (
+                    <div className="enrich-wait mt-2 rounded-[10px] border border-[#E7CE96] bg-[#FEFBF3] p-4 text-sm text-[#B54708]">
+                      <p className="font-medium radar-banner-text">Research in progress</p>
+                      <p className="mt-1 text-[#475467]">
+                        Usually about a minute. Watch the top bar — this card updates when research finishes.
+                      </p>
+                      <span className="mt-2 inline-flex radar-dots" aria-hidden><span /><span /><span /></span>
+                    </div>
+                  ) : (
+                    <div className="mt-2">
+                      <EnrichButton
+                        label="Enrich"
+                        action={enrichOne.bind(null, id, person.id, `view=pitchable&p=${person.id}`)}
+                      />
+                    </div>
+                  )
                 ) : (
                   <div className="mt-2 space-y-5 rounded-[10px] border border-[#B54708]/15 bg-[#B54708]/[.04] p-4 text-sm">
                     <div>
@@ -402,13 +414,10 @@ export default async function BatchPage(props: {
                       <td className="tnum px-3 py-2.5 text-right text-[#475467]">{c.score ?? "—"}</td>
                       <td className="px-3 py-2.5 text-right">
                         {c.enrichStatus === "pending" || c.enrichStatus === "failed" ? (
-                          <button formAction={enrichOne.bind(null, id, c.id, qs)}
-                            title={c.enrichStatus === "failed"
-                              ? `Research ${c.firstName} again`
-                              : `Research ${c.firstName} now — one person, one credit`}
-                            className="whitespace-nowrap rounded-[8px] border border-[#DDE2EE] px-2.5 py-1 text-xs text-[#475467] hover:border-[#263BAA] hover:text-[#263BAA]">
-                            {c.enrichStatus === "failed" ? "Retry" : "Enrich"}
-                          </button>
+                          <EnrichRowButton
+                            failed={c.enrichStatus === "failed"}
+                            action={enrichOne.bind(null, id, c.id, qs)}
+                          />
                         ) : (
                           <StatusChip s={c.enrichStatus === "done" ? "done" : "researching"} />
                         )}
