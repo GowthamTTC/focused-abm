@@ -341,15 +341,29 @@ export default async function BatchPage(props: {
                     <div>
                       <p className="text-xs text-[#B54708]">Service to pitch</p>
                       <p className="mt-1">
-                        {person.serviceConfirmed && person.serviceConfirmed !== person.serviceSlug ? (
-                          <><span className="tnum text-[#98A2B3] line-through">{person.serviceSlug}</span>
-                            <span className="mx-1.5 text-[#98A2B3]">→</span>
-                            <span className="tnum text-[#101828]">{person.serviceConfirmed}</span></>
-                        ) : (
-                          <span className="tnum">{person.serviceConfirmed ?? person.serviceSlug ?? "—"}</span>
-                        )}
-                        {person.correctionReason && <span className="text-[#475467]"> — {person.correctionReason}</span>}
-                      </p>
+                        {(() => {
+                          const provisional = (person.serviceSlug ?? "").trim();
+                          const confirmed = (person.serviceConfirmed ?? "").trim();
+                          const changed = Boolean(
+                            confirmed && provisional && confirmed.toLowerCase() !== provisional.toLowerCase(),
+                          );
+                          return (
+                            <>
+                              {changed ? (
+                                <>
+                                  <span className="tnum text-[#98A2B3] line-through">{provisional}</span>
+                                  <span className="mx-1.5 text-[#98A2B3]">→</span>
+                                  <span className="tnum text-[#101828]">{confirmed}</span>
+                                </>
+                              ) : (
+                                <span className="tnum">{confirmed || provisional || "—"}</span>
+                              )}
+                              {person.correctionReason && (
+                                <span className="text-[#475467]"> — {person.correctionReason}</span>
+                              )}
+                            </>
+                          );
+                        })()}                      </p>
                       {person.flag && (
                         <p className="mt-1.5">
                           <span className="rounded border border-red-400/50 px-1.5 py-px text-[10px] text-[#B42318]">⚑ flag</span>

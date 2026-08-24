@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Shell, requirePage } from "@/app/shell";
 import { ActivityBadge, ago } from "@/components/dash-bits";
-import { accountServices, loadAccounts } from "@/modules/accounts/query";
+import { accountCompanies, accountCountries, accountServices, loadAccounts, pitchableTotals } from "@/modules/accounts/query";
 import { listShortlistedKeys, shortlistCount } from "@/modules/accounts/shortlist";
 import { setAccountShortlistState, startEnrichShortlist } from "./actions";
 import { ShortlistStar, ShortlistTextButton } from "@/components/shortlist-star";
@@ -9,7 +9,7 @@ import { ShortlistStar, ShortlistTextButton } from "@/components/shortlist-star"
 export default async function AccountsPage({ searchParams }: {
   searchParams: Promise<{
     q?: string; svc?: string; min?: string; a?: string; page?: string; size?: string;
-    view?: string; enriched?: string; minScore?: string;
+    view?: string; enriched?: string; minScore?: string; country?: string; company?: string;
   }>;
 }) {
   const user = await requirePage();
@@ -21,12 +21,24 @@ export default async function AccountsPage({ searchParams }: {
   const page = Math.max(1, Number(sp.page) || 1);
   const view = sp.view === "shortlist" ? "shortlist" : "all";
   const minScore = sp.minScore && Number(sp.minScore) > 0 ? Number(sp.minScore) : 0;
+  const country = (sp.country ?? "").trim();
+  const company = (sp.company ?? "").trim();
 
-  const [allAccounts, services, shortKeys, nShort] = await Promise.all([
-    loadAccounts(user.orgId, { q: q || undefined, service: svc || undefined, minPeople: min, minScore: minScore || undefined }),
+  const [allAccounts, services, companies, countries, shortKeys, nShort, totals] = await Promise.all([
+    loadAccounts(user.orgId, {
+      q: q || undefined,
+      service: svc || undefined,
+      minPeople: min,
+      minScore: minScore || undefined,
+      country: country || undefined,
+      company: company || undefined,
+    }),
     accountServices(user.orgId),
+    accountCompanies(user.orgId),
+    accountCountries(user.orgId),
     listShortlistedKeys(user.orgId),
     shortlistCount(user.orgId),
+    pitchableTotals(user.orgId),
   ]);
 
   const accounts = view === "shortlist"
@@ -60,8 +72,16 @@ export default async function AccountsPage({ searchParams }: {
         </div>
         <div className="flex flex-wrap items-center gap-2 text-[13px]">
           <form action="/accounts" method="get" className="flex flex-wrap items-center gap-2">
-            <input name="q" defaultValue={q} placeholder="Company or person"
-              className="w-44 rounded-[8px] border border-[#DDE2EE] bg-white px-2 py-1.5" />
+            <select name="company" defaultValue={company} className="max-w-[180px] rounded-[8px] border border-[#DDE2EE] bg-white px-2 py-1.5">
+              <option value="">All companies</option>
+              {companies.map((c) => <option key={c.key} value={c.name}>{c.name}</option>)}
+            </select>
+            <select name="country" defaultValue={country} className="rounded-[8px] border border-[#DDE2EE] bg-white px-2 py-1.5">
+              <option value="">All countries</option>
+              {countries.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <input name="q" defaultValue={q} placeholder="Search person…"
+              className="w-36 rounded-[8px] border border-[#DDE2EE] bg-white px-2 py-1.5" />
             <select name="svc" defaultValue={svc} className="rounded-[8px] border border-[#DDE2EE] bg-white px-2 py-1.5">
               <option value="">All ICPs</option>
               {services.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -109,20 +129,20 @@ export default async function AccountsPage({ searchParams }: {
         <div className="radar-stat rounded-[14px] border border-[#DDE2EE] bg-white p-4">
           <p className="tnum text-[26px] leading-8">{accounts.length}</p>
           <p className="mt-0.5 text-[10px] uppercase tracking-wider text-[#98A2B3]">
-            {view === "shortlist" ? "Shortlisted" : "Accounts"}
+            {view === "shortlist" ? "Shortlisted" : "Companies in view"}
           </p>
         </div>
         <div className="radar-stat rounded-[14px] border border-[#DDE2EE] bg-white p-4">
           <p className="tnum text-[26px] leading-8">{accounts.reduce((n, a) => n + a.peopleCount, 0)}</p>
-          <p className="mt-0.5 text-[10px] uppercase tracking-wider text-[#98A2B3]">Pitchable people</p>
+          <p className="mt-0.5 text-[10px] uppercase tracking-wider text-[#98A2B3]">People in view</p>
+        </div>
+        <div className="radar-stat rounded-[14px] border border-[#DDE2EE] bg-white p-4">
+          <p className="tnum text-[26px] leading-8">{totals.people}</p>
+          <p className="mt-0.5 text-[10px] uppercase tracking-wider text-[#98A2B3]">All pitchable</p>
         </div>
         <div className="radar-stat rounded-[14px] border border-[#DDE2EE] bg-white p-4">
           <p className="tnum text-[26px] leading-8">{nShort}</p>
           <p className="mt-0.5 text-[10px] uppercase tracking-wider text-[#98A2B3]">On shortlist</p>
-        </div>
-        <div className="radar-stat rounded-[14px] border border-[#DDE2EE] bg-white p-4">
-          <p className="tnum text-[26px] leading-8">{accounts.reduce((n, a) => n + a.tier1Count, 0)}</p>
-          <p className="mt-0.5 text-[10px] uppercase tracking-wider text-[#98A2B3]">Tier 1 seats</p>
         </div>
       </section>
 
@@ -158,6 +178,7 @@ export default async function AccountsPage({ searchParams }: {
                       <p className="mt-0.5 text-[12px] text-[#475467]">
                         {a.tier1Count > 0 ? `${a.tier1Count} tier 1 · ` : ""}
                         {a.services.length ? a.services.slice(0, 3).join(", ") : "no ICP yet"}
+                        {a.countries?.length ? ` · ${a.countries.slice(0, 2).join(", ")}` : ""}
                         {a.sentCount > 0 ? ` · ${a.sentCount} sent` : ""}
                       </p>
                       {a.lastActivity && (

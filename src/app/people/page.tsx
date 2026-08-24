@@ -3,10 +3,16 @@ import { and, eq, gte, ilike, or, sql } from "drizzle-orm";
 import { db, connection } from "@/db";
 import { Shell, requirePage } from "@/app/shell";
 
+function parseCity(location: string | null): string | null {
+  if (!location) return null;
+  const parts = location.split(",").map((s) => s.trim()).filter(Boolean);
+  return parts[0] || null;
+}
+
 export default async function PeoplePage(props: {
   searchParams: Promise<{
     q?: string; svc?: string; page?: string; view?: string;
-    loc?: string; country?: string; minScore?: string; fit?: string;
+    city?: string; country?: string; minScore?: string; fit?: string;
   }>;
 }) {
   const user = await requirePage();
@@ -14,10 +20,10 @@ export default async function PeoplePage(props: {
   const q = sp.q ?? "";
   const svc = sp.svc ?? "";
   const view = sp.view ?? "";
-  const loc = sp.loc ?? "";
+  const city = sp.city ?? "";
   const country = sp.country ?? "";
   const minScore = sp.minScore && Number(sp.minScore) > 0 ? Number(sp.minScore) : 0;
-  const fit = sp.fit ?? ""; // fit | not | ""
+  const fit = sp.fit ?? "";
   const PAGE = 15;
   const pg = Math.max(1, Number(sp.page) || 1);
 
@@ -28,15 +34,10 @@ export default async function PeoplePage(props: {
     ? [eq(connection.bucket, "pitchable")]
     : fit === "not"
       ? [sql`bucket is distinct from 'pitchable'`]
-      : view
-        ? [] // view chips still restrict pitchable for legacy views
-        : [];
+      : [];
 
-  const baseBucket = fit
-    ? bucketFilter
-    : [eq(connection.bucket, "pitchable")];
+  const baseBucket = fit ? bucketFilter : [eq(connection.bucket, "pitchable")];
 
-  // Legacy views always on pitchable
   const where = and(
     eq(connection.orgId, user.orgId),
     ...baseBucket,
@@ -44,8 +45,8 @@ export default async function PeoplePage(props: {
     ...(view === "quiet" ? [sql`(last_post_at < ${monthAgo} or last_post_at is null)`] : []),
     ...(view === "week" ? [sql`last_post_at >= ${weekAgo}`] : []),
     ...(view === "sent" ? [sql`sent_at is not null`] : []),
-    ...(loc ? [sql`location ilike ${"%" + loc + "%"}`] : []),
-    ...(country ? [or(ilike(connection.country, `%${country}%`), ilike(connection.location, `%${country}%`))] : []),
+    ...(city ? [sql`location ilike ${city + "%"}`] : []),
+    ...(country ? [or(eq(connection.country, country), ilike(connection.location, `%${country}%`))] : []),
     ...(minScore > 0 ? [gte(connection.score, minScore)] : []),
     ...(q ? [or(ilike(connection.firstName, `%${q}%`), ilike(connection.lastName, `%${q}%`), ilike(connection.companyRaw, `%${q}%`))] : []),
     ...(svc ? [eq(connection.serviceSlug, svc)] : []),
@@ -54,10 +55,22 @@ export default async function PeoplePage(props: {
   const rows = await db.select().from(connection).where(where)
     .orderBy(sql`rank asc nulls last`).limit(PAGE).offset((pg - 1) * PAGE);
   const [{ n: totalN }] = await db.select({ n: sql<number>`count(*)::int` }).from(connection).where(where);
+
+  // Dropdown options from pitchable pool (and current filters for city under country)
+  const optionBase = and(
+    eq(connection.orgId, user.orgId),
+    eq(connection.bucket, "pitchable"),
+    ...(country ? [or(eq(connection.country, country), ilike(connection.location, `%${country}%`))] : []),
+  );
   const services = await db.selectDistinct({ s: connection.serviceSlug }).from(connection)
-    .where(and(eq(connection.orgId, user.orgId), eq(connection.bucket, "pitchable")));
-  const countries = await db.selectDistinct({ c: connection.country }).from(connection)
-    .where(and(eq(connection.orgId, user.orgId), sql`country is not null and country <> ''`));
+    .where(and(eq(connection.orgId, user.orgId), eq(connection.bucket, "pitchable"), sql`service_slug is not null`));
+  const countryRows = await db.selectDistinct({ c: connection.country }).from(connection)
+    .where(and(eq(connection.orgId, user.orgId), eq(connection.bucket, "pitchable"), sql`country is not null and country <> ''`));
+  const locRows = await db.selectDistinct({ l: connection.location }).from(connection)
+    .where(and(optionBase, sql`location is not null and location <> ''`));
+  const cities = [...new Set(locRows.map((r) => parseCity(r.l)).filter(Boolean) as string[])].sort();
+  const countries = countryRows.map((r) => r.c!).filter(Boolean).sort();
+
   const [agg] = await db.select({
     t1: sql<number>`count(*) filter (where tier = 1)::int`,
     enriched: sql<number>`count(*) filter (where enrich_status = 'done')::int`,
@@ -66,7 +79,7 @@ export default async function PeoplePage(props: {
   const pages = Math.max(1, Math.ceil(totalN / PAGE));
   const qs = (over: Record<string, string | number>) =>
     "/people?" + Object.entries({
-      q, svc, view, loc, country, minScore: minScore || "", fit, page: pg, ...over,
+      q, svc, view, city, country, minScore: minScore || "", fit, page: pg, ...over,
     }).filter(([, v]) => v !== "" && v !== 0).map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`).join("&");
 
   return (
@@ -79,7 +92,7 @@ export default async function PeoplePage(props: {
       <div className="mt-4 flex flex-wrap gap-1.5">
         {([["", "All fit"], ["t1", "Tier 1"], ["quiet", "Going quiet"], ["week", "Posted this week"], ["sent", "Sent"]] as const).map(([v, label]) => (
           <Link key={v} href={qs({ view: v, fit: "", page: 1 })}
-            className={`rounded-[8px] border px-3 py-1.5 text-[12.5px] transition-colors duration-[130ms] ${view === v && !fit
+            className={`rounded-[8px] border px-3 py-1.5 text-[12.5px] ${view === v && !fit
               ? "border-[#263BAA] bg-[#EEF1FC] text-[#263BAA]" : "border-[#DDE2EE] text-[#475467] hover:bg-[#F4F6FB]"}`}>{label}</Link>
         ))}
         {([["fit", "Fit"], ["not", "Not fit"]] as const).map(([v, label]) => (
@@ -100,13 +113,14 @@ export default async function PeoplePage(props: {
           <input type="hidden" name="fit" value={fit} />
           <input name="q" defaultValue={q} placeholder="Search name or company…"
             className="w-56 rounded-[10px] border border-[#DDE2EE] bg-white px-3 py-2 text-sm" />
-          <input name="country" defaultValue={country} placeholder="Country…"
-            className="w-32 rounded-[10px] border border-[#DDE2EE] bg-white px-3 py-2 text-sm" list="country-list" />
-          <datalist id="country-list">
-            {countries.map((x) => x.c && <option key={x.c} value={x.c} />)}
-          </datalist>
-          <input name="loc" defaultValue={loc} placeholder="Location…"
-            className="w-32 rounded-[10px] border border-[#DDE2EE] bg-white px-3 py-2 text-sm" />
+          <select name="country" defaultValue={country} className="rounded-[10px] border border-[#DDE2EE] bg-white px-3 py-2 text-sm">
+            <option value="">All countries</option>
+            {countries.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <select name="city" defaultValue={city} className="rounded-[10px] border border-[#DDE2EE] bg-white px-3 py-2 text-sm max-w-[180px]">
+            <option value="">All cities</option>
+            {cities.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
           <select name="svc" defaultValue={svc} className="rounded-[10px] border border-[#DDE2EE] bg-white px-3 py-2 text-sm">
             <option value="">All ICPs</option>
             {services.map((x) => x.s && <option key={x.s} value={x.s}>{x.s}</option>)}
@@ -122,6 +136,7 @@ export default async function PeoplePage(props: {
 
         <p className="mt-3 text-[12px] text-[#98A2B3]">
           {agg?.t1 ?? 0} tier 1 · {agg?.enriched ?? 0} researched · avg score {agg?.avgScore ?? 0}
+          {totalN != null && <> · <span className="tnum">{totalN.toLocaleString()}</span> in this filter</>}
         </p>
 
         <div className="pane-scroll mt-4 max-h-[52vh]"><table className="w-full text-left text-sm">
@@ -130,6 +145,7 @@ export default async function PeoplePage(props: {
               <th className="py-2 pr-3">Rank</th>
               <th className="py-2 pr-3">Name</th>
               <th className="py-2 pr-3">Company</th>
+              <th className="py-2 pr-3">City</th>
               <th className="py-2 pr-3">Country</th>
               <th className="py-2 pr-3">Fit</th>
               <th className="py-2 pr-3">Score</th>
@@ -152,8 +168,9 @@ export default async function PeoplePage(props: {
                     <span>{p.firstName} {p.lastName}</span>
                   )}
                 </td>
-                <td className="max-w-[180px] truncate py-2.5 pr-3 text-[#475467]">{p.companyRaw ?? "—"}</td>
-                <td className="max-w-[120px] truncate py-2.5 pr-3 text-[#475467]">{p.country || p.location || "—"}</td>
+                <td className="max-w-[160px] truncate py-2.5 pr-3 text-[#475467]">{p.companyRaw ?? "—"}</td>
+                <td className="max-w-[100px] truncate py-2.5 pr-3 text-[#475467]">{parseCity(p.location) ?? "—"}</td>
+                <td className="max-w-[100px] truncate py-2.5 pr-3 text-[#475467]">{p.country ?? "—"}</td>
                 <td className="py-2.5 pr-3">
                   <span className={`rounded px-1.5 py-0.5 text-[11px] ${
                     p.bucket === "pitchable" ? "bg-[#ECFDF3] text-[#067647]" : "bg-[#F4F6FB] text-[#475467]"
