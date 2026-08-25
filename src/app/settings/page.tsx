@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { db, channelAccount } from "@/db";
 import { unipileConfigured } from "@/lib/env";
 import { Shell, requirePage } from "@/app/shell";
-import { disconnect, refreshStatus, saveClassifyCap, saveEnrichLimit, scanVoice, startConnect } from "./actions";
+import { claimLinkedInSeats, disconnect, refreshStatus, saveClassifyCap, saveEnrichLimit, scanVoice, startConnect } from "./actions";
 import { CLASSIFY_CAP_OPTIONS, ENRICH_LIMIT_OPTIONS, getOrgSettings } from "@/modules/settings/org-settings";
 import { getDailyEnrichUsage } from "@/modules/enrich/usage";
 import { UsageMeter } from "@/components/usage-meter";
@@ -24,9 +24,19 @@ function Segmented({ name, options, current, allLabel }: {
   );
 }
 
-export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ saved?: string }> }) {
+export default async function SettingsPage({ searchParams }: {
+  searchParams: Promise<{ saved?: string; connected?: string; connect_failed?: string }>;
+}) {
   const user = await requirePage();
-  const { saved } = await searchParams;
+  const sp = await searchParams;
+  const { saved, connected, connect_failed } = sp;
+
+  // After hosted auth redirect, claim seats even if webhook was missed.
+  if (connected === "1") {
+    const { claimAccountsForUser } = await import("@/modules/channel/claim");
+    await claimAccountsForUser({ orgId: user.orgId, userId: user.userId });
+  }
+
   const accounts = await db.select().from(channelAccount)
     .where(eq(channelAccount.orgId, user.orgId));
   const settings = await getOrgSettings(user.orgId);
@@ -80,14 +90,31 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
               The connected account is used to sync your connections and read the Top-N profiles.
             </p>
           </div>
-          <form action={startConnect}>
-            <button className="rounded-[8px] bg-[#263BAA] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1D2E86]">
-              Connect LinkedIn
-            </button>
-          </form>
+          <div className="flex flex-wrap gap-2">
+            <form action={startConnect}>
+              <button className="rounded-[8px] bg-[#263BAA] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1D2E86]">
+                Connect LinkedIn
+              </button>
+            </form>
+            <form action={claimLinkedInSeats}>
+              <button type="submit" className="rounded-[8px] border border-[#DDE2EE] bg-white px-4 py-2 text-sm text-[#475467] hover:bg-[#F4F6FB]">
+                Refresh from Unipile
+              </button>
+            </form>
+          </div>
         </div>
+        {connected === "1" && (
+          <p className="mt-3 text-sm text-[#067647]">
+            {accounts.length > 0
+              ? "LinkedIn seat linked to this workspace."
+              : "Connect finished — if the seat is still missing, wait a few seconds and press Refresh from Unipile."}
+          </p>
+        )}
+        {connect_failed === "1" && (
+          <p className="mt-3 text-sm text-[#B42318]">LinkedIn connect did not finish. Try Connect LinkedIn again.</p>
+        )}
         <ul className="mt-4 divide-y divide-[#EEF1F8] bg-white border border-[#DDE2EE] rounded-[10px] shadow-[0_1px_2px_rgba(16,24,40,.04)]">
-          {accounts.length === 0 && <li className="p-4 text-sm text-[#98A2B3]">No account connected yet.</li>}
+          {accounts.length === 0 && <li className="p-4 text-sm text-[#98A2B3]">No account connected yet. Use Connect LinkedIn, or Refresh from Unipile if the seat already exists in Unipile.</li>}
           {accounts.map((a) => (
             <li key={a.id} className="flex items-center justify-between gap-4 p-4 text-sm">
               <div className="min-w-0">

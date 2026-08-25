@@ -71,7 +71,7 @@ export async function loadAccounts(
     ...(opts.service ? [eq(connection.serviceSlug, opts.service)] : []),
     ...(opts.minScore && opts.minScore > 0 ? [sql`score >= ${opts.minScore}`] : []),
     ...(opts.country
-      ? [sql`(country ilike ${opts.country} or location ilike ${"%" + opts.country + "%"})`]
+      ? [sql`(country = ${opts.country} or location ilike ${"%," + opts.country} or location = ${opts.country})`]
       : []),
   ));
 
@@ -184,14 +184,20 @@ export async function accountCompanies(orgId: string): Promise<{ key: string; na
 }
 
 export async function accountCountries(orgId: string): Promise<string[]> {
-  const rows = await db.selectDistinct({ c: connection.country }).from(connection)
-    .where(and(
-      eq(connection.orgId, orgId),
-      eq(connection.bucket, "pitchable"),
-      isNotNull(connection.country),
-      ne(connection.country, ""),
-    ));
-  return rows.map((r) => r.c!).filter(Boolean).sort();
+  const { resolveCountry, isLikelyCountry } = await import("@/lib/geo-parse");
+  const rows = await db.select({
+    country: connection.country,
+    location: connection.location,
+  }).from(connection).where(and(
+    eq(connection.orgId, orgId),
+    eq(connection.bucket, "pitchable"),
+  ));
+  const set = new Set<string>();
+  for (const r of rows) {
+    const c = resolveCountry(r.country, r.location);
+    if (c && isLikelyCountry(c)) set.add(c);
+  }
+  return [...set].sort((a, b) => a.localeCompare(b));
 }
 
 /** Org-wide pitchable totals (not limited by account filters). */

@@ -1,30 +1,31 @@
 /**
  * Unipile hosted-auth notify: fires when the user finishes connecting.
  * Body includes account_id + the name we passed (our userRef).
- * Protected by WEBHOOK_SECRET (header x-fabm-webhook-secret or Authorization: Bearer).
+ * Auth: WEBHOOK_SECRET via header OR ?token= query (Unipile often cannot set custom headers).
  */
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
-import { db, appUser, channelAccount } from "@/db";
+import { db, appUser } from "@/db";
 import { getChannelProvider } from "@/providers/channel";
 import { env } from "@/lib/env";
 import { audit } from "@/lib/security/audit";
 import { rateLimit } from "@/lib/security/rate-limit";
 import { clientIp } from "@/lib/security/client-ip";
+import { upsertChannelAccount } from "@/modules/channel/claim";
 
 function secretOk(req: Request): boolean {
   const expected = env.WEBHOOK_SECRET;
   if (!expected) {
-    // Production must set WEBHOOK_SECRET. Without it, only allow non-production hosts.
     const host = req.headers.get("host") ?? "";
     return host.startsWith("localhost") || host.startsWith("127.");
   }
-  const header = req.headers.get("x-fabm-webhook-secret")
+  const url = new URL(req.url);
+  const token = url.searchParams.get("token")
+    ?? req.headers.get("x-fabm-webhook-secret")
     ?? req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-  if (!header || header.length !== expected.length) return false;
-  // timing-safe compare
+  if (!token || token.length !== expected.length) return false;
   let diff = 0;
-  for (let i = 0; i < expected.length; i++) diff |= header.charCodeAt(i) ^ expected.charCodeAt(i);
+  for (let i = 0; i < expected.length; i++) diff |= token.charCodeAt(i) ^ expected.charCodeAt(i);
   return diff === 0;
 }
 
@@ -34,42 +35,33 @@ export async function POST(req: Request) {
   if (!rl.ok) return NextResponse.json({ ok: false }, { status: 429 });
 
   if (!secretOk(req)) {
-    return NextResponse.json({ ok: false }, { status: 401 });
+    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
 
   const body = await req.json().catch(() => null) as
-    { account_id?: string; name?: string; status?: string } | null;
-  if (!body?.account_id || !body?.name) {
-    return NextResponse.json({ ok: false }, { status: 400 });
+    { account_id?: string; name?: string; status?: string; AccountStatus?: string } | null;
+  const accountId = body?.account_id;
+  const userRef = body?.name;
+  if (!accountId || !userRef) {
+    return NextResponse.json({ ok: false, error: "missing_fields" }, { status: 400 });
   }
 
-  // name is our userRef (user id) — never fall back to "any user"
-  const [u] = await db.select().from(appUser).where(eq(appUser.id, body.name)).limit(1);
-  if (!u) return NextResponse.json({ ok: false }, { status: 404 });
+  const [u] = await db.select().from(appUser).where(eq(appUser.id, userRef)).limit(1);
+  if (!u) return NextResponse.json({ ok: false, error: "user_not_found" }, { status: 404 });
 
   let displayName: string | null = null;
   try {
-    displayName = (await getChannelProvider().getAccountStatus(body.account_id)).displayName;
+    displayName = (await getChannelProvider().getAccountStatus(accountId)).displayName;
   } catch { /* cosmetic */ }
 
-  const existing = await db.select().from(channelAccount)
-    .where(eq(channelAccount.unipileAccountId, body.account_id));
-  if (existing.length === 0) {
-    await db.insert(channelAccount).values({
-      orgId: u.orgId, unipileAccountId: body.account_id, status: "operational",
-      displayName,
-    });
-  } else {
-    await db.update(channelAccount).set({
-      status: "operational",
-      ...(displayName ? { displayName } : {}),
-    }).where(eq(channelAccount.unipileAccountId, body.account_id));
-  }
-
-  await audit(u.orgId, u.email, "channel.linkedin_connected", {
-    accountId: body.account_id.slice(0, 12),
-    ip,
+  await upsertChannelAccount({
+    orgId: u.orgId,
+    unipileAccountId: accountId,
+    displayName,
+    status: "operational",
   });
+
+  await audit(u.orgId, u.id, "channel.linked", { accountId: accountId.slice(0, 12), via: "webhook" });
 
   return NextResponse.json({ ok: true });
 }

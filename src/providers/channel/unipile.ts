@@ -132,6 +132,23 @@ export class UnipileChannelProvider implements ChannelProvider {
     return { status, displayName: acc.name ?? acc.connection_params?.im?.username ?? null };
   }
 
+  async listAccounts() {
+    const page = await uni<{
+      items?: {
+        id?: string;
+        name?: string;
+        connection_params?: { im?: { username?: string } };
+      }[];
+    }>("/accounts");
+    return (page.items ?? [])
+      .filter((a) => a.id)
+      .map((a) => ({
+        id: a.id!,
+        name: a.name ?? null,
+        displayName: a.name ?? a.connection_params?.im?.username ?? null,
+      }));
+  }
+
   async fetchRelations(input: { accountId: string; cursor: string | null; limit: number }) {
     const qs = new URLSearchParams({ account_id: input.accountId, limit: String(input.limit) });
     if (input.cursor) qs.set("cursor", input.cursor);

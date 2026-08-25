@@ -10,13 +10,26 @@ import { getChannelProvider } from "@/providers/channel";
 
 export async function startConnect() {
   const user = await requireUser();
+  // Put token in query — Unipile notify often cannot send custom headers.
+  const secret = env.WEBHOOK_SECRET;
+  const notifyUrl = secret
+    ? `${env.APP_URL}/api/webhooks/unipile?token=${encodeURIComponent(secret)}`
+    : `${env.APP_URL}/api/webhooks/unipile`;
   const { url } = await getChannelProvider().createHostedAuthLink({
     userRef: user.userId,
     successRedirectUrl: `${env.APP_URL}/settings?connected=1`,
     failureRedirectUrl: `${env.APP_URL}/settings?connect_failed=1`,
-    notifyUrl: `${env.APP_URL}/api/webhooks/unipile`,
+    notifyUrl,
   });
   redirect(url);
+}
+
+/** Post-connect / recovery: pull Unipile seats and attach to this org. */
+export async function claimLinkedInSeats() {
+  const user = await requireUser();
+  const { claimAccountsForUser } = await import("@/modules/channel/claim");
+  await claimAccountsForUser({ orgId: user.orgId, userId: user.userId });
+  redirect("/settings?connected=1");
 }
 
 export async function refreshStatus(accountId: string) {

@@ -62,6 +62,9 @@ export interface ChannelProvider {
 
   getAccountStatus(accountId: string): Promise<{ status: AccountStatus; displayName: string | null }>;
 
+  /** All seats on the Unipile workspace (for post-connect claim). */
+  listAccounts(): Promise<{ id: string; name: string | null; displayName: string | null }[]>;
+
   fetchRelations(input: {
     accountId: string;
     cursor: string | null;

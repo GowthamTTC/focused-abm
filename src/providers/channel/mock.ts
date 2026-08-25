@@ -50,6 +50,10 @@ export class MockChannelProvider implements ChannelProvider {
     return { url: "/api/mock/hosted-auth" };
   }
 
+  async listAccounts() {
+    return [{ id: "mock-seat", name: "mock-user", displayName: "Mock Seat" }];
+  }
+
   async getAccountStatus(): Promise<{ status: "operational"; displayName: string }> {
     return { status: "operational", displayName: "Mock LinkedIn (demo)" };
   }
