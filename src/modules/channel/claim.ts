@@ -1,9 +1,9 @@
 /**
- * Ensure a Unipile LinkedIn seat is linked to an org in channel_account.
- * Used by webhook + post-connect claim so Settings never stays empty after a successful Unipile connect.
+ * Link Unipile LinkedIn seats to an org.
+ * Paths: webhook upsert, post-connect claim, Refresh from Unipile.
  */
-import { eq } from "drizzle-orm";
-import { db, channelAccount } from "@/db";
+import { and, eq, sql } from "drizzle-orm";
+import { db, activityLog, channelAccount } from "@/db";
 import { getChannelProvider } from "@/providers/channel";
 
 function newId() {
@@ -38,17 +38,23 @@ export async function upsertChannelAccount(input: {
     displayName: input.displayName ?? row.displayName,
   }).where(eq(channelAccount.unipileAccountId, input.unipileAccountId));
 
-  return {
-    linked: true as const,
-    moved: row.orgId !== input.orgId,
-  };
+  return { linked: true as const, moved: row.orgId !== input.orgId };
 }
 
-/**
- * After hosted auth, Unipile stores our user id in the account `name` field.
- * List workspace accounts and claim any whose name matches this user.
- * Fallback: if exactly one Unipile seat is not in our DB, claim it for this org.
- */
+/** Mark that this user started Connect LinkedIn (used if webhook is slow). */
+export async function markConnectStarted(orgId: string, userId: string) {
+  try {
+    await db.insert(activityLog).values({
+      orgId,
+      actor: userId.slice(0, 200),
+      action: "channel.connect_started",
+      detailJson: { at: new Date().toISOString() },
+    });
+  } catch {
+    /* non-fatal */
+  }
+}
+
 export async function claimAccountsForUser(input: {
   orgId: string;
   userId: string;
@@ -62,32 +68,52 @@ export async function claimAccountsForUser(input: {
   }
 
   const ids: string[] = [];
-
-  for (const a of accounts) {
-    if (a.name === input.userId) {
-      await upsertChannelAccount({
-        orgId: input.orgId,
-        unipileAccountId: a.id,
-        displayName: a.displayName,
-      });
-      ids.push(a.id);
-    }
-  }
-
-  if (ids.length > 0) return { claimed: ids.length, ids };
-
-  const known = await db.select({ id: channelAccount.unipileAccountId }).from(channelAccount);
-  const knownSet = new Set(known.map((k) => k.id));
-  const unknown = accounts.filter((a) => !knownSet.has(a.id));
-
-  if (unknown.length === 1) {
-    const a = unknown[0]!;
+  const claim = async (a: { id: string; displayName: string | null }) => {
+    if (ids.includes(a.id)) return;
     await upsertChannelAccount({
       orgId: input.orgId,
       unipileAccountId: a.id,
       displayName: a.displayName,
     });
     ids.push(a.id);
+  };
+
+  // 1) Hosted-auth userRef stored as Unipile account name
+  for (const a of accounts) {
+    if (a.name === input.userId) await claim(a);
+  }
+  if (ids.length > 0) return { claimed: ids.length, ids };
+
+  const known = await db.select({ id: channelAccount.unipileAccountId }).from(channelAccount);
+  const knownSet = new Set(known.map((k) => k.id));
+  const unknown = accounts.filter((a) => !knownSet.has(a.id));
+
+  // 2) Exactly one seat not in our DB → claim it
+  if (unknown.length === 1) {
+    await claim(unknown[0]!);
+    return { claimed: ids.length, ids };
+  }
+
+  // 3) Org has no seats + user started connect in last 30m → claim preferred unknown
+  const [orgSeats] = await db.select({ n: sql<number>`count(*)::int` })
+    .from(channelAccount)
+    .where(eq(channelAccount.orgId, input.orgId));
+
+  if ((orgSeats?.n ?? 0) === 0 && unknown.length > 0) {
+    const since = new Date(Date.now() - 30 * 60_000);
+    const started = await db.select({ id: activityLog.id }).from(activityLog).where(and(
+      eq(activityLog.orgId, input.orgId),
+      eq(activityLog.actor, input.userId),
+      eq(activityLog.action, "channel.connect_started"),
+      sql`${activityLog.createdAt} >= ${since}`,
+    )).limit(1);
+
+    if (started.length > 0) {
+      const preferred =
+        unknown.find((a) => !a.name || a.name === input.userId)
+        ?? unknown[unknown.length - 1]!;
+      await claim(preferred);
+    }
   }
 
   return { claimed: ids.length, ids };

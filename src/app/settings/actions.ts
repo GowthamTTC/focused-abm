@@ -10,6 +10,8 @@ import { getChannelProvider } from "@/providers/channel";
 
 export async function startConnect() {
   const user = await requireUser();
+  const { markConnectStarted } = await import("@/modules/channel/claim");
+  await markConnectStarted(user.orgId, user.userId);
   // Put token in query — Unipile notify often cannot send custom headers.
   const secret = env.WEBHOOK_SECRET;
   const notifyUrl = secret

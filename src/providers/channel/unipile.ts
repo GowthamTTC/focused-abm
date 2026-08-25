@@ -136,17 +136,23 @@ export class UnipileChannelProvider implements ChannelProvider {
     const page = await uni<{
       items?: {
         id?: string;
+        account_id?: string;
         name?: string;
-        connection_params?: { im?: { username?: string } };
+        connection_params?: { im?: { username?: string; publicIdentifier?: string } };
       }[];
     }>("/accounts");
     return (page.items ?? [])
-      .filter((a) => a.id)
-      .map((a) => ({
-        id: a.id!,
-        name: a.name ?? null,
-        displayName: a.name ?? a.connection_params?.im?.username ?? null,
-      }));
+      .map((a) => {
+        const id = a.id ?? a.account_id;
+        if (!id) return null;
+        const display =
+          a.connection_params?.im?.username
+          ?? a.connection_params?.im?.publicIdentifier
+          ?? a.name
+          ?? null;
+        return { id, name: a.name ?? null, displayName: display };
+      })
+      .filter((a): a is { id: string; name: string | null; displayName: string | null } => a != null);
   }
 
   async fetchRelations(input: { accountId: string; cursor: string | null; limit: number }) {
