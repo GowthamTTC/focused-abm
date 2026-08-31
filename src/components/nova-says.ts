@@ -100,3 +100,26 @@ export const NOVA_SAYS: string[] = [
   "To infinity, and beyond the 7-day window.",
   "May your coffee be strong and your ICP stricter."
 ];
+
+/** Shuffle-bag: every line once before any repeat. Last used never leads the next bag. */
+let bag: number[] = [];
+let last = -1;
+
+function shuffle(n: number, avoid: number) {
+  const a = Array.from({ length: n }, (_, i) => i);
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j]!, a[i]!];
+  }
+  if (a.length > 1 && a[0] === avoid) {
+    const k = 1 + Math.floor(Math.random() * (a.length - 1));
+    [a[0], a[k]] = [a[k]!, a[0]!];
+  }
+  return a;
+}
+
+export function nextSaying(): number {
+  if (bag.length === 0) bag = shuffle(NOVA_SAYS.length, last);
+  last = bag.pop()!;
+  return last;
+}
