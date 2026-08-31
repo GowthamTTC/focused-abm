@@ -118,7 +118,8 @@ export default async function AdminAccountPage({
                   {seat ? (seat.displayName ?? "LinkedIn linked") : "no LinkedIn"}
                 </span>
                 <span className="tnum text-xs text-[#98A2B3]">since {u.createdAt.toISOString().slice(0, 10)}</span>
-                <form action={removeUser.bind(null, u.id, acct.id)}>
+                <form action={removeUser.bind(null, u.id)}>
+                  <input type="hidden" name="accountId" value={acct.id} />
                   <button className="text-xs text-[#B42318]">Remove</button>
                 </form>
               </li>

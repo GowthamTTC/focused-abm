@@ -82,8 +82,11 @@ export async function assignUserToAccount(formData: FormData) {
   redirect(`/admin/accounts/${accountId}`);
 }
 
-export async function removeUser(userId: string, accountId?: string) {
+export async function removeUser(userId: string, formData?: FormData) {
   const admin = await requireAdmin();
+  const accountId = formData instanceof FormData
+    ? String(formData.get("accountId") ?? "")
+    : "";
   await db.delete(appUser).where(and(
     eq(appUser.id, userId),
     ne(appUser.email, (env.ADMIN_EMAIL ?? "").toLowerCase()),
