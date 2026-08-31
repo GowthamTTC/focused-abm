@@ -51,9 +51,19 @@ export const org = pgTable("org", {
   createdAt: ts("created_at").notNull().defaultNow(),
 });
 
+/** Billing / client company in the admin console.
+ *  Many users can belong to one account; each user still has their own org workspace. */
+export const clientAccount = pgTable("client_account", {
+  id: id(),
+  name: text("name").notNull(),
+  notes: text("notes"),
+  createdAt: ts("created_at").notNull().defaultNow(),
+});
+
 export const appUser = pgTable("app_user", {
   id: id(),
   orgId: text("org_id").notNull().references(() => org.id),
+  clientAccountId: text("client_account_id").references(() => clientAccount.id),
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   name: text("name").notNull(),
