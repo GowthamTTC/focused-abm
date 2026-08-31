@@ -15,8 +15,8 @@ export function suggestFollowups(input: {
     add("Shortlist the company with the most of that title");
   }
   if (t.has("search_accounts") || t.has("shortlist_account")) {
+    add("Enrich these contacts for full visibility");
     add("Who at that account is unresearched?");
-    add("Enrich all remaining at that account");
     add("What should I do next?");
   }
   if (t.has("enrich_account") || t.has("enrich_person") || t.has("enrich_shortlist")) {

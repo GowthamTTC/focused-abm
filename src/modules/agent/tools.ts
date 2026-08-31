@@ -9,6 +9,14 @@ import { enqueue } from "@/jobs/runner";
 import { countryBySlug } from "@/modules/geo/countries";
 
 export type ToolCtx = { orgId: string };
+export type PendingAction = { kind: string; title: string; yes: string };
+export type ToolOut = { text: string; open?: string; pending?: PendingAction[] };
+
+function confirmed(args: Record<string, unknown>) {
+  const c = args.confirm;
+  return c === true || c === "true" || c === "yes";
+}
+
 
 export const TOOL_DEFS = [
   {
@@ -41,11 +49,12 @@ export const TOOL_DEFS = [
     type: "function" as const,
     function: {
       name: "shortlist_account",
-      description: "Star a company so it is on the shortlist. Does not enrich.",
+      description: "Propose or confirm starring a company. Call first with confirm=false so Nova can ask permission. Only pass confirm=true after the user says yes.",
       parameters: {
         type: "object",
         properties: {
           company: { type: "string", description: "Company name as stored" },
+          confirm: { type: "boolean", description: "true only after the user agrees" },
         },
         required: ["company"],
       },
@@ -55,10 +64,13 @@ export const TOOL_DEFS = [
     type: "function" as const,
     function: {
       name: "enrich_account",
-      description: "Queue deep research for ALL remaining unenriched pitchable people at this company. Only when the user clearly asks to enrich/research.",
+      description: "Propose or queue research for remaining people at a company. confirm=true only after the user agrees.",
       parameters: {
         type: "object",
-        properties: { company: { type: "string" } },
+        properties: {
+          company: { type: "string" },
+          confirm: { type: "boolean" },
+        },
         required: ["company"],
       },
     },
@@ -67,10 +79,13 @@ export const TOOL_DEFS = [
     type: "function" as const,
     function: {
       name: "enrich_person",
-      description: "Queue deep research for one person. Only when the user asks to enrich that person.",
+      description: "Propose or queue research for one person. confirm=true only after the user agrees.",
       parameters: {
         type: "object",
-        properties: { personId: { type: "string" } },
+        properties: {
+          personId: { type: "string" },
+          confirm: { type: "boolean" },
+        },
         required: ["personId"],
       },
     },
@@ -79,7 +94,7 @@ export const TOOL_DEFS = [
     type: "function" as const,
     function: {
       name: "start_radar",
-      description: "Start Event Radar post search. Only when the user names an event.",
+      description: "Propose or start Event Radar. confirm=true only after the user agrees.",
       parameters: {
         type: "object",
         properties: {
@@ -87,6 +102,7 @@ export const TOOL_DEFS = [
           country: { type: "string", description: "united-states or india" },
           days: { type: "number" },
           pool: { type: "string", description: "first or extended" },
+          confirm: { type: "boolean" },
         },
         required: ["event"],
       },
@@ -119,8 +135,8 @@ export const TOOL_DEFS = [
     type: "function" as const,
     function: {
       name: "enrich_shortlist",
-      description: "Enrich top seats on every shortlisted company (credit-aware). Only if user asks to enrich the shortlist.",
-      parameters: { type: "object", properties: {} },
+      description: "Propose or enrich the shortlist. confirm=true only after the user agrees.",
+      parameters: { type: "object", properties: { confirm: { type: "boolean" } } },
     },
   },
   {
@@ -140,6 +156,26 @@ export const TOOL_DEFS = [
     },
   },
 ];
+
+async function listPeopleAt(orgId: string, key: string) {
+  const rows = await db.select({
+    firstName: connection.firstName,
+    lastName: connection.lastName,
+    positionRaw: connection.positionRaw,
+    enrichStatus: connection.enrichStatus,
+    score: connection.score,
+    companyRaw: connection.companyRaw,
+  }).from(connection).where(and(
+    eq(connection.orgId, orgId),
+    eq(connection.bucket, "pitchable"),
+  )).limit(400);
+  const people = rows.filter((r) => companyKey(r.companyRaw) === key);
+  const pending = people.filter((p) => ["pending", "failed", "skipped"].includes(p.enrichStatus)).length;
+  const lines = people.slice(0, 12).map((p) =>
+    `${p.firstName} ${p.lastName} — ${p.positionRaw ?? "—"} · ${p.enrichStatus} · score ${p.score ?? "—"}`
+  );
+  return { n: people.length, pending, lines };
+}
 
 async function resolveCompany(orgId: string, company: string) {
   const key = companyKey(company);
@@ -230,14 +266,39 @@ export async function runTool(
     const company = String(args.company ?? "").trim();
     const hit = await resolveCompany(orgId, company);
     if (!hit) return { text: `Could not find company "${company}" in pitchable accounts.` };
+    const roster = await listPeopleAt(orgId, hit.key);
+    if (!confirmed(args)) {
+      return {
+        text: `Shall I mark ${hit.name} as shortlisted on your behalf? ${roster.n} pitchable people there (${roster.pending} not researched).`,
+        pending: [{ kind: "shortlist_account", title: `Yes — shortlist ${hit.name}`, yes: `Yes, shortlist ${hit.name} on my behalf.` }],
+        open: `/accounts?a=${encodeURIComponent(hit.key)}`,
+      };
+    }
     await toggleShortlist(orgId, hit.key, hit.name, true);
-    return { text: `Shortlisted ${hit.name}. Enrich when you are ready.`, open: `/accounts?a=${encodeURIComponent(hit.key)}&view=shortlist` };
+    return {
+      text: [
+        `Shortlisted ${hit.name}.`,
+        `${roster.n} pitchable people at this account (${roster.pending} not researched):`,
+        roster.lines.join("\n") || "(none listed)",
+        roster.pending > 0
+          ? "Recommendation: Enrich these contacts for full visibility."
+          : "Everyone here is already researched.",
+      ].join("\n"),
+      open: `/accounts?a=${encodeURIComponent(hit.key)}&view=shortlist`,
+    };
   }
 
   if (name === "enrich_account") {
     const company = String(args.company ?? "").trim();
     const hit = await resolveCompany(orgId, company);
     if (!hit) return { text: `Could not find company "${company}".` };
+    const roster = await listPeopleAt(orgId, hit.key);
+    if (!confirmed(args)) {
+      return {
+        text: `Shall I enrich ${roster.pending} remaining contacts at ${hit.name} on your behalf? That uses research credits.`,
+        pending: [{ kind: "enrich_account", title: `Yes — enrich ${hit.name}`, yes: `Yes, enrich remaining contacts at ${hit.name} on my behalf.` }],
+      };
+    }
     await toggleShortlist(orgId, hit.key, hit.name, true);
     const result = await enrichOneAccount(orgId, hit.key);
     return {
@@ -250,6 +311,12 @@ export async function runTool(
 
   if (name === "enrich_person") {
     const personId = String(args.personId ?? "").trim();
+    if (!confirmed(args)) {
+      return {
+        text: "Shall I enrich this person on your behalf? That uses a research credit.",
+        pending: [{ kind: "enrich_person", title: "Yes — enrich this person", yes: `Yes, enrich person ${personId} on my behalf.` }],
+      };
+    }
     const ok = await enrichOnePerson(orgId, personId);
     if (!ok) return { text: "Person not found in this workspace." };
     return { text: "Queued research for that person. Watch the top bar." };
@@ -263,6 +330,12 @@ export async function runTool(
     if (!countryBySlug(slug)) return { text: "Country must be united-states or india." };
     const days = Math.min(30, Math.max(1, Number(args.days) || 7));
     const pool = String(args.pool ?? "first") === "extended" ? "extended" : "first";
+    if (!confirmed(args)) {
+      return {
+        text: `Shall I start a Radar scan for "${eventName}" (${slug}, last ${days} days, ${pool}) on your behalf?`,
+        pending: [{ kind: "start_radar", title: `Yes — scan ${eventName}`, yes: `Yes, start Radar for ${eventName} in ${slug} last ${days} days on my behalf.` }],
+      };
+    }
     await enqueue(orgId, "event_extended", {
       country: slug,
       days,
@@ -340,6 +413,12 @@ export async function runTool(
   }
 
   if (name === "enrich_shortlist") {
+    if (!confirmed(args)) {
+      return {
+        text: "Shall I enrich remaining contacts on the whole shortlist on your behalf? That uses research credits.",
+        pending: [{ kind: "enrich_shortlist", title: "Yes — enrich the shortlist", yes: "Yes, enrich remaining contacts on the shortlist on my behalf." }],
+      };
+    }
     const { enrichShortlistedAccounts } = await import("@/modules/accounts/shortlist");
     const result = await enrichShortlistedAccounts(orgId);
     return {

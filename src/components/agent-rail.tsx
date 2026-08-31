@@ -21,6 +21,7 @@ type Msg = {
   tookMs?: number;
   tools?: string[];
   suggestions?: string[];
+  pending?: { kind: string; title: string; yes: string }[];
 };
 
 const LEARN_KEY = "nova-learn-v1";
@@ -85,9 +86,13 @@ export function NovaMark({ large = false }: { large?: boolean }) {
 export function NovaThread({
   page,
   compact = false,
+  chatId,
+  onChatId,
 }: {
   page: string;
   compact?: boolean;
+  chatId?: string | null;
+  onChatId?: (id: string) => void;
 }) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -96,6 +101,28 @@ export function NovaThread({
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const bottom = useRef<HTMLDivElement>(null);
   const started = msgs.length > 0;
+  const chatRef = useRef(chatId ?? null);
+
+  useEffect(() => { chatRef.current = chatId ?? null; }, [chatId]);
+
+  useEffect(() => {
+    if (!chatId) { setMsgs([]); return; }
+    let stop = false;
+    void (async () => {
+      const res = await fetch(`/api/agent/chats/${chatId}`, { cache: "no-store" });
+      const data = await res.json().catch(() => null) as {
+        messages?: Msg[];
+      } | null;
+      if (stop || !data?.messages) return;
+      setMsgs(data.messages.map((m) => ({
+        role: m.role,
+        content: m.content,
+        suggestions: m.suggestions,
+        pending: m.pending,
+      })));
+    })();
+    return () => { stop = true; };
+  }, [chatId]);
 
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: "smooth" });
@@ -140,11 +167,12 @@ export function NovaThread({
       const res = await fetch("/api/agent", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ message, page, history }),
+        body: JSON.stringify({ message, page, history, chatId: chatRef.current }),
       });
       remember(message);
       const data = await res.json().catch(() => null) as {
         reply?: string; open?: string; error?: string; tookMs?: number; tools?: string[]; suggestions?: string[];
+        pending?: { kind: string; title: string; yes: string }[]; chatId?: string;
       } | null;
       if (!res.ok && data?.error === "rate") {
         setMsgs((m) => [...m, { role: "assistant", content: "Slow down a moment — too many asks." }]);
@@ -156,7 +184,12 @@ export function NovaThread({
           tookMs: data?.tookMs,
           tools: data?.tools,
           suggestions: adaptSuggestions(data?.suggestions ?? []),
+          pending: data?.pending,
         }]);
+          if (data?.chatId) {
+            chatRef.current = data.chatId;
+            onChatId?.(data.chatId);
+          }
       }
     } catch {
       setMsgs((m) => [...m, { role: "assistant", content: "Network error. Try again." }]);
@@ -206,9 +239,19 @@ export function NovaThread({
             )}
           </div>
         ))}
-        {msgs.map((m, i) => m.role === "assistant" && m.suggestions?.length && i === msgs.length - 1 && !busy ? (
+        {msgs.map((m, i) => m.role === "assistant" && i === msgs.length - 1 && !busy ? (
           <div key={`s-${i}`} className="flex flex-wrap gap-1.5">
-            {m.suggestions.map((q) => (
+            {(m.pending ?? []).map((p) => (
+              <button
+                key={p.yes}
+                type="button"
+                onClick={() => void send(p.yes)}
+                className="nova-chip rounded-full bg-[#263BAA] px-2.5 py-1 text-[11.5px] text-white"
+              >
+                {p.title}
+              </button>
+            ))}
+            {(m.suggestions ?? []).map((q) => (
               <button
                 key={q}
                 type="button"

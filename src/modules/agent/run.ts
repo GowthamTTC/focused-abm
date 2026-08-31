@@ -21,7 +21,8 @@ Every reply MUST:
 2. Lead with numbers (e.g. "14 VPs across 6 companies. Capital One has 5 — 36%.").
 3. Name the top account share when relevant.
 4. End with a single **Recommendation:** line. If the user asks what to do / who to prioritize, call recommend_next first.
-5. Call enrich / radar / enrich_shortlist only when the user clearly asks to run it.
+5. For shortlist, enrich, or Radar: call the tool first WITHOUT confirm so Nova can ask permission. After the user says yes / "on my behalf", call again with confirm=true.
+8. After a confirmed shortlist, name the people at that account and suggest enriching them for full visibility.
 6. Never invent HQ, revenue, or people missing from tool output.
 7. Radar is post-search + country, not live GPS.`
 
@@ -31,7 +32,7 @@ export async function runAgent(input: {
   message: string;
   history: { role: "user" | "assistant"; content: string }[];
   learn?: NovaLearn | null;
-}): Promise<{ reply: string; open?: string; tools: string[]; suggestions: string[] }> {
+}): Promise<{ reply: string; open?: string; tools: string[]; suggestions: string[]; pending: { kind: string; title: string; yes: string }[] }> {
   const ctx: ToolCtx = { orgId: input.orgId };
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
     { role: "system", content: `${SYSTEM}\nCurrent page: ${input.page}\n${habitBlock(input.learn)}` },
@@ -41,6 +42,8 @@ export async function runAgent(input: {
 
   let open: string | undefined;
   const tools: string[] = [];
+  const pending: { kind: string; title: string; yes: string }[] = [];
+  const autoYes = /\byes\b/i.test(input.message) && /behalf|shortlist|enrich|scan|radar/i.test(input.message);
   for (let i = 0; i < 4; i++) {
     const res = await client.chat.completions.create({
       model: env.LLM_MODEL_CLASSIFY,
@@ -56,7 +59,7 @@ export async function runAgent(input: {
     if (!calls?.length) {
       const reply = (msg.content ?? "Done.").trim();
       return {
-        reply, open, tools,
+        reply, open, tools, pending,
         suggestions: suggestFollowups({ message: input.message, tools, reply, topTopic: topTopic(input.learn) }),
       };
     }
@@ -69,7 +72,9 @@ export async function runAgent(input: {
       let args: Record<string, unknown> = {};
       try { args = JSON.parse(call.function.arguments || "{}"); } catch { args = {}; }
       tools.push(call.function.name);
+      if (autoYes) args.confirm = true;
       const out = await runTool(ctx, call.function.name, args);
+      if (out.pending) pending.push(...out.pending);
       if (out.open) open = out.open;
       messages.push({
         role: "tool",
@@ -80,7 +85,7 @@ export async function runAgent(input: {
   }
   const reply = "I ran the tools. Check the page or the top bar for progress.";
   return {
-    reply, open, tools,
+    reply, open, tools, pending,
     suggestions: suggestFollowups({ message: input.message, tools, reply, topTopic: topTopic(input.learn) }),
   };
 }

@@ -78,6 +78,25 @@ export const appUser = pgTable("app_user", {
   createdAt: ts("created_at").notNull().defaultNow(),
 });
 
+export const novaChat = pgTable("nova_chat", {
+  id: id(),
+  userId: text("user_id").notNull().references(() => appUser.id),
+  orgId: text("org_id").notNull().references(() => org.id),
+  title: text("title").notNull().default("New chat"),
+  createdAt: ts("created_at").notNull().defaultNow(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+}, (t) => [index("nova_chat_user_idx").on(t.userId, t.updatedAt)]);
+
+export const novaChatMessage = pgTable("nova_chat_message", {
+  id: id(),
+  chatId: text("chat_id").notNull().references(() => novaChat.id),
+  role: text("role").notNull(),
+  content: text("content").notNull(),
+  suggestionsJson: jsonb("suggestions_json").$type<string[]>(),
+  pendingJson: jsonb("pending_json").$type<{ kind: string; title: string; yes: string }[]>(),
+  createdAt: ts("created_at").notNull().defaultNow(),
+}, (t) => [index("nova_chat_msg_idx").on(t.chatId, t.createdAt)]);
+
 // ── Channel (Unipile) ────────────────────────────────────────────────
 export const channelAccount = pgTable("channel_account", {
   id: id(),

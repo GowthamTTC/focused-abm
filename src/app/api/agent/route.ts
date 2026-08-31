@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { currentUser } from "@/auth/session";
 import { runAgent } from "@/modules/agent/run";
 import { absorb, loadLearn, saveLearn } from "@/modules/agent/learn";
+import { appendTurn } from "@/modules/agent/threads";
 import { rateLimit } from "@/lib/security/rate-limit";
 import { clientIp } from "@/lib/security/client-ip";
 
@@ -18,6 +19,7 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => null) as {
     message?: string;
     page?: string;
+    chatId?: string;
     history?: { role: "user" | "assistant"; content: string }[];
   } | null;
   const message = (body?.message ?? "").trim();
@@ -40,7 +42,16 @@ export async function POST(req: Request) {
       history,
       learn,
     });
-    return NextResponse.json({ ...out, tookMs: Date.now() - t0, habits: learn.topics });
+    const chatId = await appendTurn({
+      userId: user.userId,
+      orgId: user.orgId,
+      chatId: body?.chatId,
+      userText: message,
+      assistantText: out.reply,
+      suggestions: out.suggestions,
+      pending: out.pending,
+    });
+    return NextResponse.json({ ...out, tookMs: Date.now() - t0, habits: learn.topics, chatId });
   } catch (e) {
     const err = e instanceof Error ? e.message : "failed";
     return NextResponse.json({ reply: `Could not finish that: ${err.slice(0, 180)}` }, { status: 200 });
