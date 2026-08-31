@@ -234,7 +234,7 @@ export default async function AccountsPage({ searchParams }: {
                 );
                 return (
                   <AccountEnrichButton
-                    count={Math.min(3, pendingPeople.length)}
+                    count={pendingPeople.length}
                     alreadyQueued={running && pendingPeople.length === 0}
                     action={enrichThisAccount.bind(null, selected.key, selected.name, view)}
                   />

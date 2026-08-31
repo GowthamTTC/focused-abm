@@ -134,7 +134,7 @@ export function AccountEnrichButton({
         startTransition(() => { void action(); });
       }}
     >
-      {count === 0 ? "Everyone researched" : `Enrich contacts here (${count})`}
+      {count === 0 ? "Everyone researched" : `Enrich all contacts (${count})`}
     </button>
   );
 }

@@ -118,9 +118,7 @@ export async function enrichShortlistedAccounts(
 export async function enrichOneAccount(
   orgId: string,
   key: string,
-  opts: { perAccount?: number } = {},
 ): Promise<{ people: number }> {
-  const perAccount = opts.perAccount ?? PEOPLE_PER_ACCOUNT;
   const people = await db.select({
     id: connection.id,
     batchId: connection.batchId,
@@ -133,10 +131,10 @@ export async function enrichOneAccount(
     inArray(connection.enrichStatus, ["pending", "failed", "skipped"]),
   ));
 
+  // All remaining people at this company (not just top 3).
   const list = people
     .filter((p) => companyKey(p.companyRaw) === key)
-    .sort((a, b) => (a.rank ?? 9e9) - (b.rank ?? 9e9))
-    .slice(0, perAccount);
+    .sort((a, b) => (a.rank ?? 9e9) - (b.rank ?? 9e9));
 
   if (list.length === 0) return { people: 0 };
 
