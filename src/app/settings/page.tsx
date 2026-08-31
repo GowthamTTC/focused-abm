@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { db, channelAccount } from "@/db";
 import { unipileConfigured } from "@/lib/env";
 import { Shell, requirePage } from "@/app/shell";
-import { claimLinkedInSeats, disconnect, refreshStatus, saveClassifyCap, saveEnrichLimit, scanVoice, startConnect } from "./actions";
+import { claimLinkedInSeats, disconnect, linkUnipileAccountId, refreshStatus, saveClassifyCap, saveEnrichLimit, scanVoice, startConnect } from "./actions";
 import { CLASSIFY_CAP_OPTIONS, ENRICH_LIMIT_OPTIONS, getOrgSettings } from "@/modules/settings/org-settings";
 import { getDailyEnrichUsage } from "@/modules/enrich/usage";
 import { UsageMeter } from "@/components/usage-meter";
@@ -25,11 +25,11 @@ function Segmented({ name, options, current, allLabel }: {
 }
 
 export default async function SettingsPage({ searchParams }: {
-  searchParams: Promise<{ saved?: string; connected?: string; connect_failed?: string }>;
+  searchParams: Promise<{ saved?: string; connected?: string; connect_failed?: string; link_err?: string }>;
 }) {
   const user = await requirePage();
   const sp = await searchParams;
-  const { saved, connected, connect_failed } = sp;
+  const { saved, connected, connect_failed, link_err } = sp;
 
   // After hosted auth redirect, claim seats even if webhook was missed.
   if (connected === "1") {
@@ -112,6 +112,24 @@ export default async function SettingsPage({ searchParams }: {
         )}
         {connect_failed === "1" && (
           <p className="mt-3 text-sm text-[#B42318]">LinkedIn connect did not finish. Try Connect LinkedIn again.</p>
+        )}
+        {link_err === "missing" && (
+          <p className="mt-3 text-sm text-[#B42318]">Paste the Unipile account id first.</p>
+        )}
+        {link_err === "unipile" && (
+          <p className="mt-3 text-sm text-[#B42318]">Unipile did not recognize that account id. Check it in the Unipile dashboard.</p>
+        )}
+        {accounts.length === 0 && (
+          <form action={linkUnipileAccountId} className="mt-3 flex flex-wrap items-center gap-2">
+            <input
+              name="accountId"
+              placeholder="Unipile account id (e.g. jmDhZd5GQbCkShVYApi1dw)"
+              className="w-72 rounded-[8px] border border-[#DDE2EE] bg-white px-3 py-1.5 text-sm"
+            />
+            <button className="rounded-[8px] border border-[#DDE2EE] bg-white px-3 py-1.5 text-sm text-[#475467] hover:bg-[#F4F6FB]">
+              Link this Unipile seat
+            </button>
+          </form>
         )}
         <ul className="mt-4 divide-y divide-[#EEF1F8] bg-white border border-[#DDE2EE] rounded-[10px] shadow-[0_1px_2px_rgba(16,24,40,.04)]">
           {accounts.length === 0 && <li className="p-4 text-sm text-[#98A2B3]">No account connected yet. Use Connect LinkedIn, or Refresh from Unipile if the seat already exists in Unipile.</li>}

@@ -113,3 +113,62 @@ export async function enrichShortlistedAccounts(
   await enqueue(orgId, "deep_enrich", { connectionIds: capped });
   return { accounts: shortlisted.length, people: capped.length };
 }
+
+
+export async function enrichOneAccount(
+  orgId: string,
+  key: string,
+  opts: { perAccount?: number } = {},
+): Promise<{ people: number }> {
+  const perAccount = opts.perAccount ?? PEOPLE_PER_ACCOUNT;
+  const people = await db.select({
+    id: connection.id,
+    batchId: connection.batchId,
+    companyRaw: connection.companyRaw,
+    rank: connection.rank,
+    enrichStatus: connection.enrichStatus,
+  }).from(connection).where(and(
+    eq(connection.orgId, orgId),
+    eq(connection.bucket, "pitchable"),
+    inArray(connection.enrichStatus, ["pending", "failed", "skipped"]),
+  ));
+
+  const list = people
+    .filter((p) => companyKey(p.companyRaw) === key)
+    .sort((a, b) => (a.rank ?? 9e9) - (b.rank ?? 9e9))
+    .slice(0, perAccount);
+
+  if (list.length === 0) return { people: 0 };
+
+  const { enrichLimit } = await getOrgSettings(orgId);
+  const capped = list.slice(0, clampToLimit(list.length, enrichLimit));
+  const byBatch = new Map<string, string[]>();
+  for (const p of capped) {
+    const arr = byBatch.get(p.batchId) ?? [];
+    arr.push(p.id);
+    byBatch.set(p.batchId, arr);
+  }
+  for (const [batchId, ids] of byBatch) {
+    await markSelection(batchId, ids, true);
+  }
+  await enqueue(orgId, "deep_enrich", { connectionIds: capped.map((p) => p.id) });
+  return { people: capped.length };
+}
+
+export async function enrichOnePerson(orgId: string, connId: string): Promise<boolean> {
+  const [row] = await db.select({
+    id: connection.id,
+    batchId: connection.batchId,
+    enrichStatus: connection.enrichStatus,
+  }).from(connection).where(and(
+    eq(connection.orgId, orgId),
+    eq(connection.id, connId),
+  )).limit(1);
+  if (!row) return false;
+  if (row.enrichStatus === "done" || row.enrichStatus === "running" || row.enrichStatus === "queued") {
+    return true;
+  }
+  await markSelection(row.batchId, [row.id], true);
+  await enqueue(orgId, "deep_enrich", { connectionIds: [row.id] });
+  return true;
+}

@@ -20,6 +20,8 @@ export interface AccountPerson {
   lastPostAt: Date | null;
   sentAt: Date | null;
   country: string | null;
+  enrichStatus: string;
+  batchId: string;
 }
 
 export interface AccountRow {
@@ -63,6 +65,8 @@ export async function loadAccounts(
     sentAt: connection.sentAt,
     country: connection.country,
     location: connection.location,
+    enrichStatus: connection.enrichStatus,
+    batchId: connection.batchId,
   }).from(connection).where(and(
     eq(connection.orgId, orgId),
     eq(connection.bucket, "pitchable"),
@@ -133,6 +137,8 @@ export async function loadAccounts(
       lastPostAt: r.lastPostAt,
       sentAt: r.sentAt,
       country: r.country,
+      enrichStatus: r.enrichStatus,
+      batchId: r.batchId,
     });
   }
 

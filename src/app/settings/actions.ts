@@ -34,6 +34,27 @@ export async function claimLinkedInSeats() {
   redirect("/settings?connected=1");
 }
 
+/** Restore a seat that already exists in Unipile (deleted FABM user / missed webhook). */
+export async function linkUnipileAccountId(formData: FormData) {
+  const user = await requireUser();
+  const raw = String(formData.get("accountId") ?? "").trim();
+  if (!raw) redirect("/settings?link_err=missing");
+  const { upsertChannelAccount } = await import("@/modules/channel/claim");
+  let displayName: string | null = null;
+  try {
+    displayName = (await getChannelProvider().getAccountStatus(raw)).displayName;
+  } catch {
+    redirect("/settings?link_err=unipile");
+  }
+  await upsertChannelAccount({
+    orgId: user.orgId,
+    unipileAccountId: raw,
+    displayName,
+    status: "operational",
+  });
+  redirect("/settings?connected=1");
+}
+
 export async function refreshStatus(accountId: string) {
   await requireUser();
   const { status, displayName } = await getChannelProvider().getAccountStatus(accountId);

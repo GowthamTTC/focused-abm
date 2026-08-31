@@ -95,3 +95,46 @@ export function EnrichRowButton({
     </button>
   );
 }
+
+
+/** Compact account-card control: enrich top seats here. */
+export function AccountEnrichButton({
+  action,
+  count,
+  alreadyQueued = false,
+}: {
+  action: () => Promise<void>;
+  count: number;
+  alreadyQueued?: boolean;
+}) {
+  const [started, setStarted] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const busy = started || pending || alreadyQueued;
+
+  if (busy) {
+    return (
+      <div className="enrich-wait mt-3 rounded-[10px] border border-[#E7CE96] bg-[#FEFBF3] p-3 text-[12.5px] text-[#B54708]">
+        <p className="font-medium">Research started</p>
+        <p className="mt-0.5 text-[#475467]">Watch the top bar. This card updates when it finishes.</p>
+        <div className="mt-2 flex items-center gap-2">
+          <span className="inline-flex h-2 w-2 rounded-full bg-[#B54708]" style={{ animation: "radar-pulse 1.2s ease-in-out infinite" }} />
+          <span className="radar-dots" aria-hidden><span /><span /><span /></span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      disabled={count === 0}
+      className="btn-press mt-3 w-full rounded-[8px] bg-[#263BAA] px-3 py-2 text-[12.5px] font-medium text-white hover:bg-[#1D2E86] disabled:opacity-50"
+      onClick={() => {
+        setStarted(true);
+        startTransition(() => { void action(); });
+      }}
+    >
+      {count === 0 ? "Everyone researched" : `Enrich contacts here (${count})`}
+    </button>
+  );
+}

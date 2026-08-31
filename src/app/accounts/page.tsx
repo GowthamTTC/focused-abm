@@ -3,8 +3,9 @@ import { Shell, requirePage } from "@/app/shell";
 import { ActivityBadge, ago } from "@/components/dash-bits";
 import { accountCompanies, accountCountries, accountServices, loadAccounts, pitchableTotals } from "@/modules/accounts/query";
 import { listShortlistedKeys, shortlistCount } from "@/modules/accounts/shortlist";
-import { setAccountShortlistState, startEnrichShortlist } from "./actions";
+import { enrichThisAccount, enrichThisPerson, setAccountShortlistState, startEnrichShortlist } from "./actions";
 import { ShortlistStar, ShortlistTextButton } from "@/components/shortlist-star";
+import { AccountEnrichButton, EnrichRowButton } from "@/components/enrich-button";
 
 export default async function AccountsPage({ searchParams }: {
   searchParams: Promise<{
@@ -110,7 +111,7 @@ export default async function AccountsPage({ searchParams }: {
 
       {sp.enriched && (
         <p className="mt-3 text-sm text-[#067647]">
-          Queued research for {sp.enriched} people on your shortlist. Watch the top bar.
+          Queued research for {sp.enriched} {sp.enriched === "1" ? "person" : "people"}. Watch the top bar — results land on this card.
         </p>
       )}
 
@@ -224,6 +225,21 @@ export default async function AccountsPage({ searchParams }: {
                   action={setAccountShortlistState}
                 />
               </div>
+              {(() => {
+                const pendingPeople = selected.people.filter((p) =>
+                  ["pending", "failed", "skipped"].includes(p.enrichStatus)
+                );
+                const running = selected.people.some((p) =>
+                  ["queued", "running"].includes(p.enrichStatus)
+                );
+                return (
+                  <AccountEnrichButton
+                    count={Math.min(3, pendingPeople.length)}
+                    alreadyQueued={running && pendingPeople.length === 0}
+                    action={enrichThisAccount.bind(null, selected.key, selected.name, view)}
+                  />
+                );
+              })()}
               {selected.services.length > 0 && (
                 <p className="mt-2 text-[12px] text-[#263BAA]">{selected.services.join(" · ")}</p>
               )}
@@ -245,7 +261,24 @@ export default async function AccountsPage({ searchParams }: {
                       {p.serviceSlug ?? "unclassified"}
                       {p.tier ? ` · T${p.tier}` : ""}
                       {p.sentAt ? " · already sent" : ""}
+                      {p.enrichStatus === "done" ? " · researched" : ""}
+                      {p.enrichStatus === "running" || p.enrichStatus === "queued" ? " · researching" : ""}
                     </p>
+                    <div className="mt-1.5 flex items-center gap-3">
+                      {p.enrichStatus === "pending" || p.enrichStatus === "failed" || p.enrichStatus === "skipped" ? (
+                        <EnrichRowButton
+                          failed={p.enrichStatus === "failed"}
+                          action={enrichThisPerson.bind(null, p.id, selected.key, view)}
+                        />
+                      ) : p.enrichStatus === "done" && p.batchId ? (
+                        <Link href={`/batches/${p.batchId}?view=enriched&p=${p.id}`}
+                          className="text-[12px] text-[#263BAA] underline">
+                          Open research
+                        </Link>
+                      ) : (
+                        <span className="text-[12px] text-[#98A2B3]">Researching…</span>
+                      )}
+                    </div>
                     {p.matchWhy && (
                       <p className="mt-1 text-[12px] leading-5 text-[#475467]">{p.matchWhy}</p>
                     )}
