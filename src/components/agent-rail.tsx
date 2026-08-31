@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { ProgressBar } from "@/components/progress-bar";
+import { NOVA_SAYS } from "@/components/nova-says";
 
 export const NOVA_QUERIES = [
   "What should I do next?",
@@ -18,7 +19,6 @@ type Msg = {
   content: string;
   open?: string;
   tookMs?: number;
-  estimateSec?: number;
   tools?: string[];
   suggestions?: string[];
 };
@@ -63,25 +63,6 @@ function adaptSuggestions(base: string[]): string[] {
 }
 
 
-function estimateSec(message: string): { sec: number; label: string; job: boolean } {
-  const m = message.toLowerCase();
-  if (/\b(enrich|research|scan|radar|saasstr)\b/.test(m)) {
-    return { sec: 14, label: "About 10–20s for the reply. Jobs may keep running ~1 min.", job: true };
-  }
-  if (/\b(recommend|priorit|what should|next|who to)\b/.test(m)) {
-    return { sec: 12, label: "About 8–15s — ranking your workspace.", job: false };
-  }
-  if (/\b(how many|vp|title|count|snapshot)\b/.test(m)) {
-    return { sec: 8, label: "About 5–10s — counting matches.", job: false };
-  }
-  return { sec: 7, label: "About 4–10s.", job: false };
-}
-
-function fmtSec(ms: number) {
-  const s = Math.max(0.1, ms / 1000);
-  return s < 10 ? `${s.toFixed(1)}s` : `${Math.round(s)}s`;
-}
-
 export function NovaMark({ large = false }: { large?: boolean }) {
   return (
     <div className={`nova-stage flex flex-col items-center ${large ? "gap-4" : "gap-1.5"}`}>
@@ -110,20 +91,25 @@ export function NovaThread({
 }) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
-  const [hint, setHint] = useState<{ sec: number; label: string; job: boolean } | null>(null);
-  const [elapsed, setElapsed] = useState(0);
+  const [saying, setSaying] = useState(0);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const bottom = useRef<HTMLDivElement>(null);
   const started = msgs.length > 0;
 
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: "smooth" });
-  }, [msgs, busy, elapsed]);
+  }, [msgs, busy, saying]);
 
   useEffect(() => {
     if (!busy) return;
-    const t0 = Date.now();
-    const id = setInterval(() => setElapsed(Date.now() - t0), 200);
+    setSaying(Math.floor(Math.random() * NOVA_SAYS.length));
+    const id = setInterval(() => {
+      setSaying((prev) => {
+        let n = Math.floor(Math.random() * NOVA_SAYS.length);
+        if (n === prev) n = (n + 1) % NOVA_SAYS.length;
+        return n;
+      });
+    }, 1000);
     return () => clearInterval(id);
   }, [busy]);
 
@@ -131,11 +117,8 @@ export function NovaThread({
     const message = (raw ?? text).trim();
     if (!message || busy) return;
     setText("");
-    const est = estimateSec(message);
-    setHint(est);
-    setElapsed(0);
     const history = msgs.map((m) => ({ role: m.role, content: m.content }));
-    setMsgs((m) => [...m, { role: "user", content: message, estimateSec: est.sec }]);
+    setMsgs((m) => [...m, { role: "user", content: message }]);
     setBusy(true);
     try {
       const res = await fetch("/api/agent", {
@@ -155,7 +138,6 @@ export function NovaThread({
           content: data?.reply ?? "No reply.",
           open: data?.open,
           tookMs: data?.tookMs,
-          estimateSec: est.sec,
           tools: data?.tools,
           suggestions: adaptSuggestions(data?.suggestions ?? []),
         }]);
@@ -164,11 +146,8 @@ export function NovaThread({
       setMsgs((m) => [...m, { role: "assistant", content: "Network error. Try again." }]);
     } finally {
       setBusy(false);
-      setHint(null);
     }
   }
-
-  const pct = hint ? Math.min(92, (elapsed / 1000 / hint.sec) * 100) : 0;
 
   return (
     <div className={`flex min-h-0 flex-1 flex-col ${compact ? "" : ""}`}>
@@ -201,9 +180,7 @@ export function NovaThread({
             </div>
             {m.role === "assistant" && m.tookMs != null && (
               <p className="mt-1 text-[11px] text-[#98A2B3]">
-                Took {fmtSec(m.tookMs)}
-                {m.estimateSec ? ` · estimate ${m.estimateSec}s` : ""}
-                {m.tools?.length ? ` · ${m.tools.join(", ")}` : ""}
+                {m.tools?.length ? m.tools.join(", ") : ""}
               </p>
             )}
             {m.open && (
@@ -227,19 +204,17 @@ export function NovaThread({
             ))}
           </div>
         ) : null)}
-        {busy && hint && (
+        {busy && (
           <div className="enrich-wait rounded-[10px] border border-[#E7CE96] bg-[#FEFBF3] p-3 text-[12.5px] text-[#B54708]">
             <div className="flex items-center gap-2">
               <span className="inline-flex h-2 w-2 rounded-full bg-[#B54708]" style={{ animation: "radar-pulse 1.1s ease-in-out infinite" }} />
-              <span className="font-medium radar-banner-text">Nova is thinking</span>
+              <span className="font-medium">Nova is thinking</span>
               <span className="radar-dots" aria-hidden><span /><span /><span /></span>
-              <span className="tnum ml-auto text-[#475467]">{fmtSec(elapsed)}</span>
             </div>
-            <p className="mt-1.5 text-[#475467]">{hint.label}</p>
-            <div className="mt-2"><ProgressBar value={pct} max={100} size="sm" tone="warm" /></div>
-            <p className="mt-1 text-[11px] text-[#98A2B3]">
-              Estimate ~{hint.sec}s{hint.job ? " · jobs keep running after" : ""}.
+            <p key={saying} className="nova-msg mt-2 text-[13px] leading-5 text-[#475467]">
+              {NOVA_SAYS[saying]}
             </p>
+            <div className="mt-2"><ProgressBar indeterminate size="sm" tone="warm" /></div>
           </div>
         )}
         <div ref={bottom} />
