@@ -197,7 +197,7 @@ export async function runTool(
   ctx: ToolCtx,
   name: string,
   args: Record<string, unknown>,
-): Promise<{ text: string; open?: string }> {
+): Promise<ToolOut> {
   const orgId = ctx.orgId;
 
   if (name === "search_accounts") {
