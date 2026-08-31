@@ -10,6 +10,7 @@ import { CommandPalette, PaletteTrigger } from "@/components/command-palette";
 import { LiveJob } from "@/components/live-job";
 import { DismissibleBanner } from "@/components/dismissible-banner";
 import { HelpCenter } from "@/components/help-center";
+import { AgentRail } from "@/components/agent-rail";
 
 export async function requirePage(): Promise<Ctx> {
   const user = await currentUser();
@@ -195,6 +196,9 @@ export async function Shell({ user, active, children }: {
         <main className="pane-scroll min-h-0 flex-1">
           <div className="mx-auto max-w-[1240px] px-6 pb-14 pt-[22px]">{children}</div>
         </main>
+        {(active === "accounts" || active === "radar" || active === "review") && (
+          <AgentRail page={active as "accounts" | "radar" | "review"} />
+        )}
       </div>
     </div>
   );
