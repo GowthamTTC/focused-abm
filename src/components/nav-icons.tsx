@@ -1,5 +1,6 @@
 /** 15px monoline icons — single-path, stroke inherits currentColor (README §4). */
 const PATHS: Record<string, string> = {
+  nova: "M8 1.8l1.2 3.4 3.6.2-2.8 2.2.9 3.5L8 9.2 5.1 11.1l.9-3.5L3.2 5.4l3.6-.2z",
   today: "M3 3.5h10a.5.5 0 01.5.5v9a.5.5 0 01-.5.5H3a.5.5 0 01-.5-.5V4a.5.5 0 01.5-.5zM2.5 6.5h11M5 3.5v-1.5M11 3.5v-1.5",
   review: "M2.5 4h11v8h-11zM2.5 4.2L8 8.4 13.5 4.2",
   people: "M6 7.4a2.2 2.2 0 100-4.4 2.2 2.2 0 000 4.4zM2 13.2c0-2.1 1.8-3.4 4-3.4s4 1.3 4 3.4M11 5.6a1.9 1.9 0 010 3.8M12.6 13.2c0-1.5-.6-2.6-1.6-3.2",

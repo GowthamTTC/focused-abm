@@ -2,7 +2,7 @@
  * Agent tools — same org-scoped jobs as the UI buttons.
  */
 import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
-import { db, connection } from "@/db";
+import { db, connection, accountShortlist } from "@/db";
 import { companyKey } from "@/modules/radar/score";
 import { toggleShortlist, enrichOneAccount, enrichOnePerson } from "@/modules/accounts/shortlist";
 import { enqueue } from "@/jobs/runner";
@@ -27,10 +27,12 @@ export const TOOL_DEFS = [
     type: "function" as const,
     function: {
       name: "search_people",
-      description: "Find people in this workspace by name or company.",
+      description: "Find people by name, company, or job title (e.g. VP, Head of Product).",
       parameters: {
         type: "object",
-        properties: { q: { type: "string" } },
+        properties: {
+          q: { type: "string", description: "Name, company, or title words" },
+        },
         required: ["q"],
       },
     },
@@ -88,6 +90,45 @@ export const TOOL_DEFS = [
         },
         required: ["event"],
       },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "workspace_snapshot",
+      description: "Totals for this workspace: people, pitchable, companies, shortlist, researched, ready drafts.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "count_title",
+      description: "How many contacts match a title (and optional company). Always returns counts by company.",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "Title words e.g. VP, director, head of product" },
+          company: { type: "string", description: "Optional company filter" },
+        },
+        required: ["title"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "enrich_shortlist",
+      description: "Enrich top seats on every shortlisted company (credit-aware). Only if user asks to enrich the shortlist.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "recommend_next",
+      description: "Rank what to do next: weighted scores, top accounts, title mix, committee gaps, send-outcome bandit, lookalikes. Use when user asks what to do, who to prioritize, or for recommendations.",
+      parameters: { type: "object", properties: {} },
     },
   },
   {
@@ -171,6 +212,7 @@ export async function runTool(
         ilike(connection.firstName, `%${q}%`),
         ilike(connection.lastName, `%${q}%`),
         ilike(connection.companyRaw, `%${q}%`),
+        ilike(connection.positionRaw, `%${q}%`),
       ),
     )).limit(12);
     if (rows.length === 0) return { text: `No people matching "${q}".` };
@@ -230,6 +272,91 @@ export async function runTool(
     return {
       text: `Radar scan started: "${eventName}", ${slug}, last ${days} days, ${pool === "extended" ? "2nd/3rd" : "1st"} degree. Watch the top bar.`,
       open: `/radar?days=${days}&pool=${pool}&country=${slug}&scanning=1&event=${encodeURIComponent(eventName)}&q=${encodeURIComponent(eventName)}`,
+    };
+  }
+
+  if (name === "workspace_snapshot") {
+    const [row] = await db.select({
+      people: sql<number>`count(*)::int`,
+      pitchable: sql<number>`count(*) filter (where bucket = 'pitchable')::int`,
+      researched: sql<number>`count(*) filter (where enrich_status = 'done')::int`,
+      pending: sql<number>`count(*) filter (where bucket = 'pitchable' and enrich_status in ('pending','failed','skipped'))::int`,
+      ready: sql<number>`count(*) filter (where outreach_message is not null and sent_at is null)::int`,
+      companies: sql<number>`count(distinct company_raw) filter (where bucket = 'pitchable' and company_raw is not null and company_raw <> '')::int`,
+    }).from(connection).where(eq(connection.orgId, orgId));
+    const [sl] = await db.select({ n: sql<number>`count(*)::int` }).from(accountShortlist).where(eq(accountShortlist.orgId, orgId));
+    return {
+      text: [
+        `People: ${row?.people ?? 0}`,
+        `Pitchable: ${row?.pitchable ?? 0}`,
+        `Companies: ${row?.companies ?? 0}`,
+        `On shortlist: ${sl?.n ?? 0}`,
+        `Researched: ${row?.researched ?? 0}`,
+        `Pitchable not researched: ${row?.pending ?? 0}`,
+        `Ready drafts: ${row?.ready ?? 0}`,
+      ].join("\n"),
+    };
+  }
+
+  if (name === "count_title") {
+    const title = String(args.title ?? "").trim();
+    const company = String(args.company ?? "").trim();
+    if (!title) return { text: "Need a title." };
+    const cond = [eq(connection.orgId, orgId), eq(connection.bucket, "pitchable"), ilike(connection.positionRaw, `%${title}%`)];
+    const rows = await db.select({
+      id: connection.id,
+      firstName: connection.firstName,
+      lastName: connection.lastName,
+      companyRaw: connection.companyRaw,
+      positionRaw: connection.positionRaw,
+      enrichStatus: connection.enrichStatus,
+    }).from(connection).where(and(...cond)).limit(400);
+    const filtered = company
+      ? rows.filter((r) => (r.companyRaw ?? "").toLowerCase().includes(company.toLowerCase()))
+      : rows;
+    if (filtered.length === 0) return { text: `0 pitchable contacts with title matching "${title}"${company ? ` at ${company}` : ""}.` };
+    const byCo = new Map<string, { n: number; pending: number }>();
+    for (const r of filtered) {
+      const name = (r.companyRaw ?? "Unknown").trim() || "Unknown";
+      const cur = byCo.get(name) ?? { n: 0, pending: 0 };
+      cur.n += 1;
+      if (["pending", "failed", "skipped"].includes(r.enrichStatus)) cur.pending += 1;
+      byCo.set(name, cur);
+    }
+    const ranked = [...byCo.entries()].sort((a, b) => b[1].n - a[1].n);
+    const top = ranked[0]!;
+    const sample = filtered.slice(0, 8).map((p) => `${p.firstName} ${p.lastName} — ${p.positionRaw} @ ${p.companyRaw}`).join("\n");
+    return {
+      text: [
+        `${filtered.length} pitchable contact(s) matching title "${title}"${company ? ` at ${company}` : ""}.`,
+        `Across ${ranked.length} companies.`,
+        `Largest share: ${top[0]} with ${top[1].n} (${Math.round(top[1].n / filtered.length * 100)}%).`,
+        ranked.slice(0, 8).map(([n, s]) => `${n}: ${s.n} people, ${s.pending} not researched`).join("\n"),
+        "Sample:",
+        sample,
+      ].join("\n"),
+      open: `/accounts?q=${encodeURIComponent(top[0])}`,
+    };
+  }
+
+  if (name === "enrich_shortlist") {
+    const { enrichShortlistedAccounts } = await import("@/modules/accounts/shortlist");
+    const result = await enrichShortlistedAccounts(orgId);
+    return {
+      text: result.people === 0
+        ? `Shortlist has ${result.accounts} companies but 0 people queued (already researched or empty).`
+        : `Queued research for ${result.people} people across ${result.accounts} shortlisted companies.`,
+      open: `/accounts?view=shortlist&enriched=${result.people}`,
+    };
+  }
+
+  if (name === "recommend_next") {
+    const { recommendAll, formatRecommend } = await import("@/modules/recommend");
+    const rec = await recommendAll(orgId);
+    const top = rec.accounts[0];
+    return {
+      text: formatRecommend(rec),
+      open: top ? `/accounts?a=${encodeURIComponent(top.key)}` : "/accounts",
     };
   }
 

@@ -23,19 +23,18 @@ export async function POST(req: Request) {
   if (!message || message.length > 2000) {
     return NextResponse.json({ error: "message" }, { status: 400 });
   }
-  const page = ["accounts", "radar", "review"].includes(body?.page ?? "")
-    ? body!.page!
-    : "accounts";
+  const page = (body?.page ?? "app").slice(0, 40);
   const history = Array.isArray(body?.history) ? body!.history.slice(-8) : [];
 
   try {
+    const t0 = Date.now();
     const out = await runAgent({
       orgId: user.orgId,
       page,
       message,
       history,
     });
-    return NextResponse.json(out);
+    return NextResponse.json({ ...out, tookMs: Date.now() - t0 });
   } catch (e) {
     const err = e instanceof Error ? e.message : "failed";
     return NextResponse.json({ reply: `Could not finish that: ${err.slice(0, 180)}` }, { status: 200 });

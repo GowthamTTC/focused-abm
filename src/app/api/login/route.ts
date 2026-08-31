@@ -43,6 +43,6 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const dest = !ok ? "/login?err=1" : u?.mustChangePassword ? "/change-password" : "/dashboard";
+  const dest = !ok ? "/login?err=1" : u?.mustChangePassword ? "/change-password" : "/nova";
   return NextResponse.redirect(new URL(dest, externalBase(req)), 303);
 }

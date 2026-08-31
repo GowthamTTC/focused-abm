@@ -11,23 +11,24 @@ const client = new OpenAI({
   },
 });
 
-const SYSTEM = `You are the Focused ABM workspace assistant for THIS user's private LinkedIn workspace only.
-You help them shortlist companies, enrich contacts, run Event Radar, and find ready drafts.
-Rules:
-- Use tools for facts. Never invent HQ, revenue, or people who are not in tool results.
-- Enrich and Radar spend credits. Call those tools only when the user clearly asks to run research/scan/enrich.
-- Shortlist does not enrich.
-- Be short. Name companies and people. Offer one next action.
-- If a tool returns an "open" path, mention they can open that screen.
-- Page context: you may be on Accounts, Radar, or Review — stay relevant.
-- Do not claim GPS or live location. Radar is post-search + country.`;
+const SYSTEM = `You are the Focused ABM assistant for THIS user's private workspace (their LinkedIn network only).
+You can search people/titles/companies, shortlist, enrich, run Radar, list drafts, and call recommend_next (all six rankers).
+
+Every reply MUST:
+1. Use tools for numbers. Never invent counts.
+2. Lead with numbers (e.g. "14 VPs across 6 companies. Capital One has 5 — 36%.").
+3. Name the top account share when relevant.
+4. End with a single **Recommendation:** line. If the user asks what to do / who to prioritize, call recommend_next first.
+5. Call enrich / radar / enrich_shortlist only when the user clearly asks to run it.
+6. Never invent HQ, revenue, or people missing from tool output.
+7. Radar is post-search + country, not live GPS.`
 
 export async function runAgent(input: {
   orgId: string;
   page: string;
   message: string;
   history: { role: "user" | "assistant"; content: string }[];
-}): Promise<{ reply: string; open?: string }> {
+}): Promise<{ reply: string; open?: string; tools: string[] }> {
   const ctx: ToolCtx = { orgId: input.orgId };
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
     { role: "system", content: `${SYSTEM}\nCurrent page: ${input.page}` },
@@ -36,6 +37,7 @@ export async function runAgent(input: {
   ];
 
   let open: string | undefined;
+  const tools: string[] = [];
   for (let i = 0; i < 4; i++) {
     const res = await client.chat.completions.create({
       model: env.LLM_MODEL_CLASSIFY,
@@ -49,7 +51,7 @@ export async function runAgent(input: {
     const msg = choice.message;
     const calls = msg.tool_calls;
     if (!calls?.length) {
-      return { reply: (msg.content ?? "Done.").trim(), open };
+      return { reply: (msg.content ?? "Done.").trim(), open, tools };
     }
     messages.push({
       role: "assistant",
@@ -59,6 +61,7 @@ export async function runAgent(input: {
     for (const call of calls) {
       let args: Record<string, unknown> = {};
       try { args = JSON.parse(call.function.arguments || "{}"); } catch { args = {}; }
+      tools.push(call.function.name);
       const out = await runTool(ctx, call.function.name, args);
       if (out.open) open = out.open;
       messages.push({
@@ -68,5 +71,5 @@ export async function runAgent(input: {
       });
     }
   }
-  return { reply: "I ran the tools. Check the page or the top bar for progress.", open };
+  return { reply: "I ran the tools. Check the page or the top bar for progress.", open, tools };
 }

@@ -46,6 +46,7 @@ const KIND_LABEL: Record<string, string> = {
 
 const NAV: { section: string; items: [key: string, href: string, label: string, tip: string][] }[] = [
   { section: "Work", items: [
+    ["nova", "/nova", "Nova", "Ask Nova — counts, shortlist, enrich, Radar"],
     ["dashboard", "/dashboard", "Today", "Your daily numbers and the research button"],
     ["review", "/review", "Review", "Verdicts, ready-to-send drafts, and your sent log"],
     ["people", "/people", "People", "Every person in your network, searchable"],
@@ -196,9 +197,7 @@ export async function Shell({ user, active, children }: {
         <main className="pane-scroll min-h-0 flex-1">
           <div className="mx-auto max-w-[1240px] px-6 pb-14 pt-[22px]">{children}</div>
         </main>
-        {(active === "accounts" || active === "radar" || active === "review") && (
-          <AgentRail page={active as "accounts" | "radar" | "review"} />
-        )}
+        {active !== "nova" && <AgentRail page={active || "app"} />}
       </div>
     </div>
   );
