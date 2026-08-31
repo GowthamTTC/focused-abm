@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { currentUser } from "@/auth/session";
 import { runAgent } from "@/modules/agent/run";
+import { absorb, loadLearn, saveLearn } from "@/modules/agent/learn";
 import { rateLimit } from "@/lib/security/rate-limit";
 import { clientIp } from "@/lib/security/client-ip";
 
@@ -26,6 +27,10 @@ export async function POST(req: Request) {
   const page = (body?.page ?? "app").slice(0, 40);
   const history = Array.isArray(body?.history) ? body!.history.slice(-8) : [];
 
+  const prev = await loadLearn(user.userId);
+  const learn = absorb(prev, message);
+  await saveLearn(user.userId, learn);
+
   try {
     const t0 = Date.now();
     const out = await runAgent({
@@ -33,8 +38,9 @@ export async function POST(req: Request) {
       page,
       message,
       history,
+      learn,
     });
-    return NextResponse.json({ ...out, tookMs: Date.now() - t0 });
+    return NextResponse.json({ ...out, tookMs: Date.now() - t0, habits: learn.topics });
   } catch (e) {
     const err = e instanceof Error ? e.message : "failed";
     return NextResponse.json({ reply: `Could not finish that: ${err.slice(0, 180)}` }, { status: 200 });

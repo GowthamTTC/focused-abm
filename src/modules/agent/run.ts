@@ -1,6 +1,8 @@
 import OpenAI from "openai";
 import { env } from "@/lib/env";
 import { TOOL_DEFS, runTool, type ToolCtx } from "./tools";
+import { suggestFollowups } from "./suggest";
+import { habitBlock, topTopic, type NovaLearn } from "./learn";
 
 const client = new OpenAI({
   apiKey: env.OPENROUTER_API_KEY,
@@ -28,10 +30,11 @@ export async function runAgent(input: {
   page: string;
   message: string;
   history: { role: "user" | "assistant"; content: string }[];
-}): Promise<{ reply: string; open?: string; tools: string[] }> {
+  learn?: NovaLearn | null;
+}): Promise<{ reply: string; open?: string; tools: string[]; suggestions: string[] }> {
   const ctx: ToolCtx = { orgId: input.orgId };
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-    { role: "system", content: `${SYSTEM}\nCurrent page: ${input.page}` },
+    { role: "system", content: `${SYSTEM}\nCurrent page: ${input.page}\n${habitBlock(input.learn)}` },
     ...input.history.slice(-8).map((m) => ({ role: m.role, content: m.content }) as OpenAI.Chat.ChatCompletionMessageParam),
     { role: "user", content: input.message },
   ];
@@ -51,7 +54,11 @@ export async function runAgent(input: {
     const msg = choice.message;
     const calls = msg.tool_calls;
     if (!calls?.length) {
-      return { reply: (msg.content ?? "Done.").trim(), open, tools };
+      const reply = (msg.content ?? "Done.").trim();
+      return {
+        reply, open, tools,
+        suggestions: suggestFollowups({ message: input.message, tools, reply, topTopic: topTopic(input.learn) }),
+      };
     }
     messages.push({
       role: "assistant",
@@ -71,5 +78,9 @@ export async function runAgent(input: {
       });
     }
   }
-  return { reply: "I ran the tools. Check the page or the top bar for progress.", open, tools };
+  const reply = "I ran the tools. Check the page or the top bar for progress.";
+  return {
+    reply, open, tools,
+    suggestions: suggestFollowups({ message: input.message, tools, reply, topTopic: topTopic(input.learn) }),
+  };
 }

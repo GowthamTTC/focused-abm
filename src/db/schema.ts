@@ -69,6 +69,12 @@ export const appUser = pgTable("app_user", {
   name: text("name").notNull(),
   /** true for admin-issued temporary passwords — forces a change on first login */
   mustChangePassword: boolean("must_change_password").notNull().default(false),
+  /** Decayed topic weights + last Nova asks — per login, not shared workspace. */
+  novaLearnJson: jsonb("nova_learn_json").$type<{
+    topics: Record<string, number>;
+    last: string[];
+    updatedAt?: string;
+  }>(),
   createdAt: ts("created_at").notNull().defaultNow(),
 });
 
