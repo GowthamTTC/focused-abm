@@ -15,19 +15,6 @@ import { rankBatch } from "@/modules/scoring/rank";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function withTimeout<T>(p: Promise<T>, ms: number): Promise<{ ok: true; value: T } | { ok: false }> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    const value = await Promise.race([
-      p.then((v) => ({ ok: true as const, value: v })),
-      new Promise<{ ok: false }>((resolve) => { timer = setTimeout(() => resolve({ ok: false }), ms); }),
-    ]);
-    return value;
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
-}
-
 function splitHeadline(headline: string | null): { position: string | null; company: string | null } {
   if (!headline) return { position: null, company: null };
   const parts = headline.split(/\s+at\s+/i);
@@ -95,18 +82,32 @@ export async function runEventExtended(
 
   do {
     if (shouldStop && await shouldStop()) break;
-    const fetched = await withTimeout(provider.searchPosts({
-      accountId: seat.unipileAccountId,
-      keywords: eventName,
-      datePosted: datePosted(payload.days),
-      cursor,
-      limit: 50,
-    }), 20_000);
-    if (!fetched.ok) {
+    let page: { items: Array<{
+      text: string; postedAt: string | Date | null; isCompany?: boolean;
+      author: {
+        firstName: string; lastName: string; headline: string | null; location: string | null;
+        profileUrl: string | null; publicIdentifier: string | null; memberId: string | null;
+        networkDistance: "2" | "3";
+      };
+    }>; cursor: string | null } | null = null;
+    try {
+      page = await Promise.race([
+        provider.searchPosts({
+          accountId: seat.unipileAccountId,
+          keywords: eventName,
+          datePosted: datePosted(payload.days),
+          cursor,
+          limit: 50,
+        }),
+        new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error("search-timeout")), 20_000);
+        }),
+      ]);
+    } catch {
       if (onProgress) await onProgress(authors.size, cap);
       break;
     }
-    const page = fetched.value;
+    if (!page) break;
     for (const post of page.items) {
       if (post.isCompany) continue;
       const hit = mentionForEvent([{ text: post.text, postedAt: post.postedAt }], eventName, scope.slug);
