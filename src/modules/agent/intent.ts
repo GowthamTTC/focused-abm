@@ -42,7 +42,10 @@ export function resolveN(message: string, history: { role: string; content: stri
 }
 
 
-export function parseRadarReply(message: string): { event: string; country: string; days: number; pool: string } | null {
+export function parseRadarReply(message: string): {
+  event: string; country: string; days: number; pool: string;
+  statedCountry: boolean; statedDays: boolean; statedPool: boolean;
+} | null {
   let s = message.trim();
   if (!s) return null;
   if (/\b(snapshot|shortlist|enrich them|workspace|ready draft|title mix|committee|lookalike|what else left|top \d+|next \d+)\b/i.test(s)
@@ -50,11 +53,9 @@ export function parseRadarReply(message: string): { event: string; country: stri
     return null;
   }
   if (/^(hi|hello|hey|yo|thanks|thank you|ok|okay|no|yes)\b/i.test(s) && !/\b(scan|radar)\b/i.test(s)) return null;
-  const country = /\b(india|indian|bharat)\b/i.test(s)
-    ? "india"
-    : /\b(united states|usa|america|american|u\.s\.a\.?|u\.s\.)\b/i.test(s) || /\bUS\b/.test(s)
-      ? "united-states"
-      : "united-states";
+  const statedCountry = /\b(india|indian|bharat|united states|usa|america|american|u\.s\.a\.?|u\.s\.)\b/i.test(s) || /\bUS\b/.test(s);
+  const country = /\b(india|indian|bharat)\b/i.test(s) ? "india" : "united-states";
+  const statedPool = /\b(1st|2nd|3rd|first|second|third|extended|beyond first)\b/i.test(s);
   const pool = /\b(2nd|3rd|second|third|extended|beyond first|not first)\b/i.test(s) ? "extended" : "first";
   const wordDays: Record<string, number> = { one:1, two:2, three:3, seven:7, fourteen:14, thirty:30 };
   const wordHit = s.match(/\b(one|two|three|seven|fourteen|thirty)\s+days?\b/i);
@@ -68,11 +69,12 @@ export function parseRadarReply(message: string): { event: string; country: stri
         : dayHit
           ? Math.min(30, Math.max(1, parseInt(dayHit[1]!, 10)))
           : 7;
+  const statedDays = Boolean(wordHit || dayHit || /\b(last|past)\s+(month|week)\b/i.test(s) || /\b\d+\s*d\b/i.test(s));
   s = s.replace(/\b(radar|scan|event scan|event name|event|last|past|month|week|\d+\s+days?|days?|one|two|three|seven|fourteen|thirty|in the|going to|headed to|at|for|about|talking about|united states|usa|america|american|u\.s\.a\.?|u\.s\.|\bus\b|india|indian|bharat|1st|2nd|3rd|first|second|third|degree|extended|connections?|network|please|name|people)\b/gi, " ");
   s = s.replace(/[+|]+/g, " ").replace(/\s+/g, " ").trim();
   if (s.length < 3) return null;
   if (/^(event|hits|yes|no|ok|name)$/i.test(s)) return null;
-  return { event: s, country, days, pool };
+  return { event: s, country, days, pool, statedCountry, statedDays, statedPool };
 }
 
 function radarThread(history: { role: string; content: string }[]) {

@@ -678,11 +678,24 @@ export async function runTool(
     if (!countryBySlug(slug)) return { text: "Country must be united-states or india." };
     const days = Math.min(30, Math.max(1, Number(args.days) || 7));
     const pool = String(args.pool ?? "first") === "extended" ? "extended" : "first";
+    const statedDays = args.statedDays === true || args.statedDays === "true";
+    const statedCountry = args.statedCountry === true || args.statedCountry === "true" || Boolean(args.country);
+    const statedPool = args.statedPool === true || args.statedPool === "true" || Boolean(args.pool);
+    if (!confirmed(args) && !statedDays) {
+      return {
+        text: `I have "${eventName}" · ${slug} · ${pool === "extended" ? "2nd+3rd" : "1st"} degree. You did not say a time window — I will not assume 7 days. How far back?`,
+        pending: [
+          { kind: "start_radar", title: "Last 7 days", yes: `Yes, start Radar for ${eventName} in ${slug} last 7 days ${pool} on my behalf.`, tone: "yes" },
+          { kind: "start_radar", title: "Last 30 days", yes: `Yes, start Radar for ${eventName} in ${slug} last 30 days ${pool} on my behalf.`, tone: "yes" },
+          { kind: "no", title: "No", yes: "No, do not make that change.", tone: "no" },
+        ],
+      };
+    }
     if (!confirmed(args)) {
       return {
-        text: `Shall I start a Radar scan for "${eventName}" (${slug}, last ${days} days, ${pool}) on your behalf?`,
+        text: `Shall I start a Radar scan for "${eventName}" (${slug}, last ${days} days, ${pool === "extended" ? "2nd+3rd" : "1st"}) on your behalf?`,
         pending: [
-          { kind: "start_radar", title: "Yes", yes: `Yes, start Radar for ${eventName} in ${slug} last ${days} days on my behalf.`, tone: "yes" },
+          { kind: "start_radar", title: "Yes", yes: `Yes, start Radar for ${eventName} in ${slug} last ${days} days ${pool} on my behalf.`, tone: "yes" },
           { kind: "no", title: "No", yes: "No, do not make that change.", tone: "no" },
         ],
       };
