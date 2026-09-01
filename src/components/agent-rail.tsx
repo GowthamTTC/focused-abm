@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { ProgressBar } from "@/components/progress-bar";
 import { NovaJobTrace } from "@/components/nova-job-trace";
-import { NOVA_SAYS, nextSaying } from "@/components/nova-says";
 
 export const NOVA_QUERIES = [
   "Top 10 accounts",
@@ -100,9 +98,7 @@ export function NovaThread({
 }) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
-  const [saying, setSaying] = useState(0);
   const [jobLive, setJobLive] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const bottom = useRef<HTMLDivElement>(null);
   const started = msgs.length > 0;
@@ -134,33 +130,6 @@ export function NovaThread({
     bottom.current?.scrollIntoView({ behavior: "smooth" });
   }, [msgs, busy]);
 
-  useEffect(() => {
-    if (!busy) return;
-    setSaying(nextSaying());
-    setElapsed(0);
-    const t0 = Date.now();
-    let sayTimer: ReturnType<typeof setInterval> | null = null;
-    const tick = setInterval(() => setElapsed(Math.floor((Date.now() - t0) / 1000)), 250);
-    const armSay = () => {
-      sayTimer = setInterval(() => {
-        if (typeof document !== "undefined" && document.hidden) return;
-        setSaying(nextSaying());
-      }, 10000);
-    };
-    armSay();
-    const onVis = () => {
-      if (document.hidden) {
-        if (sayTimer) clearInterval(sayTimer);
-        sayTimer = null;
-      } else if (!sayTimer) armSay();
-    };
-    document.addEventListener("visibilitychange", onVis);
-    return () => {
-      clearInterval(tick);
-      if (sayTimer) clearInterval(sayTimer);
-      document.removeEventListener("visibilitychange", onVis);
-    };
-  }, [busy]);
 
   async function send(raw?: string) {
     const message = (raw ?? text).trim();
@@ -288,12 +257,7 @@ export function NovaThread({
               <span className="inline-flex h-2 w-2 rounded-full bg-[#B54708]" style={{ animation: "radar-pulse 1.1s ease-in-out infinite" }} />
               <span className="font-medium">Nova is thinking</span>
               <span className="radar-dots" aria-hidden><span /><span /><span /></span>
-              <span className="tnum ml-auto text-[12px] text-[#98A2B3]">{elapsed}s</span>
             </div>
-            <p key={saying} className="nova-msg mt-2 text-[13px] leading-5 text-[#475467]">
-              {NOVA_SAYS[saying]}
-            </p>
-            <div className="mt-2"><ProgressBar indeterminate size="sm" tone="warm" /></div>
           </div>
         )}
         <div ref={bottom} />

@@ -51,8 +51,9 @@ export function classifyIntent(
   const n = resolveN(m, history);
   const autoYes = bareYes || (/\byes\b/i.test(raw) && /behalf|shortlist|enrich|scan|radar|remove|clear|unselect/i.test(raw));
   const wantsWrite = WRITE_RE.test(m) || autoYes || /remove all/i.test(m);
-  const threadSkip = history.some((h) => /\b(next|these)\b/i.test(h.content));
-  const skipShortlisted = /\bnext\b/i.test(m) || /\bthese\b/i.test(m) || threadSkip;
+  const nextPage = /\bnext\s+(\d+|accounts?)\b/i.test(m) || /\bthese\s+accounts?\b/i.test(m);
+  const threadSkip = history.some((h) => /\bnext\s+(\d+|accounts?)\b|\bthese\s+accounts?\b/i.test(h.content));
+  const skipShortlisted = nextPage || threadSkip;
   const base = { n, wantsWrite, autoYes, skipShortlisted, args: {} as Record<string, unknown>, tool: null as string | null };
 
 
@@ -114,7 +115,7 @@ export function classifyIntent(
   if (/\b(committee|gaps?|missing (cxo|vp|roles?))\b/i.test(m)) {
     return { ...base, tool: "insight", wantsWrite: false, args: { topic: "gaps" } };
   }
-  if (/\b(lookalike|similar to|like the ones I sent)\b/i.test(m)) {
+  if (/\b(lookalike|similar to|like the ones I sent|looks like people)\b/i.test(m)) {
     return { ...base, tool: "insight", wantsWrite: false, args: { topic: "lookalikes" } };
   }
   if (/\b(who (should I |to )?send|send first|best draft)\b/i.test(m)) {
@@ -124,13 +125,13 @@ export function classifyIntent(
     return { ...base, tool: "insight", wantsWrite: false, args: { topic: "radar" } };
   }
 
-  if (/\b(what'?s?\s+left|what else|leftover|remaining|still need)\b/i.test(m)) {
+  if (/\b(what'?s?\s+left|what else|leftover|still need|not researched|pending research)\b/i.test(m) && !/\benrich\b/i.test(m)) {
     return { ...base, tool: "whats_left", wantsWrite: false };
   }
-  if (/\b(snapshot|workspace totals|how many people)\b/i.test(m)) {
+  if (/\b(snapshot|workspace totals|how many people|how big is (my|the) (network|workspace))\b/i.test(m)) {
     return { ...base, tool: "workspace_snapshot", wantsWrite: false };
   }
-  if (/\b(ready draft|drafts?\s+ready|who to send)\b/i.test(m)) {
+  if (/\b(ready drafts?|drafts?\s+ready|who to send)\b/i.test(m)) {
     return { ...base, tool: "list_ready", wantsWrite: false };
   }
   if (/\b(how many|count)\b/i.test(m) && /\b(vp|director|head|founder|c[teo]o)\b/i.test(m)) {
@@ -138,7 +139,21 @@ export function classifyIntent(
     return { ...base, tool: "count_title", wantsWrite: false, args: { title } };
   }
 
-  if (/\b(enrich them|enrich (the )?shortlist|enrich remaining)\b/i.test(m)) {
+  if (/\b(find company|search company|lookup company)\b/i.test(m)) {
+    const q = m.replace(/^(find|search|lookup)\s+company\s+/i, "").trim();
+    return { ...base, tool: "search_accounts", wantsWrite: false, args: { q } };
+  }
+  if (/\b(find|search|who is|lookup)\b/i.test(m) && !/\baccount/i.test(m) && !/\bcompany\b/i.test(m)) {
+    const q = m.replace(/^(find|search|who is|lookup)\s+/i, "").trim();
+    return { ...base, tool: "search_people", wantsWrite: false, args: { q } };
+  }
+  if (/\benrich\b/i.test(m) && !/\b(them|shortlist|remaining|all)\b/i.test(m)) {
+    const company = m.replace(/enrich(ment)?|research|please|the|account/gi, "").trim();
+    if (company.length > 1) {
+      return { ...base, tool: "enrich_account", wantsWrite: true, args: { company, confirm: autoYes } };
+    }
+  }
+  if (/\b(enrich them|enrich (the )?shortlist|enrich remaining|research them|research the shortlist)\b/i.test(m)) {
     return { ...base, tool: "enrich_shortlist", wantsWrite: true, args: { confirm: false } };
   }
   if (/\bshortlist\b/i.test(m) && /\b(top|these|recommended|next)\b/i.test(m)) {
@@ -146,7 +161,7 @@ export function classifyIntent(
     return { ...base, tool: "shortlist_top", wantsWrite: true, args: { n, confirm: false, skipShortlisted: skip } };
   }
 
-  if (/\b(scan|radar)\b/i.test(m)) {
+  if (/\b(scan|radar|event scan)\b/i.test(m)) {
     const event = (m.match(/(?:scan|radar)\s+(.+?)(?:\s+last|\s+in\s+the|\s*$)/i) || [, ""])[1]?.trim();
     return {
       ...base,
@@ -156,7 +171,7 @@ export function classifyIntent(
     };
   }
 
-  if (/\b(show|list|give|bring up|top|next)\b/i.test(m) && /\baccount/i.test(m)) {
+  if ((/\b(show|list|give|bring up|top|next)\b/i.test(m) && /\baccount/i.test(m)) || /\b(top|next)\s+\d+\b/i.test(m)) {
     return {
       ...base,
       tool: "recommend_next",
