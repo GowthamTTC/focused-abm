@@ -205,7 +205,7 @@ export function followupsFor(intent: AgentIntent, tools: string[], pending: unkn
     return ["Who looks like the people I already drafted?", "What else left"];
   }
   if (tools.includes("insight")) {
-    return ["Who should I send first?", "Committee gaps", "Next 10 accounts"];
+    return ["Who has a ready draft now?", "What else left"];
   }
   if (tools.includes("list_ready")) return ["Recommend who to send first"];
   return [];

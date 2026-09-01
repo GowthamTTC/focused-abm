@@ -854,6 +854,25 @@ export async function runTool(
         })),
       };
     }
+    if (topic === "enriched") {
+      const done = rec.accounts.filter((a) => a.pending === 0).slice(0, 12);
+      const need = rec.accounts.filter((a) => a.pending > 0).slice(0, 5);
+      const lines = [
+        done.length ? "Fully researched accounts:" : "No fully researched accounts yet.",
+        ...done.map((a) => `- ${a.name}: ${a.n} people, weighted ${a.avg}`),
+        need.length ? "Still need research:" : "",
+        ...need.map((a) => `- ${a.name}: ${a.pending} left`),
+      ].filter(Boolean);
+      return {
+        text: lines.join("\n"),
+        cards: done.map((a) => ({
+          kind: "account" as const,
+          title: a.name,
+          subtitle: "Researched",
+          pills: [`weighted ${a.avg}`, `${a.n} people`],
+        })),
+      };
+    }
     if (topic === "send") {
       const ready = rec.weightedPeople.filter((p) => p.status === "done").slice(0, 8);
       return {

@@ -55,7 +55,8 @@ export async function runAgent(input: {
     tools.push(name);
     const out = await runTool(ctx, name, args);
     if (out.pending && (intent.wantsWrite || intent.autoYes)) pending.push(...out.pending);
-    if (out.cards) cards.push(...out.cards);
+    const skipRecCards = name === "recommend_next" && tools.some((x) => x === "list_ready" || x === "insight");
+    if (out.cards && !skipRecCards) cards.push(...out.cards);
     if (out.open) open = out.open;
     if (out.openLabel) openLabel = out.openLabel;
     toolText = [toolText, out.text].filter(Boolean).join("\n");
@@ -83,10 +84,12 @@ export async function runAgent(input: {
       const msg = choice.message;
       const calls = msg.tool_calls;
       if (!calls?.length) {
-        const reply = fallbackReply((msg.content ?? "").trim(), toolText, pending, cards);
+        const peopleOnly = tools.includes("list_ready") || intent.args.topic === "send" || intent.args.topic === "lookalikes";
+        const shown = peopleOnly ? cards.filter((c) => c.kind === "person") : cards;
+        const reply = fallbackReply((msg.content ?? "").trim(), toolText, pending, shown);
         const suggestions = followupsFor(intent, tools, pending);
         return {
-          reply, open, openLabel, tools, pending, cards,
+          reply, open, openLabel, tools, pending, cards: shown,
           suggestions: suggestions.length ? suggestions : suggestFollowups({
             message: input.message, tools, reply, topTopic: topTopic(input.learn),
           }),
@@ -118,10 +121,12 @@ export async function runAgent(input: {
     } catch { /* keep tool text */ }
   }
 
-  const reply = fallbackReply(modelText, toolText, pending, cards);
+  const peopleOnly = tools.includes("list_ready") || intent.args.topic === "send" || intent.args.topic === "lookalikes";
+  const shown = peopleOnly ? cards.filter((c) => c.kind === "person") : cards;
+  const reply = fallbackReply(modelText, toolText, pending, shown);
   const suggestions = followupsFor(intent, tools, pending);
   return {
-    reply, open, openLabel, tools, pending, cards,
+    reply, open, openLabel, tools, pending, cards: shown,
     suggestions: suggestions.length ? suggestions : suggestFollowups({
       message: input.message, tools, reply, topTopic: topTopic(input.learn),
     }),
