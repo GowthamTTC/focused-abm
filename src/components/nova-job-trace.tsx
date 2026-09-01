@@ -20,9 +20,20 @@ const KIND: Record<string, string> = {
   event_scan: "Radar",
 };
 
-export function NovaJobTrace({ active }: { active: boolean }) {
+type PersonCard = {
+  title: string; subtitle: string; icp?: string; why?: string;
+  pills: string[]; about: string; pain: string; draft?: string;
+};
+
+export function NovaJobTrace({
+  active,
+  onLive,
+}: {
+  active: boolean;
+  onLive?: (live: boolean) => void;
+}) {
   const [job, setJob] = useState<Live | null>(null);
-  const [results, setResults] = useState<{ title: string; subtitle: string; pills: string[]; about: string; pain: string }[]>([]);
+  const [results, setResults] = useState<PersonCard[]>([]);
   const log = useRef<string[]>([]);
   const fetched = useRef(false);
   const [, bump] = useState(0);
@@ -34,6 +45,7 @@ export function NovaJobTrace({ active }: { active: boolean }) {
     const apply = (next: Live | null) => {
       if (stop || !next) return;
       setJob(next);
+      onLive?.(["queued", "running", "stopping"].includes(next.status));
       const line = next.current
         || `${KIND[next.kind] ?? next.kind} ${next.status} ${next.progress ?? 0}/${next.total ?? 0}`;
       const last = log.current[log.current.length - 1];
@@ -75,14 +87,21 @@ export function NovaJobTrace({ active }: { active: boolean }) {
           </div>
           <div className="flex flex-col gap-2">
             {results.map((p) => (
-              <div key={p.title} className="rounded-[12px] border border-[#DDE2EE] bg-white px-3 py-2 text-left">
-                <p className="text-[13px] font-medium text-[#101828]">{p.title}</p>
+              <div key={p.title} className="rounded-[12px] border border-[#DDE2EE] bg-white px-3 py-2.5 text-left">
+                <p className="text-[13.5px] font-medium text-[#101828]">{p.title}</p>
                 <p className="text-[12px] text-[#667085]">{p.subtitle}</p>
-                <p className="mt-1 text-[11px] text-[#667085]">{p.pills.join(" · ")}</p>
-                {p.about ? <p className="mt-1.5 text-[12.5px] leading-5 text-[#344054]">{p.about}</p> : null}
-                {p.pain ? <p className="mt-1 text-[12px] text-[#B54708]">{p.pain}</p> : null}
+                <p className="mt-1 text-[11px] text-[#263BAA]">{[p.icp, ...p.pills].filter(Boolean).join(" · ")}</p>
+                {p.why ? <p className="mt-1.5 text-[12.5px] text-[#344054]"><span className="font-medium">ICP: </span>{p.why}</p> : null}
+                {p.about ? <p className="mt-1 text-[12.5px] leading-5 text-[#344054]">{p.about}</p> : null}
+                {p.pain ? <p className="mt-1 text-[12.5px] text-[#B54708]"><span className="font-medium">Pain: </span>{p.pain}</p> : null}
+                {p.draft ? <p className="mt-1.5 rounded-md bg-[#F4F6FB] px-2 py-1.5 text-[12px] leading-5 text-[#101828]">{p.draft}</p> : null}
               </div>
             ))}
+            {results.length > 0 && (
+              <p className="text-[12.5px] text-[#101828]"><span className="font-medium">Recommendation: </span>
+                {results.some((x) => x.draft) ? "Open the draft-ready cards above and send the strongest ICP fit first." : "These profiles are in. Ask Nova who to send first."}
+              </p>
+            )}
           </div>
         </div>
       );

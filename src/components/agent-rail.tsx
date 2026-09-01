@@ -101,6 +101,7 @@ export function NovaThread({
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [saying, setSaying] = useState(0);
+  const [jobLive, setJobLive] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const bottom = useRef<HTMLDivElement>(null);
@@ -254,7 +255,7 @@ export function NovaThread({
             )}
           </div>
         ))}
-        {msgs.map((m, i) => m.role === "assistant" && i === msgs.length - 1 && !busy ? (
+        {msgs.map((m, i) => m.role === "assistant" && i === msgs.length - 1 && !busy && !jobLive ? (
           <div key={`s-${i}`} className="flex flex-wrap gap-1.5">
             {(m.pending ?? []).map((p) => (
               <button
@@ -280,7 +281,7 @@ export function NovaThread({
             ))}
           </div>
         ) : null)}
-        <NovaJobTrace active={msgs.some((m) => (m.tools ?? []).some((x) => x.startsWith("enrich") || x === "start_radar"))} />
+        <NovaJobTrace active={msgs.some((m) => (m.tools ?? []).some((x) => x.startsWith("enrich") || x === "start_radar"))} onLive={setJobLive} />
         {busy && (
           <div className="enrich-wait rounded-[10px] border border-[#E7CE96] bg-[#FEFBF3] p-3 text-[12.5px] text-[#B54708]">
             <div className="flex items-center gap-2">
