@@ -655,6 +655,11 @@ export async function runTool(
   }
 
   if (name === "radar_guide") {
+    if (args.welcome) {
+      return {
+        text: "This workspace only. Start in order:\n1. Workspace snapshot\n2. Top 10 accounts\n3. Shortlist these\n4. Next 10\n5. What else left\n6. Enrich them\n7. Who should I send first?\n\nIf you are going on-site, say radar and I will walk the event scan.",
+      };
+    }
     return {
       text: "Radar is posts + country, not GPS. I only keep people who named the event in a recent post.\n\n1. Name the event\n2. US or India, 1st degree or 2nd+3rd (max 100)\n3. I ask Yes before scanning\n4. Hits, then company density, then mark met/skip\n5. Shortlist companies you marked met and enrich those.\n\nDefault if you do not pick: US, 1st degree, last 7 days.",
     };

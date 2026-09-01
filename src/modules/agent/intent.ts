@@ -193,6 +193,9 @@ export function classifyIntent(
     return { ...base, tool: "recommend_next", wantsWrite: false, args: { n, skipShortlisted: false } };
   }
 
+  if (/^(hi|hello|hey|yo|sup|good (morning|afternoon|evening))\b/i.test(m)) {
+    return { ...base, tool: "radar_guide", wantsWrite: false, args: { welcome: true } };
+  }
   const inScope = /\b(account|shortlist|enrich|research|radar|draft|icp|people|person|contact|linkedin|sync|send|vp|founder|director|company|workspace|snapshot|scan|title|committee|lookalike|met|skipped|flag|event|saastr|dreamforce|nova|abm|gtm|marketeroid)\b/i.test(m)
     || /\b(yes|yep|yeah|ok|okay|no)\b/i.test(m);
   if (!inScope) return { ...base, offTopic: true };
@@ -201,6 +204,9 @@ export function classifyIntent(
 
 export function followupsFor(intent: AgentIntent, tools: string[], pending: unknown[]): string[] {
   if (pending.length) return [];
+  if (tools.includes("radar_guide") && intent.args.welcome) {
+    return ["Workspace snapshot", "Top 10 accounts", "radar"];
+  }
   if (tools.includes("radar_guide")) {
     return ["scan SaaStr last 7 days US", "scan SaaStr last 7 days India", "Radar hits from the last scan"];
   }

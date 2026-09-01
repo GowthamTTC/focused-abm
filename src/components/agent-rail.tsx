@@ -250,7 +250,7 @@ export function NovaThread({
             ))}
           </div>
         ) : null)}
-        <NovaJobTrace active showDone={msgs.length > 0} onLive={setJobLive} />
+        <NovaJobTrace active showDone onLive={setJobLive} />
         {busy && (
           <div className="enrich-wait rounded-[10px] border border-[#E7CE96] bg-[#FEFBF3] p-3 text-[12.5px] text-[#B54708]">
             <div className="flex items-center gap-2">

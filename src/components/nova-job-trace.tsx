@@ -38,6 +38,7 @@ export function NovaJobTrace({
   const [results, setResults] = useState<PersonCard[]>([]);
   const log = useRef<string[]>([]);
   const fetched = useRef(false);
+  const seenLive = useRef(false);
   const [, bump] = useState(0);
 
   useEffect(() => {
@@ -47,7 +48,9 @@ export function NovaJobTrace({
     const apply = (next: Live | null) => {
       if (stop || !next) return;
       setJob(next);
-      onLive?.(["queued", "running", "stopping"].includes(next.status));
+      const liveNow = ["queued", "running", "stopping"].includes(next.status);
+      if (liveNow) seenLive.current = true;
+      onLive?.(liveNow);
       const line = next.current
         || `${KIND[next.kind] ?? next.kind} ${next.status} ${next.progress ?? 0}/${next.total ?? 0}`;
       const last = log.current[log.current.length - 1];
@@ -81,7 +84,7 @@ export function NovaJobTrace({
   }, [active]);
 
   if (!active || !job || !["queued", "running", "stopping"].includes(job.status)) {
-    if (active && showDone && job && job.status === "done") {
+    if (active && showDone && seenLive.current && job && job.status === "done") {
       return (
         <div className="mt-2 space-y-2">
           <div className="rounded-[10px] border border-[#D1FADF] bg-[#F6FEF9] p-3 text-[12.5px] text-[#067647]">
