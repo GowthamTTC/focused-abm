@@ -169,8 +169,8 @@ export const TOOL_DEFS = [
     type: "function" as const,
     function: {
       name: "recommend_next",
-      description: "Rank what to do next: weighted scores, top accounts, title mix, committee gaps, send-outcome bandit, lookalikes. Use when user asks what to do, who to prioritize, or for recommendations.",
-      parameters: { type: "object", properties: {} },
+      description: "Rank accounts. Pass n when the user says top 5 / top 10. Default 3.",
+      parameters: { type: "object", properties: { n: { type: "number", description: "How many top accounts to return" } } },
     },
   },
   {
@@ -520,10 +520,12 @@ export async function runTool(
   if (name === "recommend_next") {
     const { recommendAll, formatRecommend } = await import("@/modules/recommend");
     const rec = await recommendAll(orgId);
-    const top = rec.accounts[0];
+    const n = Math.min(20, Math.max(1, Number(args.n) || 3));
+    const slice = rec.accounts.slice(0, n);
+    const top = slice[0];
     return {
-      text: formatRecommend(rec),
-      cards: rec.accounts.slice(0, 3).map((a) => ({
+      text: formatRecommend({ ...rec, accounts: slice }),
+      cards: slice.map((a) => ({
         kind: "account" as const,
         title: a.name,
         subtitle: a.shortlisted ? "Shortlisted" : "ICP match",

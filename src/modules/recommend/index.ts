@@ -162,7 +162,13 @@ export async function recommendAll(orgId: string) {
       missing,
       action: pending > 0 ? `enrich ${pending} remaining` : "review drafts / send",
     };
-  }).sort((a, b) => b.avg - a.avg || b.n - a.n);
+  }).sort((a, b) =>
+    b.avg - a.avg
+    || b.posted14 - a.posted14
+    || b.pending - a.pending
+    || b.n - a.n
+    || Number(a.shortlisted) - Number(b.shortlisted)
+  );
 
   const titleBuckets = new Map<Role, { n: number; byCo: Map<string, number> }>();
   for (const p of people) {
@@ -225,7 +231,7 @@ export async function recommendAll(orgId: string) {
 
   return {
     recommendation,
-    accounts: accounts.slice(0, 6),
+    accounts: accounts.slice(0, 20),
     titles,
     committee,
     bandit,

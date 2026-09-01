@@ -28,7 +28,7 @@ export function suggestFollowups(input: {
     add("What should I do next?");
   }
   if (t.has("recommend_next") || t.has("workspace_snapshot")) {
-    add("Shortlist the top 3 accounts");
+    add("Shortlist these accounts");
     add("How many VPs — which account has most?");
     add("Enrich all remaining on the shortlist");
   }

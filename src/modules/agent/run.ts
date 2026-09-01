@@ -28,6 +28,12 @@ Every reply MUST:
 6. Never invent HQ, revenue, or people missing from tool output.
 7. Radar is post-search + country, not live GPS.`
 
+function requestedN(message: string) {
+  const m = message.match(/\btop\s+(\d+)\b/i) || message.match(/\b(\d+)\s+accounts?\b/i);
+  const n = m ? parseInt(m[1], 10) : 3;
+  return Number.isFinite(n) ? Math.min(20, Math.max(1, n)) : 3;
+}
+
 function composeReply(model: string, pending: { title: string }[], cards: { title: string; subtitle?: string; pills: string[] }[]) {
   const thin = !model || model.length < 48 || /^yes or no\??$/i.test(model.trim());
   if (!thin && !cards.length) return model;
@@ -88,7 +94,7 @@ export async function runAgent(input: {
           : (tools.includes("shortlist_top") || tools.includes("shortlist_account")) && wantsWrite
             ? ["Enrich them"]
             : tools.includes("recommend_next") || tools.includes("shortlist_top")
-              ? ["Shortlist the top 3 accounts"]
+              ? [`Shortlist the top ${requestedN(input.message)} accounts`]
               : suggestFollowups({ message: input.message, tools, reply, topTopic: topTopic(input.learn) }),
       };
     }
@@ -101,6 +107,9 @@ export async function runAgent(input: {
       let args: Record<string, unknown> = {};
       try { args = JSON.parse(call.function.arguments || "{}"); } catch { args = {}; }
       tools.push(call.function.name);
+      if (call.function.name === "recommend_next" || call.function.name === "shortlist_top") {
+        if (args.n == null) args.n = requestedN(input.message);
+      }
       if (WRITES.has(call.function.name)) args.confirm = autoYes;
       const out = await runTool(ctx, call.function.name, args);
       if (out.pending && (wantsWrite || autoYes)) pending.push(...out.pending);
