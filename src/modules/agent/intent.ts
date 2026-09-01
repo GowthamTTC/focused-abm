@@ -50,13 +50,28 @@ export function parseRadarReply(message: string): { event: string; country: stri
     return null;
   }
   if (/^(hi|hello|hey|yo|thanks|thank you|ok|okay|no|yes)\b/i.test(s) && !/\b(scan|radar)\b/i.test(s)) return null;
-  const country = /india/i.test(s) ? "india" : "united-states";
-  const pool = /\b(2nd|3rd|second|third|extended)\b/i.test(s) ? "extended" : "first";
-  const days = /\b14\b/.test(s) ? 14 : (/\b3\b/.test(s) && /day/i.test(s)) ? 3 : 7;
-  s = s.replace(/\b(scan|radar|event scan|last \d+ days?|in the|united states|usa|us|india|1st|2nd|3rd|first|second|third|degree|extended|network|please)\b/gi, " ");
+  const country = /\b(india|indian|bharat)\b/i.test(s)
+    ? "india"
+    : /\b(united states|usa|america|american|u\.s\.a\.?|u\.s\.)\b/i.test(s) || /\bUS\b/.test(s)
+      ? "united-states"
+      : "united-states";
+  const pool = /\b(2nd|3rd|second|third|extended|beyond first|not first)\b/i.test(s) ? "extended" : "first";
+  const wordDays: Record<string, number> = { one:1, two:2, three:3, seven:7, fourteen:14, thirty:30 };
+  const wordHit = s.match(/\b(one|two|three|seven|fourteen|thirty)\s+days?\b/i);
+  const dayHit = s.match(/\b(?:last|past)\s+(\d+)\s+days?\b/i) || s.match(/\b(\d+)\s+days?\b/i);
+  const days = /\b(last|past)\s+month\b/i.test(s) || /\b30\s*d\b/i.test(s)
+    ? 30
+    : /\b(last|past)\s+(week|7\s*d)\b/i.test(s)
+      ? 7
+      : wordHit
+        ? wordDays[wordHit[1]!.toLowerCase()] ?? 7
+        : dayHit
+          ? Math.min(30, Math.max(1, parseInt(dayHit[1]!, 10)))
+          : 7;
+  s = s.replace(/\b(radar|scan|event scan|event name|event|last|past|month|week|\d+\s+days?|days?|one|two|three|seven|fourteen|thirty|in the|going to|headed to|at|for|about|talking about|united states|usa|america|american|u\.s\.a\.?|u\.s\.|\bus\b|india|indian|bharat|1st|2nd|3rd|first|second|third|degree|extended|connections?|network|please|name|people)\b/gi, " ");
   s = s.replace(/[+|]+/g, " ").replace(/\s+/g, " ").trim();
   if (s.length < 3) return null;
-  if (/^(event|hits|yes|no|ok)$/i.test(s)) return null;
+  if (/^(event|hits|yes|no|ok|name)$/i.test(s)) return null;
   return { event: s, country, days, pool };
 }
 

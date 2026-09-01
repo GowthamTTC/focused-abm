@@ -77,8 +77,38 @@ export async function runAgent(input: {
     return out;
   };
 
+  async function refineRadarArgs(raw: string, seed: Record<string, unknown>) {
+    try {
+      const res = await client.chat.completions.create({
+        model: env.LLM_MODEL_CLASSIFY || env.LLM_MODEL_DEEPDIVE,
+        temperature: 0,
+        max_tokens: 200,
+        messages: [
+          {
+            role: "system",
+            content: "Extract a LinkedIn event Radar scan from informal English. Reply with JSON only: {\"event\":string,\"country\":\"united-states\"|\"india\",\"days\":number,\"pool\":\"first\"|\"extended\"}. event = conference or event name only (no words like radar, event name, connections, days). country only if they said US/USA/America/India. days 1-30 from last N days / last week / last month. pool=extended if they said 2nd, 3rd, extended; else first. If a field is missing use the seed. Do not invent an event that is not in the text.",
+          },
+          { role: "user", content: `SEED: ${JSON.stringify(seed)}\nTEXT: ${raw}` },
+        ],
+      });
+      const text = res.choices[0]?.message?.content ?? "";
+      const json = text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1);
+      const got = JSON.parse(json) as Record<string, unknown>;
+      const event = String(got.event ?? seed.event ?? "").trim();
+      const country = String(got.country ?? seed.country) === "india" ? "india" : "united-states";
+      const days = Math.min(30, Math.max(1, Number(got.days ?? seed.days) || 7));
+      const pool = String(got.pool ?? seed.pool) === "extended" ? "extended" : "first";
+      if (event.length >= 3) return { event, country, days, pool };
+    } catch { /* keep seed */ }
+    return seed;
+  }
+
   if (intent.tool) {
-    await apply(intent.tool, { ...intent.args });
+    let args = { ...intent.args };
+    if (intent.tool === "start_radar") {
+      args = await refineRadarArgs(input.message, args);
+    }
+    await apply(intent.tool, args);
   } else {
     const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       { role: "system", content: `${SYSTEM}\nCurrent page: ${input.page}\n${habitBlock(input.learn)}` },
