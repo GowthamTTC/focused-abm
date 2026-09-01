@@ -15,18 +15,6 @@ import { rankBatch } from "@/modules/scoring/rank";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | "timeout"> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      p,
-      new Promise<"timeout">((resolve) => { timer = setTimeout(() => resolve("timeout"), ms); }),
-    ]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
-}
-
 function splitHeadline(headline: string | null): { position: string | null; company: string | null } {
   if (!headline) return { position: null, company: null };
   const parts = headline.split(/\s+at\s+/i);
@@ -94,17 +82,13 @@ export async function runEventExtended(
 
   do {
     if (shouldStop && await shouldStop()) break;
-    const page = await withTimeout(provider.searchPosts({
+    const page = await provider.searchPosts({
       accountId: seat.unipileAccountId,
       keywords: eventName,
       datePosted: datePosted(payload.days),
       cursor,
       limit: 50,
-    }), 20_000);
-    if (page === "timeout") {
-      if (onProgress) await onProgress(authors.size, cap);
-      break;
-    }
+    });
     for (const post of page.items) {
       if (post.isCompany) continue;
       const hit = mentionForEvent([{ text: post.text, postedAt: post.postedAt }], eventName, scope.slug);
