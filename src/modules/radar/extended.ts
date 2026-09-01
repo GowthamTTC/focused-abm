@@ -15,13 +15,14 @@ import { rankBatch } from "@/modules/scoring/rank";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | "timeout"> {
+async function withTimeout<T>(p: Promise<T>, ms: number): Promise<{ ok: true; value: T } | { ok: false }> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    return await Promise.race([
-      p,
-      new Promise<"timeout">((resolve) => { timer = setTimeout(() => resolve("timeout"), ms); }),
+    const value = await Promise.race([
+      p.then((v) => ({ ok: true as const, value: v })),
+      new Promise<{ ok: false }>((resolve) => { timer = setTimeout(() => resolve({ ok: false }), ms); }),
     ]);
+    return value;
   } finally {
     if (timer) clearTimeout(timer);
   }
@@ -94,17 +95,18 @@ export async function runEventExtended(
 
   do {
     if (shouldStop && await shouldStop()) break;
-    const page = await withTimeout(provider.searchPosts({
+    const fetched = await withTimeout(provider.searchPosts({
       accountId: seat.unipileAccountId,
       keywords: eventName,
       datePosted: datePosted(payload.days),
       cursor,
       limit: 50,
     }), 20_000);
-    if (page === "timeout") {
+    if (!fetched.ok) {
       if (onProgress) await onProgress(authors.size, cap);
       break;
     }
+    const page = fetched.value;
     for (const post of page.items) {
       if (post.isCompany) continue;
       const hit = mentionForEvent([{ text: post.text, postedAt: post.postedAt }], eventName, scope.slug);
