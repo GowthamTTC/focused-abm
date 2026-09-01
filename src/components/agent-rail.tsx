@@ -281,7 +281,11 @@ export function NovaThread({
             ))}
           </div>
         ) : null)}
-        <NovaJobTrace active={msgs.some((m) => (m.tools ?? []).some((x) => x.startsWith("enrich") || x === "start_radar"))} onLive={setJobLive} />
+        <NovaJobTrace
+          active={msgs.some((m) => (m.tools ?? []).some((x) => x.startsWith("enrich") || x === "start_radar"))}
+          mode={[...msgs].reverse().find((m) => (m.tools ?? []).length)?.tools?.includes("start_radar") ? "radar" : "research"}
+          onLive={setJobLive}
+        />
         {busy && (
           <div className="enrich-wait rounded-[10px] border border-[#E7CE96] bg-[#FEFBF3] p-3 text-[12.5px] text-[#B54708]">
             <div className="flex items-center gap-2">
