@@ -14,8 +14,12 @@ const client = new OpenAI({
   },
 });
 
-const SYSTEM = `You are Nova. You help this user with their Focused ABM workspace AND any other question they ask.
-Workspace numbers/people come from tools only. Other topics: answer directly.`;
+const SYSTEM = `You are Nova for THIS Focused ABM workspace only.
+You can: snapshot, list/shortlist accounts, enrich, Radar, drafts, mark sent, flag, sync, stop jobs.
+You cannot: weather, jokes, general coding, world news, or anything outside this workspace.
+If the user is off-topic, say you are limited to this environment and point them to the next step in the sequence:
+1 workspace snapshot → 2 top accounts → 3 shortlist → 4 next 10 → 5 what else left → 6 enrich them → 7 who to send.
+Never invent HQ, revenue, counts, or people. Tools are ground truth. Writes need Yes/No.`;
 
 export async function runAgent(input: {
   orgId: string;
@@ -34,6 +38,16 @@ export async function runAgent(input: {
 }> {
   const ctx: ToolCtx = { orgId: input.orgId };
   const intent = classifyIntent(input.message, input.history);
+  if (intent.offTopic) {
+    const reply = "I'm limited to this environment — your Focused ABM workspace (accounts, shortlist, enrich, Radar, drafts). I can't help with that ask.\n\n**Next step:** Workspace snapshot, then Top 10 accounts.";
+    return {
+      reply,
+      tools: [],
+      suggestions: ["Workspace snapshot", "Top 10 accounts", "What else left"],
+      pending: [],
+      cards: [],
+    };
+  }
   const tools: string[] = [];
   const pending: { kind: string; title: string; yes: string; tone?: string }[] = [];
   const cards: { kind: string; title: string; subtitle?: string; pills: string[] }[] = [];

@@ -9,6 +9,7 @@ export type AgentIntent = {
   autoYes: boolean;
   skipShortlisted: boolean;
   n: number;
+  offTopic?: boolean;
 };
 
 const WRITE_RE = /\b(shortlist|unshortlist|unselect|star|enrich|scan|radar|behalf|clear shortlist)\b/i;
@@ -184,6 +185,9 @@ export function classifyIntent(
     return { ...base, tool: "recommend_next", wantsWrite: false, args: { n, skipShortlisted: false } };
   }
 
+  const inScope = /\b(account|shortlist|enrich|research|radar|draft|icp|people|person|contact|linkedin|sync|send|vp|founder|director|company|workspace|snapshot|scan|title|committee|lookalike|met|skipped|flag|nova|abm|gtm|marketeroid)\b/i.test(m)
+    || /\b(yes|yep|yeah|ok|okay|no)\b/i.test(m);
+  if (!inScope) return { ...base, offTopic: true };
   return base;
 }
 
@@ -198,8 +202,11 @@ export function followupsFor(intent: AgentIntent, tools: string[], pending: unkn
   if (tools.includes("recommend_next") && intent.skipShortlisted) {
     return ["Shortlist these accounts", "What else left", "Who still needs research on the shortlist?"];
   }
+  if (tools.includes("workspace_snapshot")) {
+    return ["Top 10 accounts", "What else left"];
+  }
   if (tools.includes("recommend_next")) {
-    return [`Shortlist the top ${intent.n} accounts`, "Next 10 accounts", "Title mix by company"];
+    return ["Shortlist these accounts", "Next 10 accounts", "What else left"];
   }
   if (tools.includes("list_ready") || (intent.args && intent.args.topic === "send")) {
     return ["Who looks like the people I already drafted?", "What else left"];

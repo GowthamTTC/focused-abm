@@ -4,14 +4,13 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { NovaJobTrace } from "@/components/nova-job-trace";
 
 export const NOVA_QUERIES = [
+  "Workspace snapshot",
   "Top 10 accounts",
+  "Shortlist these accounts",
   "Next 10 accounts",
   "What else left",
-  "Title mix by company",
-  "Committee gaps",
+  "Enrich them",
   "Who should I send first?",
-  "Who looks like people I already drafted?",
-  "Radar hits from the last scan",
 ];
 
 type Msg = {
@@ -78,7 +77,7 @@ export function NovaMark({ large = false }: { large?: boolean }) {
       <p className={`font-semibold tracking-[-.03em] text-[#101828] ${large ? "text-[40px] leading-none" : "text-sm"}`}>Nova</p>
       {large && (
         <p className="max-w-md text-center text-[15px] leading-6 text-[#475467]">
-          Ask anything about this workspace. Counts, shortlist, enrich, Radar, drafts.
+          Start here, in order. Nova only works this workspace — LinkedIn network, accounts, enrich, Radar, drafts.
         </p>
       )}
     </div>
