@@ -15,6 +15,7 @@ export type ResultCard = {
   title: string;
   subtitle?: string;
   pills: string[];
+  href?: string;
 };
 export type ToolOut = {
   text: string;
@@ -311,6 +312,7 @@ async function listPeopleAt(orgId: string, key: string, nameHint = "") {
     title: `${p.firstName} ${p.lastName}`,
     subtitle: p.positionRaw ?? "—",
     pills: [p.enrichStatus, p.score != null ? `score ${p.score}` : "unscored"],
+    href: `/people/${p.id}`,
   }));
   return { n: people.length, pending, lines, cards };
 }
