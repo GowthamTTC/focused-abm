@@ -25,6 +25,7 @@ export function NovaDesk({ page }: { page: string }) {
   }
 
   async function fresh() {
+    setActive(null);
     const res = await fetch("/api/agent/chats", { method: "POST" });
     const data = await res.json().catch(() => null) as { chat?: Chat } | null;
     if (data?.chat) {
@@ -74,6 +75,7 @@ export function NovaDesk({ page }: { page: string }) {
           <button type="button" onClick={() => void fresh()} className="text-[12.5px] text-[#263BAA]">New chat</button>
         </div>
         <NovaThread
+          key={active ?? "blank"}
           page={page}
           chatId={active}
           onChatId={(id) => { setActive(id); void refresh(); }}

@@ -28,9 +28,11 @@ type PersonCard = {
 export function NovaJobTrace({
   active,
   onLive,
+  showDone = true,
 }: {
   active: boolean;
   onLive?: (live: boolean) => void;
+  showDone?: boolean;
 }) {
   const [job, setJob] = useState<Live | null>(null);
   const [results, setResults] = useState<PersonCard[]>([]);
@@ -79,7 +81,7 @@ export function NovaJobTrace({
   }, [active]);
 
   if (!active || !job || !["queued", "running", "stopping"].includes(job.status)) {
-    if (active && job && job.status === "done") {
+    if (active && showDone && job && job.status === "done") {
       return (
         <div className="mt-2 space-y-2">
           <div className="rounded-[10px] border border-[#D1FADF] bg-[#F6FEF9] p-3 text-[12.5px] text-[#067647]">

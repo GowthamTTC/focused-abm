@@ -107,7 +107,8 @@ export function NovaThread({
   useEffect(() => { chatRef.current = chatId ?? null; }, [chatId]);
 
   useEffect(() => {
-    if (!chatId) { setMsgs([]); return; }
+    setMsgs([]);
+    if (!chatId) return;
     let stop = false;
     void (async () => {
       const res = await fetch(`/api/agent/chats/${chatId}`, { cache: "no-store" });
@@ -250,7 +251,7 @@ export function NovaThread({
             ))}
           </div>
         ) : null)}
-        <NovaJobTrace active onLive={setJobLive} />
+        <NovaJobTrace active showDone={msgs.length > 0} onLive={setJobLive} />
         {busy && (
           <div className="enrich-wait rounded-[10px] border border-[#E7CE96] bg-[#FEFBF3] p-3 text-[12.5px] text-[#B54708]">
             <div className="flex items-center gap-2">
