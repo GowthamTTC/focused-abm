@@ -205,29 +205,50 @@ export class UnipileChannelProvider implements ChannelProvider {
     cursor?: string | null;
     limit?: number;
   }): Promise<{ items: SearchPost[]; cursor: string | null }> {
-    const limit = Math.min(50, Math.max(10, input.limit ?? 50));
+    const limit = Math.min(49, Math.max(3, input.limit ?? 25));
     const qs = new URLSearchParams({ account_id: input.accountId, limit: String(limit) });
     if (input.cursor) qs.set("cursor", input.cursor);
-    const body: Record<string, unknown> = {
-      api: "classic",
-      category: "posts",
-      keywords: input.keywords,
-      sort_by: "date",
-    };
-    if (input.datePosted) body.date_posted = input.datePosted;
-
-    let raw: unknown;
-    try {
-      raw = await uni(`/linkedin/search?${qs}`, { method: "POST", body: JSON.stringify(body) });
-    } catch {
-      raw = await uni(`/linkedin/search?${qs}`, {
-        method: "POST",
-        body: JSON.stringify({
-          url: `https://www.linkedin.com/search/results/content/?keywords=${encodeURIComponent(input.keywords)}&datePosted=%22past-week%22&origin=FACETED_SEARCH`,
-        }),
-      });
+    const date = input.datePosted ?? "past_week";
+    const liDate = date === "past_day" ? "past-24h" : date === "past_month" ? "past-month" : "past-week";
+    const attempts: Array<{ path: string; body: Record<string, unknown> }> = [
+      {
+        path: `/linkedin/search?${qs}`,
+        body: { api: "classic", category: "posts", keywords: input.keywords, sort_by: "date", date_posted: date },
+      },
+      {
+        path: `/linkedin/search?${qs}`,
+        body: { api: "classic", category: "posts", keywords: input.keywords, sort_by: "DATE", date_posted: date.toUpperCase() },
+      },
+      {
+        path: `/linkedin/search/${encodeURIComponent(input.accountId)}/posts?${qs}`,
+        body: { keywords: input.keywords, sort_by: "DATE", date_posted: date.toUpperCase() },
+      },
+      {
+        path: `/linkedin/search?${qs}`,
+        body: {
+          url: `https://www.linkedin.com/search/results/content/?keywords=${encodeURIComponent(input.keywords)}&datePosted=%22${liDate}%22&origin=FACETED_SEARCH`,
+        },
+      },
+    ];
+    let raw: unknown = { items: [] };
+    let lastErr: unknown;
+    for (const attempt of attempts) {
+      try {
+        raw = await uni(attempt.path, { method: "POST", body: JSON.stringify(attempt.body) });
+        lastErr = null;
+        break;
+      } catch (e) {
+        lastErr = e;
+      }
     }
-    const page = z.object({ items: z.array(z.any()).default([]), cursor: z.string().nullish() }).passthrough().parse(raw);
+    if (lastErr && !(raw && typeof raw === "object" && Array.isArray((raw as { items?: unknown }).items) && (raw as { items: unknown[] }).items.length)) {
+      throw lastErr instanceof Error ? lastErr : new Error("Unipile post search failed");
+    }
+    const page = z.object({
+      items: z.array(z.any()).default([]),
+      cursor: z.string().nullish(),
+      paging: z.object({ cursor: z.string().nullish() }).passthrough().optional(),
+    }).passthrough().parse(raw);
     const items: SearchPost[] = [];
     for (const r of page.items as Record<string, any>[]) {
       const author = r.author ?? r.user ?? {};
@@ -255,7 +276,7 @@ export class UnipileChannelProvider implements ChannelProvider {
         },
       });
     }
-    return { items, cursor: page.cursor ?? null };
+    return { items, cursor: page.cursor ?? page.paging?.cursor ?? null };
   }
 
   async searchPeople(input: {

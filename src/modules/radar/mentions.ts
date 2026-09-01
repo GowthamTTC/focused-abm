@@ -26,7 +26,8 @@ function eventMatches(hay: string, event: string): boolean {
   if (padded(hay).includes(padded(event))) return true;
   const compact = event.replace(/ /g, "");
   if (compact.length >= 5 && hay.replace(/ /g, "").includes(compact)) return true;
-  return false;
+  const tokens = event.split(/\s+/).filter((t) => t.length >= 5 && !/^(20\d{2}|conference|summit|annual)$/.test(t));
+  return tokens.some((t) => padded(hay).includes(padded(t)));
 }
 
 function near(hay: string, a: string, b: string, window = 48): boolean {

@@ -83,7 +83,7 @@ export async function loadRadar(
 
   const rows = await db.select().from(connection).where(and(
     eq(connection.orgId, orgId),
-    eq(connection.bucket, "pitchable"),
+    or(eq(connection.bucket, "pitchable"), eq(connection.mentionKind, "event")),
     degree,
     place,
   ));

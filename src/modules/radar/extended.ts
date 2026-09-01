@@ -179,7 +179,7 @@ export async function runEventExtended(
         mentionSnippet: h.snippet,
         mentionKind: "event",
         eventQuery: eventName,
-        bucket: null,
+        bucket: "pitchable",
         matchWhy: `Posted about "${eventName}": ${h.snippet}`,
         matchMethod: "rule",
         matchConfidence: 60,
