@@ -126,6 +126,14 @@ export function NovaJobTrace({
         <span className="inline-flex h-2 w-2 rounded-full bg-[#263BAA]" style={{ animation: "radar-pulse 1.1s ease-in-out infinite" }} />
         <span className="font-medium">{KIND[job.kind] ?? job.kind}</span>
         <span className="tnum ml-auto text-[#667085]">{job.progress ?? 0}/{job.total ?? 0} · {pct}%</span>
+        <button type="button" aria-label="Close job"
+          className="ml-1 flex h-6 w-6 items-center justify-center rounded text-[16px] leading-none text-[#667085] hover:bg-[#F4F6FB] hover:text-[#101828]"
+          onClick={() => {
+            void fetch("/api/jobs/stop", { method: "POST" });
+            setJob(null);
+          }}>
+          ×
+        </button>
       </div>
       <div className="mt-2"><ProgressBar value={job.progress ?? 0} max={job.total ?? 0} size="sm" /></div>
       <p className="mt-2 text-[12px] text-[#475467]">{job.current ?? "Worker picked up the job…"}</p>

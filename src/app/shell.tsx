@@ -4,7 +4,7 @@ import { and, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { db, connection, job } from "@/db";
 import { currentUser, logout, type Ctx } from "@/auth/session";
 import { env } from "@/lib/env";
-import { requestStop } from "@/app/jobs/actions";
+import { requestStop, requestDismiss } from "@/app/jobs/actions";
 import { NavIcon } from "@/components/nav-icons";
 import { CommandPalette, PaletteTrigger } from "@/components/command-palette";
 import { LiveJob } from "@/components/live-job";
@@ -187,6 +187,13 @@ export async function Shell({ user, active, children }: {
                 </button>
               </form>
             )}
+            <form action={requestDismiss.bind(null, running.id)}>
+              <button type="submit" aria-label="Close job"
+                className="flex h-7 w-7 items-center justify-center rounded-[6px] text-[16px] leading-none text-[#667085] hover:bg-[#F4F6FB] hover:text-[#101828]"
+                title="Close and stop this job">
+                ×
+              </button>
+            </form>
           </div>
         )}
         {failed && (

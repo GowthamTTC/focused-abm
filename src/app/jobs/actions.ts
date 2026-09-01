@@ -12,3 +12,11 @@ export async function requestStop(jobId: string) {
     .where(and(eq(job.id, jobId), eq(job.orgId, user.orgId),
       inArray(job.status, ["queued", "running"])));
 }
+
+/** Hide the bar now. Marks the job stopped so it does not come back. */
+export async function requestDismiss(jobId: string) {
+  const user = await requireUser();
+  await db.update(job).set({ status: "stopped", updatedAt: new Date() })
+    .where(and(eq(job.id, jobId), eq(job.orgId, user.orgId),
+      inArray(job.status, ["queued", "running", "stopping"])));
+}
