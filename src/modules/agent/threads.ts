@@ -29,7 +29,7 @@ export async function loadChat(userId: string, chatId: string) {
   if (!chat) return null;
   const messages = await db.select(MSG_COLS).from(novaChatMessage)
     .where(eq(novaChatMessage.chatId, chatId)).orderBy(novaChatMessage.createdAt);
-  return { chat, messages: messages.map((m) => ({ ...m, cardsJson: [] as { kind: string; title: string; subtitle?: string; pills: string[] }[] })) };
+  return { chat, messages: messages.map((m) => ({ ...m, cardsJson: [] as { kind: string; title: string; subtitle?: string; pills: string[]; href?: string }[] })) };
 }
 
 export async function appendTurn(input: {
@@ -40,7 +40,7 @@ export async function appendTurn(input: {
   assistantText: string;
   suggestions?: string[];
   pending?: { kind: string; title: string; yes: string; tone?: string }[];
-  cards?: { kind: string; title: string; subtitle?: string; pills: string[] }[];
+  cards?: { kind: string; title: string; subtitle?: string; pills: string[]; href?: string }[];
 }) {
   let chatId = input.chatId;
   if (!chatId) {

@@ -34,7 +34,7 @@ export async function runAgent(input: {
   tools: string[];
   suggestions: string[];
   pending: { kind: string; title: string; yes: string; tone?: string }[];
-  cards: { kind: string; title: string; subtitle?: string; pills: string[] }[];
+  cards: { kind: string; title: string; subtitle?: string; pills: string[]; href?: string }[];
 }> {
   const ctx: ToolCtx = { orgId: input.orgId };
   const intent = classifyIntent(input.message, input.history);
@@ -50,7 +50,7 @@ export async function runAgent(input: {
   }
   const tools: string[] = [];
   const pending: { kind: string; title: string; yes: string; tone?: string }[] = [];
-  const cards: { kind: string; title: string; subtitle?: string; pills: string[] }[] = [];
+  const cards: { kind: string; title: string; subtitle?: string; pills: string[]; href?: string }[] = [];
   let open: string | undefined;
   let openLabel: string | undefined;
   let toolText = "";
