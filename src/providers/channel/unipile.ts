@@ -260,7 +260,7 @@ export class UnipileChannelProvider implements ChannelProvider {
         ? { first: author.first_name || "(unknown)", last: author.last_name || "" }
         : splitName(author.name);
       items.push({
-        text: String(r.text ?? r.commentary ?? ""),
+        text: String(r.text ?? r.commentary ?? r.content ?? r.share_commentary ?? r.commentary_text ?? ""),
         postedAt: r.parsed_datetime ?? r.date ?? null,
         isCompany,
         author: {

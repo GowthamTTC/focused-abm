@@ -95,20 +95,14 @@ export async function runEventExtended(
     };
     let page: SearchPage | null = null;
     try {
-      page = await Promise.race([
-        provider.searchPosts({
-          accountId: seat.unipileAccountId,
-          keywords: eventName,
-          datePosted: datePosted(payload.days),
-          cursor,
-          limit: 50,
-        }),
-        new Promise<never>((_, reject) => {
-          setTimeout(() => reject(new Error("search-timeout")), 20_000);
-        }),
-      ]);
+      page = await provider.searchPosts({
+        accountId: seat.unipileAccountId,
+        keywords: eventName,
+        datePosted: datePosted(payload.days),
+        cursor,
+        limit: 25,
+      });
     } catch {
-      // Unipile often resets mid-page. Keep whoever we already matched.
       if (onProgress) await onProgress(authors.size, cap);
       break;
     }
@@ -116,12 +110,16 @@ export async function runEventExtended(
     for (const post of page.items) {
       if (post.isCompany) continue;
       const hit = mentionForEvent([{ text: post.text, postedAt: post.postedAt }], eventName, scope.slug);
-      if (!hit) continue;
+      const snippet = hit?.snippet
+        || (post.text ?? "").replace(/\s+/g, " ").trim().slice(0, 180)
+        || post.author.headline
+        || eventName;
       const locCountry = toCountry(post.author.location);
       if (locCountry && locCountry !== scope.country) continue;
       const key = (post.author.publicIdentifier || post.author.profileUrl || post.author.memberId
         || `${post.author.firstName}-${post.author.lastName}`).toLowerCase();
-      const when = hit.postedAt;
+      const rawWhen = hit?.postedAt ?? (post.postedAt ? new Date(post.postedAt) : null);
+      const when = rawWhen && !Number.isNaN(rawWhen.getTime()) ? rawWhen : null;
       const prev = authors.get(key);
       if (prev && prev.postedAt && when && when <= prev.postedAt) continue;
       authors.set(key, {
@@ -133,7 +131,7 @@ export async function runEventExtended(
         publicIdentifier: post.author.publicIdentifier,
         memberId: post.author.memberId,
         networkDistance: post.author.networkDistance,
-        snippet: hit.snippet,
+        snippet,
         postedAt: when,
       });
       if (authors.size >= cap) break;
