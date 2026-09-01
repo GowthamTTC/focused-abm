@@ -147,7 +147,7 @@ export function classifyIntent(
     const q = m.replace(/^(find|search|who is|lookup)\s+/i, "").trim();
     return { ...base, tool: "search_people", wantsWrite: false, args: { q } };
   }
-  if (/\benrich\b/i.test(m) && !/\b(them|shortlist|remaining|all)\b/i.test(m)) {
+  if ((/\benrich\b/i.test(m) || /\bresearch\b/i.test(m)) && !/\b(them|shortlist|remaining|all)\b/i.test(m) && !/\brecent/i.test(m)) {
     const company = m.replace(/enrich(ment)?|research|please|the|account/gi, "").trim();
     if (company.length > 1) {
       return { ...base, tool: "enrich_account", wantsWrite: true, args: { company, confirm: autoYes } };
@@ -156,7 +156,7 @@ export function classifyIntent(
   if (/\b(enrich them|enrich (the )?shortlist|enrich remaining|research them|research the shortlist)\b/i.test(m)) {
     return { ...base, tool: "enrich_shortlist", wantsWrite: true, args: { confirm: false } };
   }
-  if (/\bshortlist\b/i.test(m) && /\b(top|these|recommended|next)\b/i.test(m)) {
+  if ((/\bshortlist\b/i.test(m) || /\bstar\b/i.test(m)) && /\b(top|these|recommended|next)\b/i.test(m)) {
     const skip = skipShortlisted || /\b(these|next)\b/i.test(m);
     return { ...base, tool: "shortlist_top", wantsWrite: true, args: { n, confirm: false, skipShortlisted: skip } };
   }
