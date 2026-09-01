@@ -44,24 +44,27 @@ export function classifyIntent(
   message: string,
   history: { role: string; content: string }[] = [],
 ): AgentIntent {
-  const m = message.trim();
+  const raw = message.trim();
+  const bareYes = /^(yes|yep|yeah|ok|okay)\b/i.test(raw);
+  const prior = [...history].reverse().find((h) => h.role === "user" && !/^(yes|yep|yeah|ok|okay)\b/i.test(h.content.trim()));
+  const m = bareYes && prior ? prior.content.trim() : raw;
   const n = resolveN(m, history);
-  const autoYes = /\byes\b/i.test(m) && /behalf|shortlist|enrich|scan|radar/i.test(m);
-  const wantsWrite = WRITE_RE.test(m) || autoYes;
+  const autoYes = bareYes || (/\byes\b/i.test(raw) && /behalf|shortlist|enrich|scan|radar|remove|clear|unselect/i.test(raw));
+  const wantsWrite = WRITE_RE.test(m) || autoYes || /remove all/i.test(m);
   const threadSkip = history.some((h) => /\b(next|these)\b/i.test(h.content));
   const skipShortlisted = /\bnext\b/i.test(m) || /\bthese\b/i.test(m) || threadSkip;
   const base = { n, wantsWrite, autoYes, skipShortlisted, args: {} as Record<string, unknown>, tool: null as string | null };
 
 
-  if (autoYes && /unshortlist all|clear shortlist|unselect all/i.test(m)) {
+  if (autoYes && /unshortlist all|clear shortlist|unselect all|remove all/i.test(m)) {
     return { ...base, tool: "clear_shortlist", wantsWrite: true, args: { confirm: true } };
   }
   if (autoYes && /unshortlist/i.test(m)) {
     const company = m.replace(/yes[,.]?|unshortlist|on my behalf/gi, "").trim();
     return { ...base, tool: "unshortlist_account", wantsWrite: true, args: { company, confirm: true } };
   }
-  if (/\b(clear shortlist|unshortlist all|unselect all)\b/i.test(m)) {
-    return { ...base, tool: "clear_shortlist", wantsWrite: true, args: { confirm: false } };
+  if (/\b(clear shortlist|unshortlist all|unselect all|remove all (the )?shortlist|remove all shortlisted)\b/i.test(m)) {
+    return { ...base, tool: "clear_shortlist", wantsWrite: true, args: { confirm: autoYes } };
   }
   if (/\bunshortlist\b|\bremove .* from (the )?shortlist\b/i.test(m)) {
     const company = m.replace(/unshortlist|remove|from (the )?shortlist|please/gi, "").trim();
@@ -171,6 +174,7 @@ export function classifyIntent(
 
 export function followupsFor(intent: AgentIntent, tools: string[], pending: unknown[]): string[] {
   if (pending.length) return [];
+  if (tools.includes("clear_shortlist")) return ["Top 10 accounts", "Next 10 accounts"];
   if (tools.includes("shortlist_top") || tools.includes("shortlist_account")) return ["Enrich them"];
   if (tools.includes("enrich_shortlist") || tools.includes("enrich_account")) {
     return ["Who has a ready draft now?", "What else left"];
