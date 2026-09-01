@@ -17,15 +17,7 @@ export function NovaDesk({ page }: { page: string }) {
 
   useEffect(() => { void refresh(); }, []);
 
-  async function remove(id: string) {
-    const res = await fetch(`/api/agent/chats/${id}`, { method: "DELETE" });
-    if (!res.ok) return;
-    setChats((c) => c.filter((x) => x.id !== id));
-    setActive((cur) => (cur === id ? null : cur));
-  }
-
   async function fresh() {
-    setActive(null);
     const res = await fetch("/api/agent/chats", { method: "POST" });
     const data = await res.json().catch(() => null) as { chat?: Chat } | null;
     if (data?.chat) {
@@ -48,25 +40,16 @@ export function NovaDesk({ page }: { page: string }) {
         <div className="space-y-0.5">
           {chats.length === 0 && <p className="text-[12px] text-[#98A2B3]">No chats yet.</p>}
           {chats.map((c) => (
-            <div key={c.id} className="group flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setActive(c.id)}
-                className={`min-w-0 flex-1 truncate rounded-[8px] px-2.5 py-1.5 text-left text-[12.5px] ${
-                  active === c.id ? "bg-[#EEF1FC] font-medium text-[#263BAA]" : "text-[#475467] hover:bg-[#F4F6FB]"
-                }`}
-              >
-                {c.title || "New chat"}
-              </button>
-              <button
-                type="button"
-                title="Delete chat"
-                onClick={() => void remove(c.id)}
-                className="shrink-0 rounded px-1.5 py-1 text-[11px] text-[#98A2B3] hover:bg-[#FEF3F2] hover:text-[#B42318]"
-              >
-                Delete
-              </button>
-            </div>
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => setActive(c.id)}
+              className={`block w-full truncate rounded-[8px] px-2.5 py-1.5 text-left text-[12.5px] ${
+                active === c.id ? "bg-[#EEF1FC] font-medium text-[#263BAA]" : "text-[#475467] hover:bg-[#F4F6FB]"
+              }`}
+            >
+              {c.title || "New chat"}
+            </button>
           ))}
         </div>
       </aside>
@@ -75,7 +58,6 @@ export function NovaDesk({ page }: { page: string }) {
           <button type="button" onClick={() => void fresh()} className="text-[12.5px] text-[#263BAA]">New chat</button>
         </div>
         <NovaThread
-          key={active ?? "blank"}
           page={page}
           chatId={active}
           onChatId={(id) => { setActive(id); void refresh(); }}

@@ -28,17 +28,14 @@ type PersonCard = {
 export function NovaJobTrace({
   active,
   onLive,
-  showDone = true,
 }: {
   active: boolean;
   onLive?: (live: boolean) => void;
-  showDone?: boolean;
 }) {
   const [job, setJob] = useState<Live | null>(null);
   const [results, setResults] = useState<PersonCard[]>([]);
   const log = useRef<string[]>([]);
   const fetched = useRef(false);
-  const seenLive = useRef(false);
   const [, bump] = useState(0);
 
   useEffect(() => {
@@ -48,9 +45,7 @@ export function NovaJobTrace({
     const apply = (next: Live | null) => {
       if (stop || !next) return;
       setJob(next);
-      const liveNow = ["queued", "running", "stopping"].includes(next.status);
-      if (liveNow) seenLive.current = true;
-      onLive?.(liveNow);
+      onLive?.(["queued", "running", "stopping"].includes(next.status));
       const line = next.current
         || `${KIND[next.kind] ?? next.kind} ${next.status} ${next.progress ?? 0}/${next.total ?? 0}`;
       const last = log.current[log.current.length - 1];
@@ -84,7 +79,7 @@ export function NovaJobTrace({
   }, [active]);
 
   if (!active || !job || !["queued", "running", "stopping"].includes(job.status)) {
-    if (active && showDone && seenLive.current && job && job.status === "done") {
+    if (active && job && job.status === "done") {
       return (
         <div className="mt-2 space-y-2">
           <div className="rounded-[10px] border border-[#D1FADF] bg-[#F6FEF9] p-3 text-[12.5px] text-[#067647]">
@@ -126,14 +121,6 @@ export function NovaJobTrace({
         <span className="inline-flex h-2 w-2 rounded-full bg-[#263BAA]" style={{ animation: "radar-pulse 1.1s ease-in-out infinite" }} />
         <span className="font-medium">{KIND[job.kind] ?? job.kind}</span>
         <span className="tnum ml-auto text-[#667085]">{job.progress ?? 0}/{job.total ?? 0} · {pct}%</span>
-        <button type="button" aria-label="Close job"
-          className="ml-1 flex h-6 w-6 items-center justify-center rounded text-[16px] leading-none text-[#667085] hover:bg-[#F4F6FB] hover:text-[#101828]"
-          onClick={() => {
-            void fetch("/api/jobs/stop", { method: "POST" });
-            setJob(null);
-          }}>
-          ×
-        </button>
       </div>
       <div className="mt-2"><ProgressBar value={job.progress ?? 0} max={job.total ?? 0} size="sm" /></div>
       <p className="mt-2 text-[12px] text-[#475467]">{job.current ?? "Worker picked up the job…"}</p>

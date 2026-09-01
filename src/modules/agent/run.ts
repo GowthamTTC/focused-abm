@@ -14,12 +14,14 @@ const client = new OpenAI({
   },
 });
 
-const SYSTEM = `You are Nova for THIS Focused ABM workspace only.
-You can: snapshot, list/shortlist accounts, enrich, Radar, drafts, mark sent, flag, sync, stop jobs.
-You cannot: weather, jokes, general coding, world news, or anything outside this workspace.
-If the user is off-topic, say you are limited to this environment and point them to the next step in the sequence:
-1 workspace snapshot → 2 top accounts → 3 shortlist → 4 next 10 → 5 what else left → 6 enrich them → 7 who to send.
-Radar drive: event name → US/India + 1st or 2nd+3rd → Yes to scan → hits → company density → met/skip → shortlist those companies.\nNever invent HQ, revenue, counts, or people. Tools are ground truth. Writes need Yes/No.`;
+const SYSTEM = `You are Nova, the Focused ABM assistant for THIS user's private workspace only.
+Use tool output as ground truth. Never invent HQ, revenue, counts, or people.
+"Top N accounts" = best ICP matches (may include shortlisted).
+"Next N accounts" = best ICP matches that are NOT shortlisted. Never repeat the shortlisted page.
+Writes need permission; the server already asked Yes/No when needed.
+Radar is ONLY for an event/conference scan. Enrich, shortlist, Marketeroid/ICP, and "next 10" are NOT Radar.
+If the user says it is not Radar, do not mention scanning.
+Talk like a sharp coworker. End with **Recommendation:** when you suggest a next step.`;
 
 export async function runAgent(input: {
   orgId: string;
@@ -34,23 +36,22 @@ export async function runAgent(input: {
   tools: string[];
   suggestions: string[];
   pending: { kind: string; title: string; yes: string; tone?: string }[];
-  cards: { kind: string; title: string; subtitle?: string; pills: string[]; href?: string }[];
+  cards: { kind: string; title: string; subtitle?: string; pills: string[] }[];
 }> {
   const ctx: ToolCtx = { orgId: input.orgId };
   const intent = classifyIntent(input.message, input.history);
   if (intent.offTopic) {
-    const reply = "I'm limited to this environment — your Focused ABM workspace (accounts, shortlist, enrich, Radar, drafts). I can't help with that ask.\n\n**Next step:** Workspace snapshot, then Top 10 accounts.";
     return {
-      reply,
+      reply: "I'm limited to this workspace (accounts, shortlist, enrich, Radar, drafts). Try: top 10 accounts, enrich them, or who qualified for Marketeroid.",
       tools: [],
-      suggestions: ["Workspace snapshot", "Top 10 accounts", "What else left"],
+      suggestions: ["Top 10 accounts", "Enrich them", "What else left"],
       pending: [],
       cards: [],
     };
   }
   const tools: string[] = [];
   const pending: { kind: string; title: string; yes: string; tone?: string }[] = [];
-  const cards: { kind: string; title: string; subtitle?: string; pills: string[]; href?: string }[] = [];
+  const cards: { kind: string; title: string; subtitle?: string; pills: string[] }[] = [];
   let open: string | undefined;
   let openLabel: string | undefined;
   let toolText = "";
@@ -69,46 +70,15 @@ export async function runAgent(input: {
     tools.push(name);
     const out = await runTool(ctx, name, args);
     if (out.pending && (intent.wantsWrite || intent.autoYes)) pending.push(...out.pending);
-    const skipRecCards = name === "recommend_next" && tools.some((x) => x === "list_ready" || x === "insight");
-    if (out.cards && !skipRecCards) cards.push(...out.cards);
+    if (out.cards) cards.push(...out.cards);
     if (out.open) open = out.open;
     if (out.openLabel) openLabel = out.openLabel;
     toolText = [toolText, out.text].filter(Boolean).join("\n");
     return out;
   };
 
-  async function refineRadarArgs(raw: string, seed: Record<string, unknown>) {
-    try {
-      const res = await client.chat.completions.create({
-        model: env.LLM_MODEL_CLASSIFY || env.LLM_MODEL_DEEPDIVE,
-        temperature: 0,
-        max_tokens: 200,
-        messages: [
-          {
-            role: "system",
-            content: "Extract a LinkedIn event Radar scan from informal English. Reply with JSON only: {\"event\":string,\"country\":\"united-states\"|\"india\",\"days\":number,\"pool\":\"first\"|\"extended\"}. event = conference or event name only (no words like radar, event name, connections, days). country only if they said US/USA/America/India. days 1-30 from last N days / last week / last month. pool=extended if they said 2nd, 3rd, extended; else first. If a field is missing use the seed. Do not invent an event that is not in the text.",
-          },
-          { role: "user", content: `SEED: ${JSON.stringify(seed)}\nTEXT: ${raw}` },
-        ],
-      });
-      const text = res.choices[0]?.message?.content ?? "";
-      const json = text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1);
-      const got = JSON.parse(json) as Record<string, unknown>;
-      const event = String(got.event ?? seed.event ?? "").trim();
-      const country = String(got.country ?? seed.country) === "india" ? "india" : "united-states";
-      const days = Math.min(30, Math.max(1, Number(got.days ?? seed.days) || 7));
-      const pool = String(got.pool ?? seed.pool) === "extended" ? "extended" : "first";
-      if (event.length >= 3) return { event, country, days, pool };
-    } catch { /* keep seed */ }
-    return seed;
-  }
-
   if (intent.tool) {
-    let args = { ...intent.args };
-    if (intent.tool === "start_radar") {
-      args = await refineRadarArgs(input.message, args);
-    }
-    await apply(intent.tool, args);
+    await apply(intent.tool, { ...intent.args });
   } else {
     const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       { role: "system", content: `${SYSTEM}\nCurrent page: ${input.page}\n${habitBlock(input.learn)}` },
@@ -128,12 +98,10 @@ export async function runAgent(input: {
       const msg = choice.message;
       const calls = msg.tool_calls;
       if (!calls?.length) {
-        const peopleOnly = tools.includes("list_ready") || intent.args.topic === "send" || intent.args.topic === "lookalikes";
-        const shown = peopleOnly ? cards.filter((c) => c.kind === "person") : cards;
-        const reply = fallbackReply((msg.content ?? "").trim(), toolText, pending, shown);
+        const reply = fallbackReply((msg.content ?? "").trim(), toolText, pending, cards);
         const suggestions = followupsFor(intent, tools, pending);
         return {
-          reply, open, openLabel, tools, pending, cards: shown,
+          reply, open, openLabel, tools, pending, cards,
           suggestions: suggestions.length ? suggestions : suggestFollowups({
             message: input.message, tools, reply, topTopic: topTopic(input.learn),
           }),
@@ -165,12 +133,10 @@ export async function runAgent(input: {
     } catch { /* keep tool text */ }
   }
 
-  const peopleOnly = tools.includes("list_ready") || intent.args.topic === "send" || intent.args.topic === "lookalikes";
-  const shown = peopleOnly ? cards.filter((c) => c.kind === "person") : cards;
-  const reply = fallbackReply(modelText, toolText, pending, shown);
+  const reply = fallbackReply(modelText, toolText, pending, cards);
   const suggestions = followupsFor(intent, tools, pending);
   return {
-    reply, open, openLabel, tools, pending, cards: shown,
+    reply, open, openLabel, tools, pending, cards,
     suggestions: suggestions.length ? suggestions : suggestFollowups({
       message: input.message, tools, reply, topTopic: topTopic(input.learn),
     }),

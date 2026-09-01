@@ -1,17 +1,19 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { ProgressBar } from "@/components/progress-bar";
 import { NovaJobTrace } from "@/components/nova-job-trace";
+import { NOVA_SAYS, nextSaying } from "@/components/nova-says";
 
 export const NOVA_QUERIES = [
-  "Workspace snapshot",
   "Top 10 accounts",
-  "Shortlist these accounts",
   "Next 10 accounts",
   "What else left",
-  "Enrich them",
+  "Title mix by company",
+  "Committee gaps",
   "Who should I send first?",
+  "Who looks like people I already drafted?",
+  "Radar hits from the last scan",
 ];
 
 type Msg = {
@@ -23,7 +25,7 @@ type Msg = {
   tools?: string[];
   suggestions?: string[];
   pending?: { kind: string; title: string; yes: string; tone?: string }[];
-  cards?: { kind: string; title: string; subtitle?: string; pills: string[]; href?: string }[];
+  cards?: { kind: string; title: string; subtitle?: string; pills: string[] }[];
 };
 
 const LEARN_KEY = "nova-learn-v1";
@@ -78,7 +80,7 @@ export function NovaMark({ large = false }: { large?: boolean }) {
       <p className={`font-semibold tracking-[-.03em] text-[#101828] ${large ? "text-[40px] leading-none" : "text-sm"}`}>Nova</p>
       {large && (
         <p className="max-w-md text-center text-[15px] leading-6 text-[#475467]">
-          Start here, in order. Nova only works this workspace — LinkedIn network, accounts, enrich, Radar, drafts.
+          Ask anything about this workspace. Counts, shortlist, enrich, Radar, drafts.
         </p>
       )}
     </div>
@@ -98,7 +100,9 @@ export function NovaThread({
 }) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [saying, setSaying] = useState(0);
   const [jobLive, setJobLive] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const bottom = useRef<HTMLDivElement>(null);
   const started = msgs.length > 0;
@@ -107,8 +111,7 @@ export function NovaThread({
   useEffect(() => { chatRef.current = chatId ?? null; }, [chatId]);
 
   useEffect(() => {
-    setMsgs([]);
-    if (!chatId) return;
+    if (!chatId) { setMsgs([]); return; }
     let stop = false;
     void (async () => {
       const res = await fetch(`/api/agent/chats/${chatId}`, { cache: "no-store" });
@@ -131,6 +134,33 @@ export function NovaThread({
     bottom.current?.scrollIntoView({ behavior: "smooth" });
   }, [msgs, busy]);
 
+  useEffect(() => {
+    if (!busy) return;
+    setSaying(nextSaying());
+    setElapsed(0);
+    const t0 = Date.now();
+    let sayTimer: ReturnType<typeof setInterval> | null = null;
+    const tick = setInterval(() => setElapsed(Math.floor((Date.now() - t0) / 1000)), 250);
+    const armSay = () => {
+      sayTimer = setInterval(() => {
+        if (typeof document !== "undefined" && document.hidden) return;
+        setSaying(nextSaying());
+      }, 10000);
+    };
+    armSay();
+    const onVis = () => {
+      if (document.hidden) {
+        if (sayTimer) clearInterval(sayTimer);
+        sayTimer = null;
+      } else if (!sayTimer) armSay();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      clearInterval(tick);
+      if (sayTimer) clearInterval(sayTimer);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [busy]);
 
   async function send(raw?: string) {
     const message = (raw ?? text).trim();
@@ -149,7 +179,7 @@ export function NovaThread({
       const data = await res.json().catch(() => null) as {
         reply?: string; open?: string; error?: string; tookMs?: number; tools?: string[]; suggestions?: string[];
         pending?: { kind: string; title: string; yes: string; tone?: string }[];
-  cards?: { kind: string; title: string; subtitle?: string; pills: string[]; href?: string }[]; chatId?: string; openLabel?: string;
+  cards?: { kind: string; title: string; subtitle?: string; pills: string[] }[]; chatId?: string; openLabel?: string;
       } | null;
       if (!res.ok && data?.error === "rate") {
         setMsgs((m) => [...m, { role: "assistant", content: "Slow down a moment — too many asks." }]);
@@ -213,22 +243,14 @@ export function NovaThread({
             )}
             {m.cards && m.cards.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5 text-left">
-                {m.cards.map((c, ci) => {
-                  const inner = (
-                    <>
-                      <p className="text-[12.5px] font-medium text-[#101828]">{c.title}{c.subtitle ? <span className="font-normal text-[#667085]"> · {c.subtitle}</span> : null}</p>
-                      {c.pills?.length ? (
-                        <p className="text-[11px] text-[#667085]">{c.pills.join(" · ")}</p>
-                      ) : null}
-                    </>
-                  );
-                  const cls = "max-w-full rounded-full border border-[#DDE2EE] bg-white px-3 py-1.5 text-left shadow-[0_1px_2px_rgba(16,24,40,.04)]";
-                  return c.href ? (
-                    <Link key={`${c.title}-${ci}`} href={c.href} className={`${cls} hover:border-[#263BAA]`}>{inner}</Link>
-                  ) : (
-                    <div key={`${c.title}-${ci}`} className={cls}>{inner}</div>
-                  );
-                })}
+                {m.cards.map((c, ci) => (
+                  <div key={`${c.title}-${ci}`} className="max-w-full rounded-full border border-[#DDE2EE] bg-white px-3 py-1.5 shadow-[0_1px_2px_rgba(16,24,40,.04)]">
+                    <p className="text-[12.5px] font-medium text-[#101828]">{c.title}{c.subtitle ? <span className="font-normal text-[#667085]"> · {c.subtitle}</span> : null}</p>
+                    {c.pills?.length ? (
+                      <p className="text-[11px] text-[#667085]">{c.pills.join(" · ")}</p>
+                    ) : null}
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -259,14 +281,19 @@ export function NovaThread({
             ))}
           </div>
         ) : null)}
-        <NovaJobTrace active showDone onLive={setJobLive} />
+        <NovaJobTrace active={msgs.some((m) => (m.tools ?? []).some((x) => x.startsWith("enrich") || x === "start_radar"))} onLive={setJobLive} />
         {busy && (
           <div className="enrich-wait rounded-[10px] border border-[#E7CE96] bg-[#FEFBF3] p-3 text-[12.5px] text-[#B54708]">
             <div className="flex items-center gap-2">
               <span className="inline-flex h-2 w-2 rounded-full bg-[#B54708]" style={{ animation: "radar-pulse 1.1s ease-in-out infinite" }} />
               <span className="font-medium">Nova is thinking</span>
               <span className="radar-dots" aria-hidden><span /><span /><span /></span>
+              <span className="tnum ml-auto text-[12px] text-[#98A2B3]">{elapsed}s</span>
             </div>
+            <p key={saying} className="nova-msg mt-2 text-[13px] leading-5 text-[#475467]">
+              {NOVA_SAYS[saying]}
+            </p>
+            <div className="mt-2"><ProgressBar indeterminate size="sm" tone="warm" /></div>
           </div>
         )}
         <div ref={bottom} />

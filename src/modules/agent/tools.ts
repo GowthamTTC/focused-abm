@@ -15,7 +15,6 @@ export type ResultCard = {
   title: string;
   subtitle?: string;
   pills: string[];
-  href?: string;
 };
 export type ToolOut = {
   text: string;
@@ -192,14 +191,6 @@ export const TOOL_DEFS = [
   {
     type: "function" as const,
     function: {
-      name: "radar_guide",
-      description: "Explain Radar drive: event name, country, 1st vs 2nd+3rd. Use when they say radar without an event.",
-      parameters: { type: "object", properties: {} },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
       name: "start_radar",
       description: "Propose or start Event Radar. confirm=true only after the user agrees.",
       parameters: {
@@ -291,7 +282,6 @@ export const TOOL_DEFS = [
 async function listPeopleAt(orgId: string, key: string, nameHint = "") {
   const token = (nameHint.split("|")[0] || nameHint).trim().slice(0, 40);
   const rows = await db.select({
-    id: connection.id,
     firstName: connection.firstName,
     lastName: connection.lastName,
     positionRaw: connection.positionRaw,
@@ -313,7 +303,6 @@ async function listPeopleAt(orgId: string, key: string, nameHint = "") {
     title: `${p.firstName} ${p.lastName}`,
     subtitle: p.positionRaw ?? "—",
     pills: [p.enrichStatus, p.score != null ? `score ${p.score}` : "unscored"],
-    href: `/people/${p.id}`,
   }));
   return { n: people.length, pending, lines, cards };
 }
@@ -478,7 +467,7 @@ export async function runTool(
       ? { outreachStatus: null, sentAt: null }
       : { outreachStatus: "sent", sentAt: new Date() }
     ).where(and(eq(connection.orgId, orgId), eq(connection.id, hit.id)));
-    return { text: undo ? `Undid sent for ${label}.` : `Marked ${label} as sent.`, cards: [{ kind: "person" as const, title: label, subtitle: undo ? "back in queue" : "sent", pills: ["review"], href: `/people/${hit.id}` }] };
+    return { text: undo ? `Undid sent for ${label}.` : `Marked ${label} as sent.`, cards: [{ kind: "person" as const, title: label, subtitle: undo ? "back in queue" : "sent", pills: ["review"] }] };
   }
 
   if (name === "flag_person") {
@@ -585,7 +574,7 @@ export async function runTool(
       };
     }
     await db.update(connection).set({ floorStatus: status, floorAt: new Date() }).where(and(eq(connection.orgId, orgId), eq(connection.id, hit.id)));
-    return { text: `Marked ${label} as ${status}.`, cards: [{ kind: "person", title: label, subtitle: status, pills: ["radar"], href: `/people/${hit.id}` }] };
+    return { text: `Marked ${label} as ${status}.`, cards: [{ kind: "person", title: label, subtitle: status, pills: ["radar"] }] };
   }
 
   if (name === "shortlist_account") {
@@ -657,21 +646,12 @@ export async function runTool(
     return { text: "Queued research for that person. Watch the top bar.", open: "/people", openLabel: "Open People" };
   }
 
-  if (name === "radar_guide") {
-    if (args.welcome) {
-      return {
-        text: "This workspace only. Start in order:\n1. Workspace snapshot\n2. Top 10 accounts\n3. Shortlist these\n4. Next 10\n5. What else left\n6. Enrich them\n7. Who should I send first?\n\nIf you are going on-site, say radar and I will walk the event scan.",
-      };
-    }
-    return {
-      text: "Radar is posts + country, not GPS. I only keep people who named the event in a recent post.\n\n1. Name the event\n2. US or India, 1st degree or 2nd+3rd (max 100)\n3. I ask Yes before scanning\n4. Hits, then company density, then mark met/skip\n5. Shortlist companies you marked met and enrich those.\n\nDefault if you do not pick: US, 1st degree, last 7 days.",
-    };
-  }
-
   if (name === "start_radar") {
     const eventName = String(args.event ?? "").trim();
-    if (!eventName || /^event$/i.test(eventName)) {
-      return { text: "Which event? I only keep people who named it in a post. Try: scan SaaStr last 7 days US." };
+    if (!eventName || /^event$/i.test(eventName)
+        || /\b(enrich|shortlist|account|qualified|marketeroid|marketroid|snapshot|draft|it is not)\b/i.test(eventName)
+        || eventName.split(/\s+/).length > 6) {
+      return { text: "That is not a Radar event. Name a conference (example: Unbound 2026 US last 30 days 2nd+3rd), or say enrich them / top 10 accounts." };
     }
     const country = String(args.country ?? "united-states");
     const slug = countryBySlug(country) ? country : (country.toLowerCase().includes("india") ? "india" : "united-states");
@@ -679,8 +659,6 @@ export async function runTool(
     const days = Math.min(30, Math.max(1, Number(args.days) || 7));
     const pool = String(args.pool ?? "first") === "extended" ? "extended" : "first";
     const statedDays = args.statedDays === true || args.statedDays === "true";
-    const statedCountry = args.statedCountry === true || args.statedCountry === "true" || Boolean(args.country);
-    const statedPool = args.statedPool === true || args.statedPool === "true" || Boolean(args.pool);
     if (!confirmed(args) && !statedDays) {
       return {
         text: `I have "${eventName}" · ${slug} · ${pool === "extended" ? "2nd+3rd" : "1st"} degree. You did not say a time window — I will not assume 7 days. How far back?`,
@@ -888,26 +866,6 @@ export async function runTool(
           title: p.name,
           subtitle: String(p.company ?? ""),
           pills: [`${p.similarToReady}% similar`, p.title ?? ""],
-          href: `/people/${p.id}`,
-        })),
-      };
-    }
-    if (topic === "enriched") {
-      const done = rec.accounts.filter((a) => a.pending === 0).slice(0, 12);
-      const need = rec.accounts.filter((a) => a.pending > 0).slice(0, 5);
-      const lines = [
-        done.length ? "Fully researched accounts:" : "No fully researched accounts yet.",
-        ...done.map((a) => `- ${a.name}: ${a.n} people, weighted ${a.avg}`),
-        need.length ? "Still need research:" : "",
-        ...need.map((a) => `- ${a.name}: ${a.pending} left`),
-      ].filter(Boolean);
-      return {
-        text: lines.join("\n"),
-        cards: done.map((a) => ({
-          kind: "account" as const,
-          title: a.name,
-          subtitle: "Researched",
-          pills: [`weighted ${a.avg}`, `${a.n} people`],
         })),
       };
     }
@@ -922,47 +880,38 @@ export async function runTool(
           title: p.name,
           subtitle: String(p.company ?? ""),
           pills: [`rec ${p.rec}`, p.score != null ? `ICP ${p.score}` : ""],
-          href: `/people/${p.id}`,
         })),
       };
     }
-    if (topic === "radar_companies") {
-      const rows = await db.select({
-        companyRaw: connection.companyRaw,
-      }).from(connection).where(and(
-        eq(connection.orgId, orgId),
-        sql`event_query is not null`,
-      ));
-      const map = new Map<string, number>();
-      for (const r of rows) {
-        const name = (r.companyRaw ?? "").trim() || "(no company)";
-        map.set(name, (map.get(name) ?? 0) + 1);
-      }
-      const top = [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
-      return {
-        text: top.length ? top.map(([n, c]) => `${n}: ${c} Radar hits`).join("\n") : "No Radar hits yet. Scan an event first.",
-        cards: top.map(([n, c]) => ({ kind: "account" as const, title: n, subtitle: "Radar density", pills: [`${c} hits`] })),
-      };
-    }
-    if (topic === "radar_met") {
+    if (topic === "service") {
+      const slug = String(args.service ?? "marketeroid").toLowerCase().replace(/\s+/g, "-");
       const rows = await db.select({
         id: connection.id,
         firstName: connection.firstName,
         lastName: connection.lastName,
         companyRaw: connection.companyRaw,
-        floorStatus: connection.floorStatus,
+        positionRaw: connection.positionRaw,
+        score: connection.score,
+        serviceSlug: connection.serviceSlug,
+        enrichStatus: connection.enrichStatus,
       }).from(connection).where(and(
         eq(connection.orgId, orgId),
-        sql`floor_status = 'met'`,
-      )).limit(20);
+        sql`service_slug ilike ${"%" + slug.replace(/[-_]/g, "%") + "%"}`,
+      )).orderBy(desc(connection.score)).limit(20);
       return {
-        text: rows.length ? rows.map((r) => `${r.firstName} ${r.lastName} @ ${r.companyRaw ?? "—"}`).join("\n") : "Nobody marked met yet.",
-        cards: rows.map((r) => ({ kind: "person" as const, title: `${r.firstName} ${r.lastName}`, subtitle: String(r.companyRaw ?? ""), pills: ["met"], href: `/people/${r.id}` })),
+        text: rows.length
+          ? rows.map((r) => `${r.firstName} ${r.lastName} @ ${r.companyRaw ?? "—"} · ${r.positionRaw ?? "—"} · ${r.serviceSlug} · ICP ${r.score ?? "—"}`).join("\n")
+          : `Nobody in this workspace is tagged ${slug} yet. Run matching, then ask again.`,
+        cards: rows.map((r) => ({
+          kind: "person" as const,
+          title: `${r.firstName} ${r.lastName}`,
+          subtitle: String(r.companyRaw ?? ""),
+          pills: [r.serviceSlug ?? slug, r.score != null ? `ICP ${r.score}` : r.enrichStatus],
+        })),
       };
     }
     if (topic === "radar") {
       const rows = await db.select({
-        id: connection.id,
         firstName: connection.firstName,
         lastName: connection.lastName,
         companyRaw: connection.companyRaw,
@@ -981,7 +930,6 @@ export async function runTool(
           title: `${r.firstName} ${r.lastName}`,
           subtitle: String(r.companyRaw ?? r.eventQuery ?? ""),
           pills: [r.eventQuery ?? "radar"],
-          href: `/people/${r.id}`,
         })),
       };
     }
@@ -1013,13 +961,6 @@ export async function runTool(
       text: rows.map((p) => `${p.firstName} ${p.lastName} @ ${p.companyRaw ?? "—"}`).join("\n"),
       open: `/review?tab=ready`,
       openLabel: "Open Review",
-      cards: rows.map((p) => ({
-        kind: "person" as const,
-        title: `${p.firstName} ${p.lastName}`,
-        subtitle: String(p.companyRaw ?? ""),
-        pills: ["draft ready"],
-        href: `/people/${p.id}`,
-      })),
     };
   }
 

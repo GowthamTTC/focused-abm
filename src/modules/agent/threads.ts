@@ -29,7 +29,7 @@ export async function loadChat(userId: string, chatId: string) {
   if (!chat) return null;
   const messages = await db.select(MSG_COLS).from(novaChatMessage)
     .where(eq(novaChatMessage.chatId, chatId)).orderBy(novaChatMessage.createdAt);
-  return { chat, messages: messages.map((m) => ({ ...m, cardsJson: [] as { kind: string; title: string; subtitle?: string; pills: string[]; href?: string }[] })) };
+  return { chat, messages: messages.map((m) => ({ ...m, cardsJson: [] as { kind: string; title: string; subtitle?: string; pills: string[] }[] })) };
 }
 
 export async function appendTurn(input: {
@@ -40,7 +40,7 @@ export async function appendTurn(input: {
   assistantText: string;
   suggestions?: string[];
   pending?: { kind: string; title: string; yes: string; tone?: string }[];
-  cards?: { kind: string; title: string; subtitle?: string; pills: string[]; href?: string }[];
+  cards?: { kind: string; title: string; subtitle?: string; pills: string[] }[];
 }) {
   let chatId = input.chatId;
   if (!chatId) {
@@ -78,14 +78,4 @@ export async function appendTurn(input: {
     await db.insert(novaChatMessage).values([baseUser, baseAsst]);
   }
   return chatId;
-}
-
-
-export async function deleteChat(userId: string, chatId: string) {
-  const [own] = await db.select({ id: novaChat.id }).from(novaChat)
-    .where(and(eq(novaChat.id, chatId), eq(novaChat.userId, userId))).limit(1);
-  if (!own) return false;
-  await db.delete(novaChatMessage).where(eq(novaChatMessage.chatId, chatId));
-  await db.delete(novaChat).where(and(eq(novaChat.id, chatId), eq(novaChat.userId, userId)));
-  return true;
 }
