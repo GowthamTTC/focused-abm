@@ -475,7 +475,7 @@ export async function runTool(
       ? { outreachStatus: null, sentAt: null }
       : { outreachStatus: "sent", sentAt: new Date() }
     ).where(and(eq(connection.orgId, orgId), eq(connection.id, hit.id)));
-    return { text: undo ? `Undid sent for ${label}.` : `Marked ${label} as sent.`, cards: [{ kind: "person" as const, title: label, subtitle: undo ? "back in queue" : "sent", pills: ["review"] }] };
+    return { text: undo ? `Undid sent for ${label}.` : `Marked ${label} as sent.`, cards: [{ kind: "person" as const, title: label, subtitle: undo ? "back in queue" : "sent", pills: ["review"], href: `/people/${hit.id}` }] };
   }
 
   if (name === "flag_person") {
@@ -582,7 +582,7 @@ export async function runTool(
       };
     }
     await db.update(connection).set({ floorStatus: status, floorAt: new Date() }).where(and(eq(connection.orgId, orgId), eq(connection.id, hit.id)));
-    return { text: `Marked ${label} as ${status}.`, cards: [{ kind: "person", title: label, subtitle: status, pills: ["radar"] }] };
+    return { text: `Marked ${label} as ${status}.`, cards: [{ kind: "person", title: label, subtitle: status, pills: ["radar"], href: `/people/${hit.id}` }] };
   }
 
   if (name === "shortlist_account") {
@@ -872,6 +872,7 @@ export async function runTool(
           title: p.name,
           subtitle: String(p.company ?? ""),
           pills: [`${p.similarToReady}% similar`, p.title ?? ""],
+          href: `/people/${p.id}`,
         })),
       };
     }
@@ -905,6 +906,7 @@ export async function runTool(
           title: p.name,
           subtitle: String(p.company ?? ""),
           pills: [`rec ${p.rec}`, p.score != null ? `ICP ${p.score}` : ""],
+          href: `/people/${p.id}`,
         })),
       };
     }
@@ -928,6 +930,7 @@ export async function runTool(
     }
     if (topic === "radar_met") {
       const rows = await db.select({
+        id: connection.id,
         firstName: connection.firstName,
         lastName: connection.lastName,
         companyRaw: connection.companyRaw,
@@ -938,11 +941,12 @@ export async function runTool(
       )).limit(20);
       return {
         text: rows.length ? rows.map((r) => `${r.firstName} ${r.lastName} @ ${r.companyRaw ?? "—"}`).join("\n") : "Nobody marked met yet.",
-        cards: rows.map((r) => ({ kind: "person" as const, title: `${r.firstName} ${r.lastName}`, subtitle: String(r.companyRaw ?? ""), pills: ["met"] })),
+        cards: rows.map((r) => ({ kind: "person" as const, title: `${r.firstName} ${r.lastName}`, subtitle: String(r.companyRaw ?? ""), pills: ["met"], href: `/people/${r.id}` })),
       };
     }
     if (topic === "radar") {
       const rows = await db.select({
+        id: connection.id,
         firstName: connection.firstName,
         lastName: connection.lastName,
         companyRaw: connection.companyRaw,
@@ -961,6 +965,7 @@ export async function runTool(
           title: `${r.firstName} ${r.lastName}`,
           subtitle: String(r.companyRaw ?? r.eventQuery ?? ""),
           pills: [r.eventQuery ?? "radar"],
+          href: `/people/${r.id}`,
         })),
       };
     }
@@ -992,6 +997,13 @@ export async function runTool(
       text: rows.map((p) => `${p.firstName} ${p.lastName} @ ${p.companyRaw ?? "—"}`).join("\n"),
       open: `/review?tab=ready`,
       openLabel: "Open Review",
+      cards: rows.map((p) => ({
+        kind: "person" as const,
+        title: `${p.firstName} ${p.lastName}`,
+        subtitle: String(p.companyRaw ?? ""),
+        pills: ["draft ready"],
+        href: `/people/${p.id}`,
+      })),
     };
   }
 

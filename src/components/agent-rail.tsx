@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { NovaJobTrace } from "@/components/nova-job-trace";
 
@@ -22,7 +23,7 @@ type Msg = {
   tools?: string[];
   suggestions?: string[];
   pending?: { kind: string; title: string; yes: string; tone?: string }[];
-  cards?: { kind: string; title: string; subtitle?: string; pills: string[] }[];
+  cards?: { kind: string; title: string; subtitle?: string; pills: string[]; href?: string }[];
 };
 
 const LEARN_KEY = "nova-learn-v1";
@@ -148,7 +149,7 @@ export function NovaThread({
       const data = await res.json().catch(() => null) as {
         reply?: string; open?: string; error?: string; tookMs?: number; tools?: string[]; suggestions?: string[];
         pending?: { kind: string; title: string; yes: string; tone?: string }[];
-  cards?: { kind: string; title: string; subtitle?: string; pills: string[] }[]; chatId?: string; openLabel?: string;
+  cards?: { kind: string; title: string; subtitle?: string; pills: string[]; href?: string }[]; chatId?: string; openLabel?: string;
       } | null;
       if (!res.ok && data?.error === "rate") {
         setMsgs((m) => [...m, { role: "assistant", content: "Slow down a moment — too many asks." }]);
@@ -212,14 +213,22 @@ export function NovaThread({
             )}
             {m.cards && m.cards.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5 text-left">
-                {m.cards.map((c, ci) => (
-                  <div key={`${c.title}-${ci}`} className="max-w-full rounded-full border border-[#DDE2EE] bg-white px-3 py-1.5 shadow-[0_1px_2px_rgba(16,24,40,.04)]">
-                    <p className="text-[12.5px] font-medium text-[#101828]">{c.title}{c.subtitle ? <span className="font-normal text-[#667085]"> · {c.subtitle}</span> : null}</p>
-                    {c.pills?.length ? (
-                      <p className="text-[11px] text-[#667085]">{c.pills.join(" · ")}</p>
-                    ) : null}
-                  </div>
-                ))}
+                {m.cards.map((c, ci) => {
+                  const inner = (
+                    <>
+                      <p className="text-[12.5px] font-medium text-[#101828]">{c.title}{c.subtitle ? <span className="font-normal text-[#667085]"> · {c.subtitle}</span> : null}</p>
+                      {c.pills?.length ? (
+                        <p className="text-[11px] text-[#667085]">{c.pills.join(" · ")}</p>
+                      ) : null}
+                    </>
+                  );
+                  const cls = "max-w-full rounded-full border border-[#DDE2EE] bg-white px-3 py-1.5 text-left shadow-[0_1px_2px_rgba(16,24,40,.04)]";
+                  return c.href ? (
+                    <Link key={`${c.title}-${ci}`} href={c.href} className={`${cls} hover:border-[#263BAA]`}>{inner}</Link>
+                  ) : (
+                    <div key={`${c.title}-${ci}`} className={cls}>{inner}</div>
+                  );
+                })}
               </div>
             )}
           </div>
