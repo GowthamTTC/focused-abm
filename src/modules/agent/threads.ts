@@ -1,6 +1,16 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db, novaChat, novaChatMessage } from "@/db";
 
+const MSG_COLS = {
+  id: novaChatMessage.id,
+  chatId: novaChatMessage.chatId,
+  role: novaChatMessage.role,
+  content: novaChatMessage.content,
+  suggestionsJson: novaChatMessage.suggestionsJson,
+  pendingJson: novaChatMessage.pendingJson,
+  createdAt: novaChatMessage.createdAt,
+};
+
 export async function listChats(userId: string) {
   return db.select({
     id: novaChat.id,
@@ -17,9 +27,9 @@ export async function createChat(userId: string, orgId: string, title = "New cha
 export async function loadChat(userId: string, chatId: string) {
   const [chat] = await db.select().from(novaChat).where(and(eq(novaChat.id, chatId), eq(novaChat.userId, userId))).limit(1);
   if (!chat) return null;
-  const messages = await db.select().from(novaChatMessage)
+  const messages = await db.select(MSG_COLS).from(novaChatMessage)
     .where(eq(novaChatMessage.chatId, chatId)).orderBy(novaChatMessage.createdAt);
-  return { chat, messages };
+  return { chat, messages: messages.map((m) => ({ ...m, cardsJson: [] as { kind: string; title: string; subtitle?: string; pills: string[] }[] })) };
 }
 
 export async function appendTurn(input: {
@@ -34,8 +44,7 @@ export async function appendTurn(input: {
 }) {
   let chatId = input.chatId;
   if (!chatId) {
-    const title = input.userText.slice(0, 48) || "New chat";
-    const chat = await createChat(input.userId, input.orgId, title);
+    const chat = await createChat(input.userId, input.orgId, input.userText.slice(0, 48) || "New chat");
     chatId = chat.id;
   } else {
     const [own] = await db.select({ id: novaChat.id }).from(novaChat)
@@ -44,22 +53,29 @@ export async function appendTurn(input: {
       const chat = await createChat(input.userId, input.orgId, input.userText.slice(0, 48));
       chatId = chat.id;
     } else {
-      const [count] = await db.select().from(novaChatMessage).where(eq(novaChatMessage.chatId, chatId)).limit(3);
-      if (!count) {
-        await db.update(novaChat).set({ title: input.userText.slice(0, 48), updatedAt: new Date() }).where(eq(novaChat.id, chatId));
-      } else {
-        await db.update(novaChat).set({ updatedAt: new Date() }).where(eq(novaChat.id, chatId));
-      }
+      const [existing] = await db.select({ id: novaChatMessage.id }).from(novaChatMessage)
+        .where(eq(novaChatMessage.chatId, chatId)).limit(1);
+      await db.update(novaChat).set({
+        ...(existing ? {} : { title: input.userText.slice(0, 48) }),
+        updatedAt: new Date(),
+      }).where(eq(novaChat.id, chatId));
     }
   }
-  await db.insert(novaChatMessage).values([
-    { chatId, role: "user", content: input.userText },
-    {
-      chatId, role: "assistant", content: input.assistantText,
-      suggestionsJson: input.suggestions ?? [],
-      pendingJson: input.pending ?? [],
-      cardsJson: input.cards ?? [],
-    },
-  ]);
+  const baseUser = { chatId, role: "user" as const, content: input.userText };
+  const baseAsst = {
+    chatId,
+    role: "assistant" as const,
+    content: input.assistantText,
+    suggestionsJson: input.suggestions ?? [],
+    pendingJson: input.pending ?? [],
+  };
+  try {
+    await db.insert(novaChatMessage).values([
+      baseUser,
+      { ...baseAsst, cardsJson: input.cards ?? [] },
+    ]);
+  } catch {
+    await db.insert(novaChatMessage).values([baseUser, baseAsst]);
+  }
   return chatId;
 }

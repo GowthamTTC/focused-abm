@@ -14,10 +14,8 @@ export function suggestFollowups(input: {
     add("Which of those still need research?");
     add("Shortlist the company with the most of that title");
   }
-  if (t.has("search_accounts") || t.has("shortlist_account")) {
-    add("Enrich these contacts for full visibility");
-    add("Who at that account is unresearched?");
-    add("What should I do next?");
+  if (t.has("shortlist_top") || t.has("shortlist_account") || t.has("search_accounts")) {
+    add("Enrich them");
   }
   if (t.has("enrich_account") || t.has("enrich_person") || t.has("enrich_shortlist")) {
     add("Who has a ready draft now?");
@@ -30,7 +28,7 @@ export function suggestFollowups(input: {
     add("What should I do next?");
   }
   if (t.has("recommend_next") || t.has("workspace_snapshot")) {
-    add("Shortlist the top recommended account");
+    add("Shortlist the top 3 accounts");
     add("How many VPs — which account has most?");
     add("Enrich all remaining on the shortlist");
   }

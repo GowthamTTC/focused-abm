@@ -60,6 +60,20 @@ export const TOOL_DEFS = [
   {
     type: "function" as const,
     function: {
+      name: "shortlist_top",
+      description: "Propose or shortlist the top N ICP-weighted accounts at once. Use when the user says shortlist the top accounts / top 3 / top recommended.",
+      parameters: {
+        type: "object",
+        properties: {
+          n: { type: "number", description: "How many top accounts, default 3" },
+          confirm: { type: "boolean" },
+        },
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "shortlist_account",
       description: "Propose or confirm starring a company. Call first with confirm=false so Nova can ask permission. Only pass confirm=true after the user says yes.",
       parameters: {
@@ -169,7 +183,8 @@ export const TOOL_DEFS = [
   },
 ];
 
-async function listPeopleAt(orgId: string, key: string) {
+async function listPeopleAt(orgId: string, key: string, nameHint = "") {
+  const token = (nameHint.split("|")[0] || nameHint).trim().slice(0, 40);
   const rows = await db.select({
     firstName: connection.firstName,
     lastName: connection.lastName,
@@ -180,7 +195,8 @@ async function listPeopleAt(orgId: string, key: string) {
   }).from(connection).where(and(
     eq(connection.orgId, orgId),
     eq(connection.bucket, "pitchable"),
-  )).limit(400);
+    ...(token ? [ilike(connection.companyRaw, `%${token}%`)] : []),
+  )).limit(200);
   const people = rows.filter((r) => companyKey(r.companyRaw) === key);
   const pending = people.filter((p) => ["pending", "failed", "skipped"].includes(p.enrichStatus)).length;
   const lines = people.slice(0, 12).map((p) =>
@@ -280,11 +296,48 @@ export async function runTool(
     };
   }
 
+
+  if (name === "shortlist_top") {
+    const n = Math.min(8, Math.max(1, Number(args.n) || 3));
+    const { recommendAll } = await import("@/modules/recommend");
+    const rec = await recommendAll(orgId);
+    const top = rec.accounts.slice(0, n);
+    if (top.length === 0) return { text: "No pitchable accounts to shortlist." };
+    const cards = top.map((a) => ({
+      kind: "account" as const,
+      title: a.name,
+      subtitle: a.shortlisted ? "Already shortlisted" : "Proposed shortlist",
+      pills: [`weighted ${a.avg}`, `${a.n} people`, `${a.pending} not researched`],
+    }));
+    if (!confirmed(args)) {
+      return {
+        text: `Shall I shortlist these ${top.length} accounts on your behalf?`,
+        pending: [
+          { kind: "shortlist_top", title: "Yes", yes: `Yes, shortlist the top ${top.length} accounts on my behalf.`, tone: "yes" },
+          { kind: "no", title: "No", yes: "No, do not make that change.", tone: "no" },
+        ],
+        cards,
+      };
+    }
+    for (const a of top) {
+      await toggleShortlist(orgId, a.key, a.name, true);
+    }
+    return {
+      text: `Shortlisted ${top.length} accounts.`,
+      cards: top.map((a) => ({
+        kind: "account" as const,
+        title: a.name,
+        subtitle: "Shortlisted",
+        pills: [`weighted ${a.avg}`, `${a.n} people`, `${a.pending} not researched`],
+      })),
+    };
+  }
+
   if (name === "shortlist_account") {
     const company = String(args.company ?? "").trim();
     const hit = await resolveCompany(orgId, company);
     if (!hit) return { text: `Could not find company "${company}" in pitchable accounts.` };
-    const roster = await listPeopleAt(orgId, hit.key);
+    const roster = await listPeopleAt(orgId, hit.key, hit.name);
     if (!confirmed(args)) {
       return {
         text: `Shall I mark ${hit.name} as shortlisted on your behalf?`,
@@ -309,7 +362,7 @@ export async function runTool(
     const company = String(args.company ?? "").trim();
     const hit = await resolveCompany(orgId, company);
     if (!hit) return { text: `Could not find company "${company}".` };
-    const roster = await listPeopleAt(orgId, hit.key);
+    const roster = await listPeopleAt(orgId, hit.key, hit.name);
     if (!confirmed(args)) {
       return {
         text: `Shall I enrich remaining contacts at ${hit.name} on your behalf?`,

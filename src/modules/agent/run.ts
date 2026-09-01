@@ -14,7 +14,7 @@ const client = new OpenAI({
 });
 
 const SYSTEM = `You are the Focused ABM assistant for THIS user's private workspace (their LinkedIn network only).
-You can search people/titles/companies, shortlist, enrich, run Radar, list drafts, and call recommend_next (all six rankers).
+You can search people/titles/companies, shortlist one or shortlist_top (top N at once), enrich, run Radar, list drafts, and call recommend_next.
 
 Every reply MUST:
 1. Use tools for numbers. Never invent counts.
@@ -23,7 +23,7 @@ Every reply MUST:
 4. End with a single **Recommendation:** line. If the user asks what to do / who to prioritize, call recommend_next first.
 5. Writes ALWAYS ask first. Permission replies MUST be only the question. Choices are Yes or No only. No extra recommendations and no URLs.
 8. After Yes, describe the result in this chat. Never invent links. Results render as cards.
-9. After a confirmed shortlist, people are already listed as cards.
+9. If the user says shortlist the top accounts / top 3 / top recommended, call shortlist_top once — do not shortlist one company at a time.
 6. Never invent HQ, revenue, or people missing from tool output.
 7. Radar is post-search + country, not live GPS.`
 
@@ -46,8 +46,8 @@ export async function runAgent(input: {
   const tools: string[] = [];
   const pending: { kind: string; title: string; yes: string; tone?: string }[] = [];
   const cards: { kind: string; title: string; subtitle?: string; pills: string[] }[] = [];
-  const WRITES = new Set(["shortlist_account", "enrich_account", "enrich_person", "enrich_shortlist", "start_radar"]);
-  const autoYes = /\byes\b/i.test(input.message) && /behalf|shortlist|enrich|scan|radar/i.test(input.message);
+  const WRITES = new Set(["shortlist_top", "shortlist_account", "enrich_account", "enrich_person", "enrich_shortlist", "start_radar"]);
+  const autoYes = /\byes\b/i.test(input.message) && /behalf|shortlist|enrich|scan|radar|top \d/i.test(input.message);
   for (let i = 0; i < 4; i++) {
     const res = await client.chat.completions.create({
       model: env.LLM_MODEL_CLASSIFY,
@@ -66,7 +66,9 @@ export async function runAgent(input: {
         reply, open, openLabel, tools, pending, cards,
         suggestions: pending.length
           ? []
-          : suggestFollowups({ message: input.message, tools, reply, topTopic: topTopic(input.learn) }),
+          : (tools.includes("shortlist_top") || tools.includes("shortlist_account"))
+            ? ["Enrich them"]
+            : suggestFollowups({ message: input.message, tools, reply, topTopic: topTopic(input.learn) }),
       };
     }
     messages.push({
@@ -94,6 +96,6 @@ export async function runAgent(input: {
   const reply = "I ran the tools. Check the page or the top bar for progress.";
   return {
     reply, open, openLabel, tools, pending, cards,
-    suggestions: pending.length ? [] : suggestFollowups({ message: input.message, tools, reply, topTopic: topTopic(input.learn) }),
+    suggestions: pending.length ? [] : (tools.includes("shortlist_top") || tools.includes("shortlist_account")) ? ["Enrich them"] : suggestFollowups({ message: input.message, tools, reply, topTopic: topTopic(input.learn) }),
   };
 }
