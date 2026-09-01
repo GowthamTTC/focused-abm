@@ -325,8 +325,9 @@ export async function runTool(
     const n = Math.min(20, Math.max(1, Number(args.n) || 3));
     const { recommendAll } = await import("@/modules/recommend");
     const rec = await recommendAll(orgId);
-    const top = rec.accounts.slice(0, n);
-    if (top.length === 0) return { text: "No pitchable accounts to shortlist." };
+    const pool = args.skipShortlisted ? rec.accounts.filter((a) => !a.shortlisted) : rec.accounts;
+    const top = pool.slice(0, n);
+    if (top.length === 0) return { text: args.skipShortlisted ? "Those next accounts are already shortlisted (or none left)." : "No pitchable accounts to shortlist." };
     const cards = top.map((a) => ({
       kind: "account" as const,
       title: a.name,

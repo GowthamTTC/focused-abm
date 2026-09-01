@@ -48,14 +48,15 @@ export function classifyIntent(
   const n = resolveN(m, history);
   const autoYes = /\byes\b/i.test(m) && /behalf|shortlist|enrich|scan|radar/i.test(m);
   const wantsWrite = WRITE_RE.test(m) || autoYes;
-  const skipShortlisted = /\bnext\b/i.test(m);
+  const priorNext = history.some((h) => h.role === "user" && /\bnext\b/i.test(h.content));
+  const skipShortlisted = /\bnext\b/i.test(m) || (/\bthese\b/i.test(m) && priorNext);
   const base = { n, wantsWrite, autoYes, skipShortlisted, args: {} as Record<string, unknown>, tool: null as string | null };
 
   if (autoYes && /enrich/i.test(m)) {
     return { ...base, tool: "enrich_shortlist", wantsWrite: true, args: { confirm: true } };
   }
   if (autoYes && /shortlist/i.test(m)) {
-    return { ...base, tool: "shortlist_top", wantsWrite: true, args: { n, confirm: true } };
+    return { ...base, tool: "shortlist_top", wantsWrite: true, args: { n, confirm: true, skipShortlisted } };
   }
   if (autoYes && /radar|scan/i.test(m)) {
     return { ...base, tool: "start_radar", wantsWrite: true, args: { confirm: true } };
@@ -96,7 +97,8 @@ export function classifyIntent(
     return { ...base, tool: "enrich_shortlist", wantsWrite: true, args: { confirm: false } };
   }
   if (/\bshortlist\b/i.test(m) && /\b(top|these|recommended|next)\b/i.test(m)) {
-    return { ...base, tool: "shortlist_top", wantsWrite: true, args: { n, confirm: false } };
+    const skip = skipShortlisted || /\b(these|next)\b/i.test(m);
+    return { ...base, tool: "shortlist_top", wantsWrite: true, args: { n, confirm: false, skipShortlisted: skip } };
   }
 
   if (/\b(scan|radar)\b/i.test(m)) {

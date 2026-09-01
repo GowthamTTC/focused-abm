@@ -53,7 +53,10 @@ export async function runAgent(input: {
       args.n = args.n ?? intent.n;
       if (intent.skipShortlisted) args.skipShortlisted = true;
     }
-    if (name === "shortlist_top") args.n = args.n ?? intent.n;
+    if (name === "shortlist_top") {
+      args.n = args.n ?? intent.n;
+      if (intent.skipShortlisted || intent.args.skipShortlisted) args.skipShortlisted = true;
+    }
     tools.push(name);
     const out = await runTool(ctx, name, args);
     if (out.pending && (intent.wantsWrite || intent.autoYes)) pending.push(...out.pending);
