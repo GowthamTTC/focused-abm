@@ -523,7 +523,12 @@ export async function runTool(
     const top = rec.accounts[0];
     return {
       text: formatRecommend(rec),
-      open: top ? `/accounts?a=${encodeURIComponent(top.key)}` : "/accounts",
+      cards: rec.accounts.slice(0, 3).map((a) => ({
+        kind: "account" as const,
+        title: a.name,
+        subtitle: a.shortlisted ? "Shortlisted" : "ICP match",
+        pills: [`weighted ${a.avg}`, `${a.n} people`, `${a.pending} not researched`],
+      })),
     };
   }
 

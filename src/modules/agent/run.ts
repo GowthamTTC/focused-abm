@@ -21,11 +21,29 @@ Every reply MUST:
 2. Lead with numbers (e.g. "14 VPs across 6 companies. Capital One has 5 — 36%.").
 3. Name the top account share when relevant.
 4. End with a single **Recommendation:** line. If the user asks what to do / who to prioritize, call recommend_next first.
-5. Writes ALWAYS ask first. Permission replies MUST be only the question. Choices are Yes or No only. No extra recommendations and no URLs.
-8. After Yes, describe the result in this chat. Never invent links. Results render as cards.
-9. If the user says shortlist the top accounts / top 3 / top recommended, call shortlist_top once — do not shortlist one company at a time.
+5. "Show / list / top N accounts" is READ ONLY — call recommend_next. Do not ask Yes/No. Do not call shortlist_top unless they said shortlist/star.
+6. Writes ALWAYS ask first. When asking permission, still name the accounts. UI shows Yes/No.
+8. After Yes, results stay in this chat as cards. No invented URLs.
+9. shortlist_top only when they said shortlist the top accounts.
 6. Never invent HQ, revenue, or people missing from tool output.
 7. Radar is post-search + country, not live GPS.`
+
+function composeReply(model: string, pending: { title: string }[], cards: { title: string; subtitle?: string; pills: string[] }[]) {
+  const thin = !model || model.length < 48 || /^yes or no\??$/i.test(model.trim());
+  if (!thin && !cards.length) return model;
+  const lines: string[] = [];
+  if (cards.length) {
+    lines.push(pending.length ? "Shall I apply this on your behalf?" : "Top accounts:");
+    for (const [i, c] of cards.entries()) {
+      lines.push(`${i + 1}. ${c.title}${c.subtitle ? ` — ${c.subtitle}` : ""}${c.pills?.length ? ` · ${c.pills.join(" · ")}` : ""}`);
+    }
+  } else if (pending.length) {
+    lines.push(model || "Shall I do that on your behalf?");
+  } else {
+    lines.push(model);
+  }
+  return lines.join("\n");
+}
 
 export async function runAgent(input: {
   orgId: string;
@@ -47,7 +65,8 @@ export async function runAgent(input: {
   const pending: { kind: string; title: string; yes: string; tone?: string }[] = [];
   const cards: { kind: string; title: string; subtitle?: string; pills: string[] }[] = [];
   const WRITES = new Set(["shortlist_top", "shortlist_account", "enrich_account", "enrich_person", "enrich_shortlist", "start_radar"]);
-  const autoYes = /\byes\b/i.test(input.message) && /behalf|shortlist|enrich|scan|radar|top \d/i.test(input.message);
+  const autoYes = /\byes\b/i.test(input.message) && /behalf|shortlist|enrich|scan|radar/i.test(input.message);
+  const wantsWrite = /\b(shortlist|star|enrich|scan|radar|behalf)\b/i.test(input.message);
   for (let i = 0; i < 4; i++) {
     const res = await client.chat.completions.create({
       model: env.LLM_MODEL_CLASSIFY,
@@ -61,14 +80,16 @@ export async function runAgent(input: {
     const msg = choice.message;
     const calls = msg.tool_calls;
     if (!calls?.length) {
-      const reply = (msg.content ?? "Done.").trim();
+      const reply = composeReply((msg.content ?? "Done.").trim(), pending, cards);
       return {
         reply, open, openLabel, tools, pending, cards,
         suggestions: pending.length
           ? []
-          : (tools.includes("shortlist_top") || tools.includes("shortlist_account"))
+          : (tools.includes("shortlist_top") || tools.includes("shortlist_account")) && wantsWrite
             ? ["Enrich them"]
-            : suggestFollowups({ message: input.message, tools, reply, topTopic: topTopic(input.learn) }),
+            : tools.includes("recommend_next") || tools.includes("shortlist_top")
+              ? ["Shortlist the top 3 accounts"]
+              : suggestFollowups({ message: input.message, tools, reply, topTopic: topTopic(input.learn) }),
       };
     }
     messages.push({
@@ -82,7 +103,7 @@ export async function runAgent(input: {
       tools.push(call.function.name);
       if (WRITES.has(call.function.name)) args.confirm = autoYes;
       const out = await runTool(ctx, call.function.name, args);
-      if (out.pending) pending.push(...out.pending);
+      if (out.pending && (wantsWrite || autoYes)) pending.push(...out.pending);
       if (out.cards) cards.push(...out.cards);
       if (out.open) open = out.open;
       if (out.openLabel) openLabel = out.openLabel;
@@ -93,7 +114,7 @@ export async function runAgent(input: {
       });
     }
   }
-  const reply = "I ran the tools. Check the page or the top bar for progress.";
+  const reply = composeReply("I ran the tools.", pending, cards);
   return {
     reply, open, openLabel, tools, pending, cards,
     suggestions: pending.length ? [] : (tools.includes("shortlist_top") || tools.includes("shortlist_account")) ? ["Enrich them"] : suggestFollowups({ message: input.message, tools, reply, topTopic: topTopic(input.learn) }),
