@@ -176,6 +176,14 @@ export const TOOL_DEFS = [
   {
     type: "function" as const,
     function: {
+      name: "whats_left",
+      description: "What is still open: shortlist not researched, ready drafts, latest Radar job. Use for 'what else left', leftover, remaining.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "list_ready",
       description: "List people with a ready outreach draft on Review.",
       parameters: { type: "object", properties: {} },
@@ -298,7 +306,7 @@ export async function runTool(
 
 
   if (name === "shortlist_top") {
-    const n = Math.min(8, Math.max(1, Number(args.n) || 3));
+    const n = Math.min(20, Math.max(1, Number(args.n) || 3));
     const { recommendAll } = await import("@/modules/recommend");
     const rec = await recommendAll(orgId);
     const top = rec.accounts.slice(0, n);
@@ -530,6 +538,32 @@ export async function runTool(
         title: a.name,
         subtitle: a.shortlisted ? "Shortlisted" : "ICP match",
         pills: [`weighted ${a.avg}`, `${a.n} people`, `${a.pending} not researched`],
+      })),
+    };
+  }
+
+  if (name === "whats_left") {
+    const { recommendAll } = await import("@/modules/recommend");
+    const rec = await recommendAll(orgId);
+    const short = rec.accounts.filter((a) => a.shortlisted);
+    const need = short.filter((a) => a.pending > 0);
+    const drafts = rec.accounts; // unused
+    const [ready] = await db.select({
+      n: sql<number>`count(*) filter (where outreach_message is not null and sent_at is null)::int`,
+    }).from(connection).where(eq(connection.orgId, orgId));
+    const text = [
+      `Shortlisted accounts: ${short.length}.`,
+      `Still need research: ${need.length} accounts (${need.reduce((s, a) => s + a.pending, 0)} people).`,
+      need.length ? need.map((a) => `- ${a.name}: ${a.pending} left`).join("\n") : "- Shortlist research is complete.",
+      `Ready drafts not sent: ${ready?.n ?? 0}.`,
+    ].join("\n");
+    return {
+      text,
+      cards: (need.length ? need : short).slice(0, 10).map((a) => ({
+        kind: "account" as const,
+        title: a.name,
+        subtitle: a.pending > 0 ? "Still to research" : "Researched",
+        pills: [`weighted ${a.avg}`, `${a.n} people`, `${a.pending} left`],
       })),
     };
   }

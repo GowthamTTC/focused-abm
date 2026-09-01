@@ -8,6 +8,11 @@ export function suggestFollowups(input: {
   const t = new Set(input.tools);
   const out: string[] = [];
   const add = (s: string) => { if (!out.includes(s) && out.length < 5) out.push(s); };
+  if (/left|remain|else|next/i.test(m) || t.has("whats_left")) {
+    add("Who still needs research on the shortlist?");
+    add("Who has a ready draft now?");
+    add("Scan an event on Radar");
+  }
 
   if (t.has("count_title") || /\bvp|director|title|head of\b/.test(m)) {
     add("Break that title mix down by company");

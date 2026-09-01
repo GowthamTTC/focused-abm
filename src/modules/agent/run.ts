@@ -17,11 +17,8 @@ const SYSTEM = `You are the Focused ABM assistant for THIS user's private worksp
 You can search people/titles/companies, shortlist one or shortlist_top (top N at once), enrich, run Radar, list drafts, and call recommend_next.
 
 Ground every number and recommendation in this workspace ICP and tool output. Prefer matchWhy / service slug over generic advice.
-Every reply MUST:
-1. Use tools for numbers. Never invent counts.
-2. Lead with numbers (e.g. "14 VPs across 6 companies. Capital One has 5 — 36%.").
-3. Name the top account share when relevant.
-4. End with a single **Recommendation:** line. If the user asks what to do / who to prioritize, call recommend_next first.
+Talk like a sharp coworker, not a form. Use tools for any number. If they ask what is left, call whats_left.
+End with a **Recommendation:** when you suggest a next action.
 5. "Show / list / top N accounts" is READ ONLY — call recommend_next. Do not ask Yes/No. Do not call shortlist_top unless they said shortlist/star.
 6. Writes ALWAYS ask first. When asking permission, still name the accounts. UI shows Yes/No.
 8. After Yes, results stay in this chat as cards. No invented URLs.
@@ -29,15 +26,18 @@ Every reply MUST:
 6. Never invent HQ, revenue, or people missing from tool output.
 7. Radar is post-search + country, not live GPS.`
 
-function requestedN(message: string) {
-  const m = message.match(/\btop\s+(\d+)\b/i) || message.match(/\b(\d+)\s+accounts?\b/i);
+function requestedN(message: string, history: { content: string }[] = []) {
+  const blob = `${history.map((h) => h.content).join(" ")} ${message}`;
+  const hits = [...blob.matchAll(/\btop\s+(\d+)\b/gi)].map((x) => parseInt(x[1], 10)).filter((n) => n > 0 && n <= 20);
+  if (hits.length) return Math.max(...hits);
+  const m = message.match(/\b(\d+)\s+accounts?\b/i);
   const n = m ? parseInt(m[1], 10) : 3;
   return Number.isFinite(n) ? Math.min(20, Math.max(1, n)) : 3;
 }
 
 function composeReply(model: string, pending: { title: string }[], cards: { title: string; subtitle?: string; pills: string[] }[]) {
-  const thin = !model || model.length < 48 || /^yes or no\??$/i.test(model.trim());
-  if (!thin && !cards.length) return model;
+  const thin = !model || model.length < 24 || /^yes or no\??$/i.test(model.trim()) || model.trim() === "Done.";
+  if (!thin) return model;
   const lines: string[] = [];
   if (cards.length) {
     lines.push(pending.length ? "Shall I apply this on your behalf?" : "Top accounts:");
@@ -76,9 +76,9 @@ export async function runAgent(input: {
   const wantsWrite = /\b(shortlist|star|enrich|scan|radar|behalf)\b/i.test(input.message);
   for (let i = 0; i < 4; i++) {
     const res = await client.chat.completions.create({
-      model: env.LLM_MODEL_CLASSIFY,
+      model: env.LLM_MODEL_DEEPDIVE || env.LLM_MODEL_CLASSIFY,
       temperature: 0.2,
-      max_tokens: 900,
+      max_tokens: 1800,
       tools: TOOL_DEFS,
       messages,
     });
@@ -95,7 +95,7 @@ export async function runAgent(input: {
           : (tools.includes("shortlist_top") || tools.includes("shortlist_account")) && wantsWrite
             ? ["Enrich them"]
             : tools.includes("recommend_next") || tools.includes("shortlist_top")
-              ? [`Shortlist the top ${requestedN(input.message)} accounts`]
+              ? [`Shortlist the top ${requestedN(input.message, input.history)} accounts`]
               : suggestFollowups({ message: input.message, tools, reply, topTopic: topTopic(input.learn) }),
       };
     }
@@ -109,7 +109,7 @@ export async function runAgent(input: {
       try { args = JSON.parse(call.function.arguments || "{}"); } catch { args = {}; }
       tools.push(call.function.name);
       if (call.function.name === "recommend_next" || call.function.name === "shortlist_top") {
-        if (args.n == null) args.n = requestedN(input.message);
+        if (args.n == null) args.n = requestedN(input.message, input.history);
       }
       if (WRITES.has(call.function.name)) args.confirm = autoYes;
       const out = await runTool(ctx, call.function.name, args);
