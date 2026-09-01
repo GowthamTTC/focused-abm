@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { ProgressBar } from "@/components/progress-bar";
+import { NovaJobTrace } from "@/components/nova-job-trace";
 import { NOVA_SAYS, nextSaying } from "@/components/nova-says";
 
 export const NOVA_QUERIES = [
@@ -279,6 +280,7 @@ export function NovaThread({
             ))}
           </div>
         ) : null)}
+        <NovaJobTrace active={msgs.some((m) => (m.tools ?? []).some((x) => x.startsWith("enrich") || x === "start_radar"))} />
         {busy && (
           <div className="enrich-wait rounded-[10px] border border-[#E7CE96] bg-[#FEFBF3] p-3 text-[12.5px] text-[#B54708]">
             <div className="flex items-center gap-2">

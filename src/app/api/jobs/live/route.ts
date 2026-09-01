@@ -22,9 +22,9 @@ export async function GET() {
         try {
           const [latest] = await db.select({
             id: job.id, kind: job.kind, status: job.status,
-            progress: job.progress, total: job.total,
+            progress: job.progress, total: job.total, payloadJson: job.payloadJson,
           }).from(job).where(eq(job.orgId, user.orgId)).orderBy(desc(job.createdAt)).limit(1);
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ job: latest ?? null })}\n\n`));
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ job: latest ? { id: latest.id, kind: latest.kind, status: latest.status, progress: latest.progress, total: latest.total, current: typeof latest.payloadJson?.current === 'string' ? latest.payloadJson.current : null } : null })}\n\n`));
         } catch {
           try { controller.enqueue(encoder.encode(`data: {"job":null}\n\n`)); } catch { /* closed */ }
         }

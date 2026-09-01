@@ -37,8 +37,15 @@ async function scannedToday(orgId: string): Promise<number> {
   return row?.n ?? 0;
 }
 
-async function setProgress(id: string, progress: number, total: number) {
-  await db.update(job).set({ progress, total, updatedAt: new Date() }).where(eq(job.id, id));
+async function setProgress(id: string, progress: number, total: number, current?: string) {
+  const patch: { progress: number; total: number; updatedAt: Date; payloadJson?: Record<string, unknown> } = {
+    progress, total, updatedAt: new Date(),
+  };
+  if (current) {
+    const [row] = await db.select({ payloadJson: job.payloadJson }).from(job).where(eq(job.id, id)).limit(1);
+    patch.payloadJson = { ...(row?.payloadJson ?? {}), current };
+  }
+  await db.update(job).set(patch).where(eq(job.id, id));
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -114,9 +121,18 @@ export async function processNext(): Promise<boolean> {
           if ((await enrichedToday(next.orgId)) >= env.DEEP_ENRICH_DAILY_CAP) {
             throw new Error(`Daily enrichment cap (${env.DEEP_ENRICH_DAILY_CAP}) reached after ${done} — the remaining ${ids.length - done} went back to the pool; pick them again after the reset.`);
           }
+          const [who] = await db.select({
+            firstName: connection.firstName,
+            lastName: connection.lastName,
+            companyRaw: connection.companyRaw,
+          }).from(connection).where(eq(connection.id, id)).limit(1);
+          const label = who
+            ? `${who.firstName} ${who.lastName}${who.companyRaw ? ` @ ${who.companyRaw.split("|")[0]!.trim()}` : ""}`
+            : id;
+          await setProgress(next.id, done, ids.length, `Researching ${label}`);
           try { await deepEnrichOne(next.orgId, id); } catch { /* row carries its own error */ }
           done += 1;
-          await setProgress(next.id, done, ids.length);
+          await setProgress(next.id, done, ids.length, `Saved ${label}`);
           // LinkedIn-respectful pacing: base gap + jitter between profile fetches.
           const gap = env.DEEP_ENRICH_MIN_GAP_SECONDS * 1000;
           await sleep(gap + Math.random() * gap);
