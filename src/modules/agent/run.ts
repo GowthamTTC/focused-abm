@@ -47,7 +47,7 @@ export async function runAgent(input: {
   let toolText = "";
 
   const apply = async (name: string, args: Record<string, unknown>) => {
-    const WRITES = new Set(["shortlist_top", "shortlist_account", "enrich_account", "enrich_person", "enrich_shortlist", "start_radar"]);
+    const WRITES = new Set(["shortlist_top", "shortlist_account", "unshortlist_account", "clear_shortlist", "radar_floor", "enrich_account", "enrich_person", "enrich_shortlist", "start_radar", "mark_sent", "undo_sent", "flag_person", "sync_network", "stop_jobs"]);
     if (WRITES.has(name)) args.confirm = intent.autoYes;
     if (name === "recommend_next") {
       args.n = args.n ?? intent.n;

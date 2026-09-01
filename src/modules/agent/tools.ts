@@ -89,6 +89,78 @@ export const TOOL_DEFS = [
   {
     type: "function" as const,
     function: {
+      name: "unshortlist_account",
+      description: "Remove one company from the shortlist after confirm.",
+      parameters: { type: "object", properties: { company: { type: "string" }, confirm: { type: "boolean" } }, required: ["company"] },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "clear_shortlist",
+      description: "Unshortlist every starred account after confirm. Use for unselect all.",
+      parameters: { type: "object", properties: { confirm: { type: "boolean" } } },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "radar_floor",
+      description: "Mark a Radar person met or skipped after confirm.",
+      parameters: { type: "object", properties: {
+        person: { type: "string" },
+        status: { type: "string", description: "met or skipped" },
+        confirm: { type: "boolean" },
+      }, required: ["person", "status"] },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "mark_sent",
+      description: "Mark a person as sent after confirm.",
+      parameters: { type: "object", properties: { person: { type: "string" }, confirm: { type: "boolean" } }, required: ["person"] },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "undo_sent",
+      description: "Undo mark sent after confirm.",
+      parameters: { type: "object", properties: { person: { type: "string" }, confirm: { type: "boolean" } }, required: ["person"] },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "flag_person",
+      description: "Flag a person dropped, verify, or variant after confirm.",
+      parameters: { type: "object", properties: {
+        person: { type: "string" },
+        verdict: { type: "string" },
+        confirm: { type: "boolean" },
+      }, required: ["person", "verdict"] },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "sync_network",
+      description: "Sync LinkedIn connections after confirm.",
+      parameters: { type: "object", properties: { confirm: { type: "boolean" } } },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "stop_jobs",
+      description: "Request stop on running jobs after confirm.",
+      parameters: { type: "object", properties: { confirm: { type: "boolean" } } },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "enrich_account",
       description: "Propose or queue research for remaining people at a company. confirm=true only after the user agrees.",
       parameters: {
@@ -235,6 +307,21 @@ async function listPeopleAt(orgId: string, key: string, nameHint = "") {
   return { n: people.length, pending, lines, cards };
 }
 
+async function findPerson(orgId: string, q: string) {
+  const token = q.trim().split(/\s+/).filter((w) => !/^(yes|mark|sent|undo|flag|dropped|verify|variant|as|the|on|my|behalf)$/i.test(w)).join(" ");
+  if (!token) return null;
+  const [row] = await db.select({
+    id: connection.id,
+    firstName: connection.firstName,
+    lastName: connection.lastName,
+    companyRaw: connection.companyRaw,
+  }).from(connection).where(and(
+    eq(connection.orgId, orgId),
+    or(ilike(connection.firstName, `%${token.split(" ")[0]}%`), ilike(connection.lastName, `%${token.split(" ").slice(-1)[0]}%`)),
+  )).limit(1);
+  return row ?? null;
+}
+
 async function resolveCompany(orgId: string, company: string) {
   const key = companyKey(company);
   const rows = await db.select({
@@ -338,7 +425,9 @@ export async function runTool(
       return {
         text: `Shall I shortlist these ${top.length} accounts on your behalf?`,
         pending: [
-          { kind: "shortlist_top", title: "Yes", yes: `Yes, shortlist the top ${top.length} accounts on my behalf.`, tone: "yes" },
+          { kind: "shortlist_top", title: "Yes", yes: args.skipShortlisted
+            ? `Yes, shortlist these ${top.length} accounts on my behalf.`
+            : `Yes, shortlist the top ${top.length} accounts on my behalf.`, tone: "yes" },
           { kind: "no", title: "No", yes: "No, do not make that change.", tone: "no" },
         ],
         cards,
@@ -356,6 +445,136 @@ export async function runTool(
         pills: [`weighted ${a.avg}`, `${a.n} people`, `${a.pending} not researched`],
       })),
     };
+  }
+
+
+
+  if (name === "mark_sent" || name === "undo_sent") {
+    const hit = await findPerson(orgId, String(args.person ?? ""));
+    if (!hit) return { text: "Could not find that person." };
+    const label = `${hit.firstName} ${hit.lastName}`;
+    const undo = name === "undo_sent";
+    if (!confirmed(args)) {
+      return {
+        text: undo ? `Shall I undo sent for ${label}?` : `Shall I mark ${label} as sent?`,
+        pending: [
+          { kind: name, title: "Yes", yes: `Yes, ${undo ? "undo sent for" : "mark sent"} ${label} on my behalf.`, tone: "yes" },
+          { kind: "no", title: "No", yes: "No, do not make that change.", tone: "no" },
+        ],
+      };
+    }
+    await db.update(connection).set(undo
+      ? { outreachStatus: null, sentAt: null }
+      : { outreachStatus: "sent", sentAt: new Date() }
+    ).where(and(eq(connection.orgId, orgId), eq(connection.id, hit.id)));
+    return { text: undo ? `Undid sent for ${label}.` : `Marked ${label} as sent.`, cards: [{ kind: "person" as const, title: label, subtitle: undo ? "back in queue" : "sent", pills: ["review"] }] };
+  }
+
+  if (name === "flag_person") {
+    const hit = await findPerson(orgId, String(args.person ?? ""));
+    if (!hit) return { text: "Could not find that person." };
+    const verdict = ["dropped", "verify", "variant"].includes(String(args.verdict)) ? String(args.verdict) : "verify";
+    const label = `${hit.firstName} ${hit.lastName}`;
+    if (!confirmed(args)) {
+      return {
+        text: `Shall I flag ${label} as ${verdict}?`,
+        pending: [
+          { kind: "flag_person", title: "Yes", yes: `Yes, flag ${label} as ${verdict} on my behalf.`, tone: "yes" },
+          { kind: "no", title: "No", yes: "No, do not make that change.", tone: "no" },
+        ],
+      };
+    }
+    await db.update(connection).set({ flagVerdict: verdict }).where(and(eq(connection.orgId, orgId), eq(connection.id, hit.id)));
+    return { text: `Flagged ${label} as ${verdict}.` };
+  }
+
+  if (name === "sync_network") {
+    if (!confirmed(args)) {
+      return {
+        text: "Shall I sync LinkedIn connections on your behalf?",
+        pending: [
+          { kind: "sync_network", title: "Yes", yes: "Yes, sync my network on my behalf.", tone: "yes" },
+          { kind: "no", title: "No", yes: "No, do not make that change.", tone: "no" },
+        ],
+      };
+    }
+    const { channelAccount } = await import("@/db");
+    const [seat] = await db.select().from(channelAccount).where(and(eq(channelAccount.orgId, orgId), eq(channelAccount.status, "operational")));
+    if (!seat) return { text: "Connect LinkedIn in Settings first." };
+    await enqueue(orgId, "sync", { accountId: seat.unipileAccountId, seatId: seat.id });
+    return { text: "Network sync queued. Watch the top bar." };
+  }
+
+  if (name === "stop_jobs") {
+    if (!confirmed(args)) {
+      return {
+        text: "Shall I request stop on running jobs?",
+        pending: [
+          { kind: "stop_jobs", title: "Yes", yes: "Yes, stop running jobs on my behalf.", tone: "yes" },
+          { kind: "no", title: "No", yes: "No, do not make that change.", tone: "no" },
+        ],
+      };
+    }
+    const { job } = await import("@/db");
+    await db.update(job).set({ status: "stopping" }).where(and(eq(job.orgId, orgId), eq(job.status, "running")));
+    return { text: "Stop requested on running jobs." };
+  }
+
+  if (name === "unshortlist_account") {
+    const company = String(args.company ?? "").trim();
+    const hit = await resolveCompany(orgId, company);
+    if (!hit) return { text: `Could not find "${company}" on pitchable accounts.` };
+    if (!confirmed(args)) {
+      return {
+        text: `Shall I remove ${hit.name} from the shortlist?`,
+        pending: [
+          { kind: "unshortlist_account", title: "Yes", yes: `Yes, unshortlist ${hit.name} on my behalf.`, tone: "yes" },
+          { kind: "no", title: "No", yes: "No, do not make that change.", tone: "no" },
+        ],
+        cards: [{ kind: "account", title: hit.name, subtitle: "Remove from shortlist", pills: ["unselect"] }],
+      };
+    }
+    await toggleShortlist(orgId, hit.key, hit.name, false);
+    return { text: `Removed ${hit.name} from the shortlist.`, cards: [{ kind: "account", title: hit.name, subtitle: "Unshortlisted", pills: ["removed"] }] };
+  }
+
+  if (name === "clear_shortlist") {
+    const rows = await db.select({ companyName: accountShortlist.companyName, companyKey: accountShortlist.companyKey }).from(accountShortlist).where(eq(accountShortlist.orgId, orgId));
+    if (!confirmed(args)) {
+      return {
+        text: `Shall I unshortlist all ${rows.length} accounts?`,
+        pending: rows.length ? [
+          { kind: "clear_shortlist", title: "Yes", yes: "Yes, unshortlist all accounts on my behalf.", tone: "yes" },
+          { kind: "no", title: "No", yes: "No, do not make that change.", tone: "no" },
+        ] : [],
+        cards: rows.slice(0, 12).map((r) => ({ kind: "account" as const, title: r.companyName, subtitle: "Will unselect", pills: ["starred"] })),
+      };
+    }
+    await db.delete(accountShortlist).where(eq(accountShortlist.orgId, orgId));
+    return { text: `Cleared the shortlist (${rows.length} accounts).` };
+  }
+
+  if (name === "radar_floor") {
+    const q = String(args.person ?? "").trim();
+    const status = String(args.status ?? "").toLowerCase() === "skipped" ? "skipped" : "met";
+    const rows = await db.select({ id: connection.id, firstName: connection.firstName, lastName: connection.lastName, companyRaw: connection.companyRaw }).from(connection).where(and(
+      eq(connection.orgId, orgId),
+      or(ilike(connection.firstName, `%${q}%`), ilike(connection.lastName, `%${q}%`)),
+    )).limit(5);
+    const hit = rows[0];
+    if (!hit) return { text: `No person matching "${q}".` };
+    const label = `${hit.firstName} ${hit.lastName}`;
+    if (!confirmed(args)) {
+      return {
+        text: `Shall I mark ${label} as ${status} on Radar?`,
+        pending: [
+          { kind: "radar_floor", title: "Yes", yes: `Yes, mark ${label} ${status} on my behalf.`, tone: "yes" },
+          { kind: "no", title: "No", yes: "No, do not make that change.", tone: "no" },
+        ],
+      };
+    }
+    await db.update(connection).set({ floorStatus: status, floorAt: new Date() }).where(and(eq(connection.orgId, orgId), eq(connection.id, hit.id)));
+    return { text: `Marked ${label} as ${status}.`, cards: [{ kind: "person", title: label, subtitle: status, pills: ["radar"] }] };
   }
 
   if (name === "shortlist_account") {
@@ -522,23 +741,34 @@ export async function runTool(
   }
 
   if (name === "enrich_shortlist") {
+    const { recommendAll } = await import("@/modules/recommend");
+    const rec = await recommendAll(orgId);
+    const need = rec.accounts.filter((a) => a.shortlisted && a.pending > 0);
+    const needCards = need.slice(0, 12).map((a) => ({
+      kind: "account" as const,
+      title: a.name,
+      subtitle: "Needs research",
+      pills: [`${a.pending} left`, `weighted ${a.avg}`],
+    }));
     if (!confirmed(args)) {
       return {
-        text: "Shall I enrich remaining contacts on the whole shortlist on your behalf? That uses research credits.",
-        pending: [
+        text: need.length
+          ? `Shall I enrich the ${need.length} shortlisted accounts that still have unresearched people?`
+          : "Everyone on the shortlist is already researched.",
+        pending: need.length ? [
           { kind: "enrich_shortlist", title: "Yes", yes: "Yes, enrich remaining contacts on the shortlist on my behalf.", tone: "yes" },
           { kind: "no", title: "No", yes: "No, do not make that change.", tone: "no" },
-        ],
+        ] : [],
+        cards: needCards,
       };
     }
     const { enrichShortlistedAccounts } = await import("@/modules/accounts/shortlist");
     const result = await enrichShortlistedAccounts(orgId);
     return {
       text: result.people === 0
-        ? `Shortlist has ${result.accounts} companies but 0 people queued (already researched or empty).`
-        : `Queued research for ${result.people} people across ${result.accounts} shortlisted companies.`,
-      open: `/accounts?view=shortlist&enriched=${result.people}`,
-      openLabel: "Open shortlist",
+        ? "Nobody left to research on the shortlist."
+        : `Queued research for ${result.people} people at ${need.length} accounts that still needed it.`,
+      cards: needCards,
     };
   }
 

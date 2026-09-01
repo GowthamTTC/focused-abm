@@ -11,7 +11,7 @@ export type AgentIntent = {
   n: number;
 };
 
-const WRITE_RE = /\b(shortlist|star|enrich|scan|radar|behalf)\b/i;
+const WRITE_RE = /\b(shortlist|unshortlist|unselect|star|enrich|scan|radar|behalf|clear shortlist)\b/i;
 
 export function parseN(message: string, fallback = 3): number {
   const next = message.match(/\bnext\s+(\d+)\b/i);
@@ -48,9 +48,51 @@ export function classifyIntent(
   const n = resolveN(m, history);
   const autoYes = /\byes\b/i.test(m) && /behalf|shortlist|enrich|scan|radar/i.test(m);
   const wantsWrite = WRITE_RE.test(m) || autoYes;
-  const priorNext = history.some((h) => h.role === "user" && /\bnext\b/i.test(h.content));
-  const skipShortlisted = /\bnext\b/i.test(m) || (/\bthese\b/i.test(m) && priorNext);
+  const threadSkip = history.some((h) => /\b(next|these)\b/i.test(h.content));
+  const skipShortlisted = /\bnext\b/i.test(m) || /\bthese\b/i.test(m) || threadSkip;
   const base = { n, wantsWrite, autoYes, skipShortlisted, args: {} as Record<string, unknown>, tool: null as string | null };
+
+
+  if (autoYes && /unshortlist all|clear shortlist|unselect all/i.test(m)) {
+    return { ...base, tool: "clear_shortlist", wantsWrite: true, args: { confirm: true } };
+  }
+  if (autoYes && /unshortlist/i.test(m)) {
+    const company = m.replace(/yes[,.]?|unshortlist|on my behalf/gi, "").trim();
+    return { ...base, tool: "unshortlist_account", wantsWrite: true, args: { company, confirm: true } };
+  }
+  if (/\b(clear shortlist|unshortlist all|unselect all)\b/i.test(m)) {
+    return { ...base, tool: "clear_shortlist", wantsWrite: true, args: { confirm: false } };
+  }
+  if (/\bunshortlist\b|\bremove .* from (the )?shortlist\b/i.test(m)) {
+    const company = m.replace(/unshortlist|remove|from (the )?shortlist|please/gi, "").trim();
+    return { ...base, tool: "unshortlist_account", wantsWrite: true, args: { company, confirm: false } };
+  }
+  if (/\bmark\b/i.test(m) && /\b(met|skipped|skip)\b/i.test(m)) {
+    const status = /skip/i.test(m) ? "skipped" : "met";
+    const person = m.replace(/yes[,.]?|mark|as|met|skipped|skip|on radar|on my behalf/gi, "").trim();
+    return { ...base, tool: "radar_floor", wantsWrite: true, args: { person, status, confirm: autoYes } };
+  }
+
+
+  if (/\bsync (my )?(network|connections|linkedin)\b/i.test(m)) {
+    return { ...base, tool: "sync_network", wantsWrite: true, args: { confirm: autoYes } };
+  }
+  if (/\bstop (the )?(job|jobs|scan|enrich)/i.test(m)) {
+    return { ...base, tool: "stop_jobs", wantsWrite: true, args: { confirm: autoYes } };
+  }
+  if (/\bundo sent\b/i.test(m)) {
+    const person = m.replace(/yes[,.]?|undo sent( for)?|on my behalf/gi, "").trim();
+    return { ...base, tool: "undo_sent", wantsWrite: true, args: { person, confirm: autoYes } };
+  }
+  if (/\bmark .* sent\b|\bmarked .* sent\b/i.test(m)) {
+    const person = m.replace(/yes[,.]?|mark(ed)?|as sent|sent|on my behalf/gi, "").trim();
+    return { ...base, tool: "mark_sent", wantsWrite: true, args: { person, confirm: autoYes } };
+  }
+  if (/\bflag\b/i.test(m) && /\b(dropped|verify|variant)\b/i.test(m)) {
+    const verdict = /dropped/i.test(m) ? "dropped" : /variant/i.test(m) ? "variant" : "verify";
+    const person = m.replace(/yes[,.]?|flag|as|dropped|verify|variant|on my behalf/gi, "").trim();
+    return { ...base, tool: "flag_person", wantsWrite: true, args: { person, verdict, confirm: autoYes } };
+  }
 
   if (autoYes && /enrich/i.test(m)) {
     return { ...base, tool: "enrich_shortlist", wantsWrite: true, args: { confirm: true } };
