@@ -41,6 +41,38 @@ export function resolveN(message: string, history: { role: string; content: stri
   return 3;
 }
 
+
+export function parseRadarReply(message: string): { event: string; country: string; days: number; pool: string } | null {
+  let s = message.trim();
+  if (!s) return null;
+  if (/\b(snapshot|shortlist|enrich them|workspace|ready draft|title mix|committee|lookalike|what else left|top \d+|next \d+)\b/i.test(s)
+      && !/\b(scan|radar|event)\b/i.test(s)) {
+    return null;
+  }
+  if (/^(hi|hello|hey|yo|thanks|thank you|ok|okay|no|yes)\b/i.test(s) && !/\b(scan|radar)\b/i.test(s)) return null;
+  const country = /india/i.test(s) ? "india" : "united-states";
+  const pool = /\b(2nd|3rd|second|third|extended)\b/i.test(s) ? "extended" : "first";
+  const days = /\b14\b/.test(s) ? 14 : (/\b3\b/.test(s) && /day/i.test(s)) ? 3 : 7;
+  s = s.replace(/\b(scan|radar|event scan|last \d+ days?|in the|united states|usa|us|india|1st|2nd|3rd|first|second|third|degree|extended|network|please)\b/gi, " ");
+  s = s.replace(/[+|]+/g, " ").replace(/\s+/g, " ").trim();
+  if (s.length < 3) return null;
+  if (/^(event|hits|yes|no|ok)$/i.test(s)) return null;
+  return { event: s, country, days, pool };
+}
+
+function radarThread(history: { role: string; content: string }[]) {
+  return history.some((h) => /\b(radar|scan|event name|what'?s the event)\b/i.test(h.content));
+}
+
+function isEventLike(raw: string, parsed: { event: string } | null, history: { role: string; content: string }[]) {
+  if (!parsed) return false;
+  if (radarThread(history)) return true;
+  if (/\b(scan|radar|event|20\d{2}|2nd|3rd|degree|india|saastr|dreamforce|reinvent|inbound|unbound|collision)\b/i.test(raw)) return true;
+  if (/^(tell|write|what|how|why|when|where|can you|please explain)\b/i.test(raw.trim())) return false;
+  const words = parsed.event.split(/\s+/).filter(Boolean);
+  return words.length >= 1 && words.length <= 6;
+}
+
 export function classifyIntent(
   message: string,
   history: { role: string; content: string }[] = [],
@@ -165,19 +197,21 @@ export function classifyIntent(
   if (/\b(marked met|already met|who have I (already )?marked)\b/i.test(m)) {
     return { ...base, tool: "insight", wantsWrite: false, args: { topic: "radar_met" } };
   }
-  if (/\b(scan|radar|event scan|going to (an )?event|in town|on site)\b/i.test(m)) {
-    const event = (m.match(/(?:scan|radar)\s+(.+?)(?:\s+last|\s+in\s+the|\s*$)/i) || [, ""])[1]?.trim();
-    const named = event && !/^(event|hits|scan|us|india)$/i.test(event) && event.length > 2;
-    if (!named) {
-      return { ...base, tool: "radar_guide", wantsWrite: false };
+  if (/\b(scan|radar|event scan|going to (an )?event|in town|on site)\b/i.test(m) || radarThread(history)) {
+    if (/\b(radar hits|who mentioned|last scan|event hits)\b/i.test(m)) {
+      return { ...base, tool: "insight", wantsWrite: false, args: { topic: "radar" } };
     }
-    const pool = /2nd|3rd|extended/i.test(m) ? "extended" : "first";
-    return {
-      ...base,
-      tool: "start_radar",
-      wantsWrite: true,
-      args: { event, confirm: false, country: /india/i.test(m) ? "india" : "united-states", days: /14/.test(m) ? 14 : 7, pool },
-    };
+    const parsed = parseRadarReply(m);
+    const askedSetup = /\b(scan|radar|event scan|going to (an )?event|in town|on site)\b/i.test(m);
+    if (!parsed || (askedSetup && /^(radar|scan)$/i.test(m.trim()))) {
+      if (askedSetup && !parsed) return { ...base, tool: "radar_guide", wantsWrite: false };
+      if (radarThread(history) && parsed) {
+        return { ...base, tool: "start_radar", wantsWrite: true, args: { ...parsed, confirm: false } };
+      }
+      if (askedSetup) return { ...base, tool: "radar_guide", wantsWrite: false };
+    } else {
+      return { ...base, tool: "start_radar", wantsWrite: true, args: { ...parsed, confirm: false } };
+    }
   }
 
   if ((/\b(show|list|give|bring up|top|next)\b/i.test(m) && /\baccount/i.test(m)) || /\b(top|next)\s+\d+\b/i.test(m)) {
@@ -193,11 +227,24 @@ export function classifyIntent(
     return { ...base, tool: "recommend_next", wantsWrite: false, args: { n, skipShortlisted: false } };
   }
 
+  const radarBits = parseRadarReply(m);
+  if (radarBits && (/\b(20\d{2}|2nd|3rd|degree|india)\b/i.test(m) || radarThread(history))) {
+    return { ...base, tool: "start_radar", wantsWrite: true, args: { ...radarBits, confirm: false } };
+  }
   if (/^(hi|hello|hey|yo|sup|good (morning|afternoon|evening))\b/i.test(m)) {
     return { ...base, tool: "radar_guide", wantsWrite: false, args: { welcome: true } };
   }
   const inScope = /\b(account|shortlist|enrich|research|radar|draft|icp|people|person|contact|linkedin|sync|send|vp|founder|director|company|workspace|snapshot|scan|title|committee|lookalike|met|skipped|flag|event|saastr|dreamforce|nova|abm|gtm|marketeroid)\b/i.test(m)
     || /\b(yes|yep|yeah|ok|okay|no)\b/i.test(m);
+  if (radarThread(history)) {
+    const parsed = parseRadarReply(m);
+    if (parsed) return { ...base, tool: "start_radar", wantsWrite: true, args: { ...parsed, confirm: false } };
+    return { ...base, tool: "radar_guide", wantsWrite: false };
+  }
+  const maybeEvent = parseRadarReply(m);
+  if (isEventLike(m, maybeEvent, history) && maybeEvent) {
+    return { ...base, tool: "start_radar", wantsWrite: true, args: { ...maybeEvent, confirm: false } };
+  }
   if (!inScope) return { ...base, offTopic: true };
   return base;
 }
