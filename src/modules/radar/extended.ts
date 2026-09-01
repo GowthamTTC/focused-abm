@@ -82,13 +82,37 @@ export async function runEventExtended(
 
   do {
     if (shouldStop && await shouldStop()) break;
-    const page = await provider.searchPosts({
-      accountId: seat.unipileAccountId,
-      keywords: eventName,
-      datePosted: datePosted(payload.days),
-      cursor,
-      limit: 50,
-    });
+    type SearchPage = {
+      items: Array<{
+        text: string; postedAt: string | Date | null; isCompany?: boolean;
+        author: {
+          firstName: string; lastName: string; headline: string | null; location: string | null;
+          profileUrl: string | null; publicIdentifier: string | null; memberId: string | null;
+          networkDistance: "2" | "3";
+        };
+      }>;
+      cursor: string | null;
+    };
+    let page: SearchPage | null = null;
+    try {
+      page = await Promise.race([
+        provider.searchPosts({
+          accountId: seat.unipileAccountId,
+          keywords: eventName,
+          datePosted: datePosted(payload.days),
+          cursor,
+          limit: 50,
+        }),
+        new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error("search-timeout")), 20_000);
+        }),
+      ]);
+    } catch {
+      // Unipile often resets mid-page. Keep whoever we already matched.
+      if (onProgress) await onProgress(authors.size, cap);
+      break;
+    }
+    if (!page) break;
     for (const post of page.items) {
       if (post.isCompany) continue;
       const hit = mentionForEvent([{ text: post.text, postedAt: post.postedAt }], eventName, scope.slug);
