@@ -122,9 +122,6 @@ export function classifyIntent(
   if (/\b(who (should I |to )?send|send first|best draft)\b/i.test(m)) {
     return { ...base, tool: "insight", wantsWrite: false, args: { topic: "send" } };
   }
-  if (/\b(radar hits|who mentioned|last scan|event hits)\b/i.test(m)) {
-    return { ...base, tool: "insight", wantsWrite: false, args: { topic: "radar" } };
-  }
 
   if (/\b(what'?s?\s+left|what else|leftover|still need|not researched|pending research)\b/i.test(m) && !/\benrich\b/i.test(m)) {
     return { ...base, tool: "whats_left", wantsWrite: false };
@@ -162,13 +159,24 @@ export function classifyIntent(
     return { ...base, tool: "shortlist_top", wantsWrite: true, args: { n, confirm: false, skipShortlisted: skip } };
   }
 
-  if (/\b(scan|radar|event scan)\b/i.test(m)) {
+  if (/\b(which companies dominate|radar densit|companies on (this )?radar)\b/i.test(m)) {
+    return { ...base, tool: "insight", wantsWrite: false, args: { topic: "radar_companies" } };
+  }
+  if (/\b(marked met|already met|who have I (already )?marked)\b/i.test(m)) {
+    return { ...base, tool: "insight", wantsWrite: false, args: { topic: "radar_met" } };
+  }
+  if (/\b(scan|radar|event scan|going to (an )?event|in town|on site)\b/i.test(m)) {
     const event = (m.match(/(?:scan|radar)\s+(.+?)(?:\s+last|\s+in\s+the|\s*$)/i) || [, ""])[1]?.trim();
+    const named = event && !/^(event|hits|scan|us|india)$/i.test(event) && event.length > 2;
+    if (!named) {
+      return { ...base, tool: "radar_guide", wantsWrite: false };
+    }
+    const pool = /2nd|3rd|extended/i.test(m) ? "extended" : "first";
     return {
       ...base,
       tool: "start_radar",
       wantsWrite: true,
-      args: { event: event || "event", confirm: false, country: /india/i.test(m) ? "india" : "united-states", days: 7 },
+      args: { event, confirm: false, country: /india/i.test(m) ? "india" : "united-states", days: /14/.test(m) ? 14 : 7, pool },
     };
   }
 
@@ -185,7 +193,7 @@ export function classifyIntent(
     return { ...base, tool: "recommend_next", wantsWrite: false, args: { n, skipShortlisted: false } };
   }
 
-  const inScope = /\b(account|shortlist|enrich|research|radar|draft|icp|people|person|contact|linkedin|sync|send|vp|founder|director|company|workspace|snapshot|scan|title|committee|lookalike|met|skipped|flag|nova|abm|gtm|marketeroid)\b/i.test(m)
+  const inScope = /\b(account|shortlist|enrich|research|radar|draft|icp|people|person|contact|linkedin|sync|send|vp|founder|director|company|workspace|snapshot|scan|title|committee|lookalike|met|skipped|flag|event|saastr|dreamforce|nova|abm|gtm|marketeroid)\b/i.test(m)
     || /\b(yes|yep|yeah|ok|okay|no)\b/i.test(m);
   if (!inScope) return { ...base, offTopic: true };
   return base;
@@ -193,6 +201,15 @@ export function classifyIntent(
 
 export function followupsFor(intent: AgentIntent, tools: string[], pending: unknown[]): string[] {
   if (pending.length) return [];
+  if (tools.includes("radar_guide")) {
+    return ["scan SaaStr last 7 days US", "scan SaaStr last 7 days India", "Radar hits from the last scan"];
+  }
+  if (tools.includes("start_radar")) {
+    return ["Radar hits from the last scan", "Which companies dominate this Radar scan?"];
+  }
+  if (tools.includes("radar_floor")) {
+    return ["Who have I already marked met?", "Shortlist these accounts"];
+  }
   if (tools.includes("clear_shortlist")) return ["Top 10 accounts", "Next 10 accounts"];
   if (tools.includes("shortlist_top") || tools.includes("shortlist_account")) return ["Enrich them"];
   if (tools.includes("enrich_shortlist") || tools.includes("enrich_account")) {
@@ -210,6 +227,15 @@ export function followupsFor(intent: AgentIntent, tools: string[], pending: unkn
   }
   if (tools.includes("list_ready") || (intent.args && intent.args.topic === "send")) {
     return ["Who looks like the people I already drafted?", "What else left"];
+  }
+  if (tools.includes("insight") && intent.args.topic === "radar") {
+    return ["Which companies dominate this Radar scan?", "mark Jane met", "Who have I already marked met?"];
+  }
+  if (tools.includes("insight") && intent.args.topic === "radar_companies") {
+    return ["Who have I already marked met?", "Shortlist these accounts", "What else left"];
+  }
+  if (tools.includes("insight") && intent.args.topic === "radar_met") {
+    return ["Shortlist these accounts", "What else left", "Enrich them"];
   }
   if (tools.includes("insight")) {
     return ["Who has a ready draft now?", "What else left"];

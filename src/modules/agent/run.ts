@@ -19,7 +19,7 @@ You can: snapshot, list/shortlist accounts, enrich, Radar, drafts, mark sent, fl
 You cannot: weather, jokes, general coding, world news, or anything outside this workspace.
 If the user is off-topic, say you are limited to this environment and point them to the next step in the sequence:
 1 workspace snapshot → 2 top accounts → 3 shortlist → 4 next 10 → 5 what else left → 6 enrich them → 7 who to send.
-Never invent HQ, revenue, counts, or people. Tools are ground truth. Writes need Yes/No.`;
+Radar drive: event name → US/India + 1st or 2nd+3rd → Yes to scan → hits → company density → met/skip → shortlist those companies.\nNever invent HQ, revenue, counts, or people. Tools are ground truth. Writes need Yes/No.`;
 
 export async function runAgent(input: {
   orgId: string;

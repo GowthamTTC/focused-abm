@@ -191,6 +191,14 @@ export const TOOL_DEFS = [
   {
     type: "function" as const,
     function: {
+      name: "radar_guide",
+      description: "Explain Radar drive: event name, country, 1st vs 2nd+3rd. Use when they say radar without an event.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "start_radar",
       description: "Propose or start Event Radar. confirm=true only after the user agrees.",
       parameters: {
@@ -646,9 +654,17 @@ export async function runTool(
     return { text: "Queued research for that person. Watch the top bar.", open: "/people", openLabel: "Open People" };
   }
 
+  if (name === "radar_guide") {
+    return {
+      text: "Radar is posts + country, not GPS. I only keep people who named the event in a recent post.\n\n1. Name the event\n2. US or India, 1st degree or 2nd+3rd (max 100)\n3. I ask Yes before scanning\n4. Hits, then company density, then mark met/skip\n5. Shortlist companies you marked met and enrich those.\n\nDefault if you do not pick: US, 1st degree, last 7 days.",
+    };
+  }
+
   if (name === "start_radar") {
     const eventName = String(args.event ?? "").trim();
-    if (!eventName) return { text: "Need an event name." };
+    if (!eventName || /^event$/i.test(eventName)) {
+      return { text: "Which event? I only keep people who named it in a post. Try: scan SaaStr last 7 days US." };
+    }
     const country = String(args.country ?? "united-states");
     const slug = countryBySlug(country) ? country : (country.toLowerCase().includes("india") ? "india" : "united-states");
     if (!countryBySlug(slug)) return { text: "Country must be united-states or india." };
@@ -885,6 +901,39 @@ export async function runTool(
           subtitle: String(p.company ?? ""),
           pills: [`rec ${p.rec}`, p.score != null ? `ICP ${p.score}` : ""],
         })),
+      };
+    }
+    if (topic === "radar_companies") {
+      const rows = await db.select({
+        companyRaw: connection.companyRaw,
+      }).from(connection).where(and(
+        eq(connection.orgId, orgId),
+        sql`event_query is not null`,
+      ));
+      const map = new Map<string, number>();
+      for (const r of rows) {
+        const name = (r.companyRaw ?? "").trim() || "(no company)";
+        map.set(name, (map.get(name) ?? 0) + 1);
+      }
+      const top = [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+      return {
+        text: top.length ? top.map(([n, c]) => `${n}: ${c} Radar hits`).join("\n") : "No Radar hits yet. Scan an event first.",
+        cards: top.map(([n, c]) => ({ kind: "account" as const, title: n, subtitle: "Radar density", pills: [`${c} hits`] })),
+      };
+    }
+    if (topic === "radar_met") {
+      const rows = await db.select({
+        firstName: connection.firstName,
+        lastName: connection.lastName,
+        companyRaw: connection.companyRaw,
+        floorStatus: connection.floorStatus,
+      }).from(connection).where(and(
+        eq(connection.orgId, orgId),
+        sql`floor_status = 'met'`,
+      )).limit(20);
+      return {
+        text: rows.length ? rows.map((r) => `${r.firstName} ${r.lastName} @ ${r.companyRaw ?? "—"}`).join("\n") : "Nobody marked met yet.",
+        cards: rows.map((r) => ({ kind: "person" as const, title: `${r.firstName} ${r.lastName}`, subtitle: String(r.companyRaw ?? ""), pills: ["met"] })),
       };
     }
     if (topic === "radar") {
