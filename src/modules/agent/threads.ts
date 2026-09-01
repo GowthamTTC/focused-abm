@@ -79,3 +79,13 @@ export async function appendTurn(input: {
   }
   return chatId;
 }
+
+
+export async function deleteChat(userId: string, chatId: string) {
+  const [own] = await db.select({ id: novaChat.id }).from(novaChat)
+    .where(and(eq(novaChat.id, chatId), eq(novaChat.userId, userId))).limit(1);
+  if (!own) return false;
+  await db.delete(novaChatMessage).where(eq(novaChatMessage.chatId, chatId));
+  await db.delete(novaChat).where(and(eq(novaChat.id, chatId), eq(novaChat.userId, userId)));
+  return true;
+}
