@@ -169,8 +169,12 @@ export const TOOL_DEFS = [
     type: "function" as const,
     function: {
       name: "recommend_next",
-      description: "Rank accounts. Pass n when the user says top 5 / top 10. Default 3.",
-      parameters: { type: "object", properties: { n: { type: "number", description: "How many top accounts to return" } } },
+      description: "Rank accounts. n = page size. skipShortlisted=true for 'next' accounts not already starred. offset skips that many ranked rows.",
+      parameters: { type: "object", properties: {
+        n: { type: "number" },
+        skipShortlisted: { type: "boolean" },
+        offset: { type: "number" },
+      } },
     },
   },
   {
@@ -179,6 +183,18 @@ export const TOOL_DEFS = [
       name: "whats_left",
       description: "What is still open: shortlist not researched, ready drafts, latest Radar job. Use for 'what else left', leftover, remaining.",
       parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "insight",
+      description: "Workspace insight. topic=titles|gaps|lookalikes|send|radar",
+      parameters: {
+        type: "object",
+        properties: { topic: { type: "string" } },
+        required: ["topic"],
+      },
     },
   },
   {
@@ -529,7 +545,14 @@ export async function runTool(
     const { recommendAll, formatRecommend } = await import("@/modules/recommend");
     const rec = await recommendAll(orgId);
     const n = Math.min(20, Math.max(1, Number(args.n) || 3));
-    const slice = rec.accounts.slice(0, n);
+    const offset = Math.max(0, Number(args.offset) || 0);
+    const pool = args.skipShortlisted ? rec.accounts.filter((a) => !a.shortlisted) : rec.accounts;
+    const slice = pool.slice(offset, offset + n);
+    if (slice.length === 0) {
+      return { text: args.skipShortlisted
+        ? "No more pitchable accounts outside the shortlist."
+        : "No pitchable accounts to rank." };
+    }
     const top = slice[0];
     return {
       text: formatRecommend({ ...rec, accounts: slice }),
@@ -564,6 +587,86 @@ export async function runTool(
         title: a.name,
         subtitle: a.pending > 0 ? "Still to research" : "Researched",
         pills: [`weighted ${a.avg}`, `${a.n} people`, `${a.pending} left`],
+      })),
+    };
+  }
+
+
+  if (name === "insight") {
+    const topic = String(args.topic ?? "titles");
+    const { recommendAll } = await import("@/modules/recommend");
+    const rec = await recommendAll(orgId);
+    if (topic === "gaps") {
+      const rows = rec.committee.slice(0, 8);
+      return {
+        text: rows.length
+          ? rows.map((c) => `${c.name}: ${c.have} seats, missing ${c.missing.join(", ")}`).join("\n")
+          : "No committee gaps in the current pitchable set.",
+        cards: rows.map((c) => ({
+          kind: "account" as const,
+          title: c.name,
+          subtitle: "Committee gap",
+          pills: [`${c.have} seats`, ...c.missing.slice(0, 3)],
+        })),
+      };
+    }
+    if (topic === "lookalikes") {
+      return {
+        text: rec.lookalike.length
+          ? rec.lookalike.slice(0, 8).map((p) => `${p.name} @ ${p.company} · ${p.similarToReady}% like drafted/sent`).join("\n")
+          : "No lookalikes yet — draft or send a few first.",
+        cards: rec.lookalike.slice(0, 8).map((p) => ({
+          kind: "person" as const,
+          title: p.name,
+          subtitle: String(p.company ?? ""),
+          pills: [`${p.similarToReady}% similar`, p.title ?? ""],
+        })),
+      };
+    }
+    if (topic === "send") {
+      const ready = rec.weightedPeople.filter((p) => p.status === "done").slice(0, 8);
+      return {
+        text: ready.length
+          ? ready.map((p) => `${p.name} @ ${p.company} · rec ${p.rec} · ICP ${p.score ?? "—"}`).join("\n")
+          : "No researched priority people yet. Enrich the shortlist first.",
+        cards: ready.map((p) => ({
+          kind: "person" as const,
+          title: p.name,
+          subtitle: String(p.company ?? ""),
+          pills: [`rec ${p.rec}`, p.score != null ? `ICP ${p.score}` : ""],
+        })),
+      };
+    }
+    if (topic === "radar") {
+      const rows = await db.select({
+        firstName: connection.firstName,
+        lastName: connection.lastName,
+        companyRaw: connection.companyRaw,
+        eventQuery: connection.eventQuery,
+        mentionSnippet: connection.mentionSnippet,
+      }).from(connection).where(and(
+        eq(connection.orgId, orgId),
+        sql`event_query is not null`,
+      )).orderBy(desc(connection.mentionAt)).limit(12);
+      return {
+        text: rows.length
+          ? rows.map((r) => `${r.firstName} ${r.lastName} @ ${r.companyRaw ?? "—"} · ${r.eventQuery}`).join("\n")
+          : "No Radar hits stored yet. Scan an event first.",
+        cards: rows.map((r) => ({
+          kind: "person" as const,
+          title: `${r.firstName} ${r.lastName}`,
+          subtitle: String(r.companyRaw ?? r.eventQuery ?? ""),
+          pills: [r.eventQuery ?? "radar"],
+        })),
+      };
+    }
+    return {
+      text: rec.titles.map((x) => `${x.label}: ${x.n}` + (x.topAccount ? ` · most at ${x.topAccount} (${x.share}%)` : "")).join("\n"),
+      cards: rec.titles.slice(0, 8).map((x) => ({
+        kind: "account" as const,
+        title: x.label,
+        subtitle: x.topAccount ? `most at ${x.topAccount}` : "title mix",
+        pills: [`${x.n}`, x.share ? `${x.share}%` : ""],
       })),
     };
   }

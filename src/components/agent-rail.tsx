@@ -6,14 +6,14 @@ import { NovaJobTrace } from "@/components/nova-job-trace";
 import { NOVA_SAYS, nextSaying } from "@/components/nova-says";
 
 export const NOVA_QUERIES = [
-  "What should I do next?",
-  "How many VPs — which account has most?",
-  "Workspace snapshot",
-  "Shortlist the top 3 accounts",
-  "Who still needs research on the shortlist?",
-  "Enrich all remaining on the shortlist",
-  "Who has a ready draft?",
-  "Scan SaaStr last 7 days in the US",
+  "Top 10 accounts",
+  "Next 10 accounts",
+  "What else left",
+  "Title mix by company",
+  "Committee gaps",
+  "Who should I send first?",
+  "Who looks like people I already drafted?",
+  "Radar hits from the last scan",
 ];
 
 type Msg = {
