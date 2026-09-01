@@ -21,9 +21,9 @@ Every reply MUST:
 2. Lead with numbers (e.g. "14 VPs across 6 companies. Capital One has 5 — 36%.").
 3. Name the top account share when relevant.
 4. End with a single **Recommendation:** line. If the user asks what to do / who to prioritize, call recommend_next first.
-5. Writes (shortlist, enrich, Radar) ALWAYS ask first. The server ignores confirm unless the user just said yes / on my behalf.
-8. After a confirmed write, point them at the deeplink for that bucket (shortlist, People, Review, Radar).
-9. After a confirmed shortlist, list people at that account and offer enrich for full visibility.
+5. Writes ALWAYS ask first. Permission replies MUST be only the question. Choices are Yes or No only. No extra recommendations and no URLs.
+8. After Yes, describe the result in this chat. Never invent links. Results render as cards.
+9. After a confirmed shortlist, people are already listed as cards.
 6. Never invent HQ, revenue, or people missing from tool output.
 7. Radar is post-search + country, not live GPS.`
 
@@ -33,7 +33,7 @@ export async function runAgent(input: {
   message: string;
   history: { role: "user" | "assistant"; content: string }[];
   learn?: NovaLearn | null;
-}): Promise<{ reply: string; open?: string; openLabel?: string; tools: string[]; suggestions: string[]; pending: { kind: string; title: string; yes: string }[] }> {
+}): Promise<{ reply: string; open?: string; openLabel?: string; tools: string[]; suggestions: string[]; pending: { kind: string; title: string; yes: string; tone?: string }[]; cards: { kind: string; title: string; subtitle?: string; pills: string[] }[] }> {
   const ctx: ToolCtx = { orgId: input.orgId };
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
     { role: "system", content: `${SYSTEM}\nCurrent page: ${input.page}\n${habitBlock(input.learn)}` },
@@ -44,7 +44,8 @@ export async function runAgent(input: {
   let open: string | undefined;
   let openLabel: string | undefined;
   const tools: string[] = [];
-  const pending: { kind: string; title: string; yes: string }[] = [];
+  const pending: { kind: string; title: string; yes: string; tone?: string }[] = [];
+  const cards: { kind: string; title: string; subtitle?: string; pills: string[] }[] = [];
   const WRITES = new Set(["shortlist_account", "enrich_account", "enrich_person", "enrich_shortlist", "start_radar"]);
   const autoYes = /\byes\b/i.test(input.message) && /behalf|shortlist|enrich|scan|radar/i.test(input.message);
   for (let i = 0; i < 4; i++) {
@@ -62,8 +63,10 @@ export async function runAgent(input: {
     if (!calls?.length) {
       const reply = (msg.content ?? "Done.").trim();
       return {
-        reply, open, openLabel, tools, pending,
-        suggestions: suggestFollowups({ message: input.message, tools, reply, topTopic: topTopic(input.learn) }),
+        reply, open, openLabel, tools, pending, cards,
+        suggestions: pending.length
+          ? []
+          : suggestFollowups({ message: input.message, tools, reply, topTopic: topTopic(input.learn) }),
       };
     }
     messages.push({
@@ -78,6 +81,7 @@ export async function runAgent(input: {
       if (WRITES.has(call.function.name)) args.confirm = autoYes;
       const out = await runTool(ctx, call.function.name, args);
       if (out.pending) pending.push(...out.pending);
+      if (out.cards) cards.push(...out.cards);
       if (out.open) open = out.open;
       if (out.openLabel) openLabel = out.openLabel;
       messages.push({
@@ -89,7 +93,7 @@ export async function runAgent(input: {
   }
   const reply = "I ran the tools. Check the page or the top bar for progress.";
   return {
-    reply, open, openLabel, tools, pending,
-    suggestions: suggestFollowups({ message: input.message, tools, reply, topTopic: topTopic(input.learn) }),
+    reply, open, openLabel, tools, pending, cards,
+    suggestions: pending.length ? [] : suggestFollowups({ message: input.message, tools, reply, topTopic: topTopic(input.learn) }),
   };
 }

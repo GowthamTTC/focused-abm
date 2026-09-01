@@ -17,6 +17,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
       content: m.content,
       suggestions: m.suggestionsJson ?? [],
       pending: m.pendingJson ?? [],
+      cards: m.cardsJson ?? [],
     })),
   });
 }

@@ -93,7 +93,8 @@ export const novaChatMessage = pgTable("nova_chat_message", {
   role: text("role").notNull(),
   content: text("content").notNull(),
   suggestionsJson: jsonb("suggestions_json").$type<string[]>(),
-  pendingJson: jsonb("pending_json").$type<{ kind: string; title: string; yes: string }[]>(),
+  pendingJson: jsonb("pending_json").$type<{ kind: string; title: string; yes: string; tone?: string }[]>(),
+  cardsJson: jsonb("cards_json").$type<{ kind: string; title: string; subtitle?: string; pills: string[] }[]>(),
   createdAt: ts("created_at").notNull().defaultNow(),
 }, (t) => [index("nova_chat_msg_idx").on(t.chatId, t.createdAt)]);
 

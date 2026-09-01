@@ -50,6 +50,7 @@ export async function POST(req: Request) {
       assistantText: out.reply,
       suggestions: out.suggestions,
       pending: out.pending,
+      cards: out.cards,
     });
     return NextResponse.json({ ...out, tookMs: Date.now() - t0, habits: learn.topics, chatId });
   } catch (e) {

@@ -22,7 +22,8 @@ type Msg = {
   tookMs?: number;
   tools?: string[];
   suggestions?: string[];
-  pending?: { kind: string; title: string; yes: string }[];
+  pending?: { kind: string; title: string; yes: string; tone?: string }[];
+  cards?: { kind: string; title: string; subtitle?: string; pills: string[] }[];
 };
 
 const LEARN_KEY = "nova-learn-v1";
@@ -120,6 +121,7 @@ export function NovaThread({
         content: m.content,
         suggestions: m.suggestions,
         pending: m.pending,
+        cards: m.cards,
       })));
     })();
     return () => { stop = true; };
@@ -140,7 +142,7 @@ export function NovaThread({
       sayTimer = setInterval(() => {
         if (typeof document !== "undefined" && document.hidden) return;
         setSaying(nextSaying());
-      }, 5000);
+      }, 10000);
     };
     armSay();
     const onVis = () => {
@@ -173,7 +175,8 @@ export function NovaThread({
       remember(message);
       const data = await res.json().catch(() => null) as {
         reply?: string; open?: string; error?: string; tookMs?: number; tools?: string[]; suggestions?: string[];
-        pending?: { kind: string; title: string; yes: string }[]; chatId?: string; openLabel?: string;
+        pending?: { kind: string; title: string; yes: string; tone?: string }[];
+  cards?: { kind: string; title: string; subtitle?: string; pills: string[] }[]; chatId?: string; openLabel?: string;
       } | null;
       if (!res.ok && data?.error === "rate") {
         setMsgs((m) => [...m, { role: "assistant", content: "Slow down a moment — too many asks." }]);
@@ -185,8 +188,9 @@ export function NovaThread({
           openLabel: data?.openLabel,
           tookMs: data?.tookMs,
           tools: data?.tools,
-          suggestions: adaptSuggestions(data?.suggestions ?? []),
+          suggestions: (data?.pending && data.pending.length) ? [] : adaptSuggestions(data?.suggestions ?? []),
           pending: data?.pending,
+          cards: data?.cards,
         }]);
           if (data?.chatId) {
             chatRef.current = data.chatId;
@@ -234,12 +238,17 @@ export function NovaThread({
                 {m.tools?.length ? m.tools.join(", ") : ""}
               </p>
             )}
-            {m.open && (
-              <p className="mt-1.5">
-                <a href={m.open} className="inline-flex rounded-full bg-[#EEF1FC] px-3 py-1 text-[12px] font-medium text-[#263BAA]">
-                  {m.openLabel ?? "Open this bucket"}
-                </a>
-              </p>
+            {m.cards && m.cards.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5 text-left">
+                {m.cards.map((c, ci) => (
+                  <div key={`${c.title}-${ci}`} className="max-w-full rounded-full border border-[#DDE2EE] bg-white px-3 py-1.5 shadow-[0_1px_2px_rgba(16,24,40,.04)]">
+                    <p className="text-[12.5px] font-medium text-[#101828]">{c.title}{c.subtitle ? <span className="font-normal text-[#667085]"> · {c.subtitle}</span> : null}</p>
+                    {c.pills?.length ? (
+                      <p className="text-[11px] text-[#667085]">{c.pills.join(" · ")}</p>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         ))}
@@ -250,12 +259,14 @@ export function NovaThread({
                 key={p.yes}
                 type="button"
                 onClick={() => void send(p.yes)}
-                className="nova-chip rounded-full bg-[#263BAA] px-2.5 py-1 text-[11.5px] text-white"
+                className={`nova-chip rounded-full px-3 py-1 text-[12px] font-medium ${
+                  p.tone === "no" ? "border border-[#DDE2EE] bg-white text-[#475467]" : "bg-[#263BAA] text-white"
+                }`}
               >
                 {p.title}
               </button>
             ))}
-            {(m.suggestions ?? []).map((q) => (
+            {!(m.pending && m.pending.length) && (m.suggestions ?? []).map((q) => (
               <button
                 key={q}
                 type="button"

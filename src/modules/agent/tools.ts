@@ -9,8 +9,20 @@ import { enqueue } from "@/jobs/runner";
 import { countryBySlug } from "@/modules/geo/countries";
 
 export type ToolCtx = { orgId: string };
-export type PendingAction = { kind: string; title: string; yes: string };
-export type ToolOut = { text: string; open?: string; openLabel?: string; pending?: PendingAction[] };
+export type PendingAction = { kind: string; title: string; yes: string; tone?: "yes" | "no" };
+export type ResultCard = {
+  kind: "account" | "person" | "job";
+  title: string;
+  subtitle?: string;
+  pills: string[];
+};
+export type ToolOut = {
+  text: string;
+  open?: string;
+  openLabel?: string;
+  pending?: PendingAction[];
+  cards?: ResultCard[];
+};
 
 function confirmed(args: Record<string, unknown>) {
   const c = args.confirm;
@@ -174,7 +186,13 @@ async function listPeopleAt(orgId: string, key: string) {
   const lines = people.slice(0, 12).map((p) =>
     `${p.firstName} ${p.lastName} — ${p.positionRaw ?? "—"} · ${p.enrichStatus} · score ${p.score ?? "—"}`
   );
-  return { n: people.length, pending, lines };
+  const cards: ResultCard[] = people.slice(0, 8).map((p) => ({
+    kind: "person" as const,
+    title: `${p.firstName} ${p.lastName}`,
+    subtitle: p.positionRaw ?? "—",
+    pills: [p.enrichStatus, p.score != null ? `score ${p.score}` : "unscored"],
+  }));
+  return { n: people.length, pending, lines, cards };
 }
 
 async function resolveCompany(orgId: string, company: string) {
@@ -269,23 +287,21 @@ export async function runTool(
     const roster = await listPeopleAt(orgId, hit.key);
     if (!confirmed(args)) {
       return {
-        text: `Shall I mark ${hit.name} as shortlisted on your behalf? ${roster.n} pitchable people there (${roster.pending} not researched).`,
-        pending: [{ kind: "shortlist_account", title: `Yes — shortlist ${hit.name}`, yes: `Yes, shortlist ${hit.name} on my behalf.` }],
-        open: `/accounts?a=${encodeURIComponent(hit.key)}`,
+        text: `Shall I mark ${hit.name} as shortlisted on your behalf?`,
+        pending: [
+          { kind: "shortlist_account", title: "Yes", yes: `Yes, shortlist ${hit.name} on my behalf.`, tone: "yes" },
+          { kind: "no", title: "No", yes: "No, do not make that change.", tone: "no" },
+        ],
+        cards: [{ kind: "account", title: hit.name, subtitle: "Proposed shortlist", pills: [`${roster.n} people`, `${roster.pending} not researched`] }],
       };
     }
     await toggleShortlist(orgId, hit.key, hit.name, true);
     return {
-      text: [
-        `Shortlisted ${hit.name}.`,
-        `${roster.n} pitchable people at this account (${roster.pending} not researched):`,
-        roster.lines.join("\n") || "(none listed)",
-        roster.pending > 0
-          ? "Recommendation: Enrich these contacts for full visibility."
-          : "Everyone here is already researched.",
-      ].join("\n"),
-      open: `/accounts?a=${encodeURIComponent(hit.key)}&view=shortlist`,
-      openLabel: "Open shortlist",
+      text: `Shortlisted ${hit.name}. ${roster.n} people on this account.`,
+      cards: [
+        { kind: "account", title: hit.name, subtitle: "Shortlisted", pills: ["shortlist", `${roster.n} people`, `${roster.pending} not researched`] },
+        ...roster.cards,
+      ],
     };
   }
 
@@ -296,18 +312,24 @@ export async function runTool(
     const roster = await listPeopleAt(orgId, hit.key);
     if (!confirmed(args)) {
       return {
-        text: `Shall I enrich ${roster.pending} remaining contacts at ${hit.name} on your behalf? That uses research credits.`,
-        pending: [{ kind: "enrich_account", title: `Yes — enrich ${hit.name}`, yes: `Yes, enrich remaining contacts at ${hit.name} on my behalf.` }],
+        text: `Shall I enrich remaining contacts at ${hit.name} on your behalf?`,
+        pending: [
+          { kind: "enrich_account", title: "Yes", yes: `Yes, enrich remaining contacts at ${hit.name} on my behalf.`, tone: "yes" },
+          { kind: "no", title: "No", yes: "No, do not make that change.", tone: "no" },
+        ],
+        cards: [{ kind: "account", title: hit.name, subtitle: "Proposed enrich", pills: [`${roster.pending} to research`] }],
       };
     }
     await toggleShortlist(orgId, hit.key, hit.name, true);
     const result = await enrichOneAccount(orgId, hit.key);
     return {
       text: result.people === 0
-        ? `${hit.name}: nobody left to research (or already queued).`
-        : `Queued research for ${result.people} people at ${hit.name}. Watch the top bar.`,
-      open: `/accounts?a=${encodeURIComponent(hit.key)}&view=shortlist&enriched=${result.people}`,
-      openLabel: "Open account",
+        ? `${hit.name}: nobody left to research.`
+        : `Queued research for ${result.people} at ${hit.name}. Results stay in this chat as they complete.`,
+      cards: [
+        { kind: "job", title: hit.name, subtitle: "Research queued", pills: [`${result.people} queued`] },
+        ...roster.cards,
+      ],
     };
   }
 
@@ -316,7 +338,10 @@ export async function runTool(
     if (!confirmed(args)) {
       return {
         text: "Shall I enrich this person on your behalf? That uses a research credit.",
-        pending: [{ kind: "enrich_person", title: "Yes — enrich this person", yes: `Yes, enrich person ${personId} on my behalf.` }],
+        pending: [
+          { kind: "enrich_person", title: "Yes", yes: `Yes, enrich person ${personId} on my behalf.`, tone: "yes" },
+          { kind: "no", title: "No", yes: "No, do not make that change.", tone: "no" },
+        ],
       };
     }
     const ok = await enrichOnePerson(orgId, personId);
@@ -335,7 +360,10 @@ export async function runTool(
     if (!confirmed(args)) {
       return {
         text: `Shall I start a Radar scan for "${eventName}" (${slug}, last ${days} days, ${pool}) on your behalf?`,
-        pending: [{ kind: "start_radar", title: `Yes — scan ${eventName}`, yes: `Yes, start Radar for ${eventName} in ${slug} last ${days} days on my behalf.` }],
+        pending: [
+          { kind: "start_radar", title: "Yes", yes: `Yes, start Radar for ${eventName} in ${slug} last ${days} days on my behalf.`, tone: "yes" },
+          { kind: "no", title: "No", yes: "No, do not make that change.", tone: "no" },
+        ],
       };
     }
     await enqueue(orgId, "event_extended", {
@@ -419,7 +447,10 @@ export async function runTool(
     if (!confirmed(args)) {
       return {
         text: "Shall I enrich remaining contacts on the whole shortlist on your behalf? That uses research credits.",
-        pending: [{ kind: "enrich_shortlist", title: "Yes — enrich the shortlist", yes: "Yes, enrich remaining contacts on the shortlist on my behalf." }],
+        pending: [
+          { kind: "enrich_shortlist", title: "Yes", yes: "Yes, enrich remaining contacts on the shortlist on my behalf.", tone: "yes" },
+          { kind: "no", title: "No", yes: "No, do not make that change.", tone: "no" },
+        ],
       };
     }
     const { enrichShortlistedAccounts } = await import("@/modules/accounts/shortlist");

@@ -92,6 +92,13 @@
       "when": 1788010000000,
       "tag": "0012_nova_chat",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1788020000000,
+      "tag": "0013_nova_cards",
+      "breakpoints": true
     }
   ]
 }

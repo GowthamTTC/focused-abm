@@ -29,7 +29,8 @@ export async function appendTurn(input: {
   userText: string;
   assistantText: string;
   suggestions?: string[];
-  pending?: { kind: string; title: string; yes: string }[];
+  pending?: { kind: string; title: string; yes: string; tone?: string }[];
+  cards?: { kind: string; title: string; subtitle?: string; pills: string[] }[];
 }) {
   let chatId = input.chatId;
   if (!chatId) {
@@ -57,6 +58,7 @@ export async function appendTurn(input: {
       chatId, role: "assistant", content: input.assistantText,
       suggestionsJson: input.suggestions ?? [],
       pendingJson: input.pending ?? [],
+      cardsJson: input.cards ?? [],
     },
   ]);
   return chatId;
