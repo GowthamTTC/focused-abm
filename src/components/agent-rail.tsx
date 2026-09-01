@@ -18,6 +18,7 @@ type Msg = {
   role: "user" | "assistant";
   content: string;
   open?: string;
+  openLabel?: string;
   tookMs?: number;
   tools?: string[];
   suggestions?: string[];
@@ -172,7 +173,7 @@ export function NovaThread({
       remember(message);
       const data = await res.json().catch(() => null) as {
         reply?: string; open?: string; error?: string; tookMs?: number; tools?: string[]; suggestions?: string[];
-        pending?: { kind: string; title: string; yes: string }[]; chatId?: string;
+        pending?: { kind: string; title: string; yes: string }[]; chatId?: string; openLabel?: string;
       } | null;
       if (!res.ok && data?.error === "rate") {
         setMsgs((m) => [...m, { role: "assistant", content: "Slow down a moment — too many asks." }]);
@@ -181,6 +182,7 @@ export function NovaThread({
           role: "assistant",
           content: data?.reply ?? "No reply.",
           open: data?.open,
+          openLabel: data?.openLabel,
           tookMs: data?.tookMs,
           tools: data?.tools,
           suggestions: adaptSuggestions(data?.suggestions ?? []),
@@ -233,8 +235,10 @@ export function NovaThread({
               </p>
             )}
             {m.open && (
-              <p className="mt-1">
-                <a href={m.open} className="text-[12px] text-[#263BAA] underline">Open in app</a>
+              <p className="mt-1.5">
+                <a href={m.open} className="inline-flex rounded-full bg-[#EEF1FC] px-3 py-1 text-[12px] font-medium text-[#263BAA]">
+                  {m.openLabel ?? "Open this bucket"}
+                </a>
               </p>
             )}
           </div>

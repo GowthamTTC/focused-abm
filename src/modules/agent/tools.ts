@@ -10,7 +10,7 @@ import { countryBySlug } from "@/modules/geo/countries";
 
 export type ToolCtx = { orgId: string };
 export type PendingAction = { kind: string; title: string; yes: string };
-export type ToolOut = { text: string; open?: string; pending?: PendingAction[] };
+export type ToolOut = { text: string; open?: string; openLabel?: string; pending?: PendingAction[] };
 
 function confirmed(args: Record<string, unknown>) {
   const c = args.confirm;
@@ -285,6 +285,7 @@ export async function runTool(
           : "Everyone here is already researched.",
       ].join("\n"),
       open: `/accounts?a=${encodeURIComponent(hit.key)}&view=shortlist`,
+      openLabel: "Open shortlist",
     };
   }
 
@@ -305,7 +306,8 @@ export async function runTool(
       text: result.people === 0
         ? `${hit.name}: nobody left to research (or already queued).`
         : `Queued research for ${result.people} people at ${hit.name}. Watch the top bar.`,
-      open: `/accounts?a=${encodeURIComponent(hit.key)}&enriched=${result.people}`,
+      open: `/accounts?a=${encodeURIComponent(hit.key)}&view=shortlist&enriched=${result.people}`,
+      openLabel: "Open account",
     };
   }
 
@@ -319,7 +321,7 @@ export async function runTool(
     }
     const ok = await enrichOnePerson(orgId, personId);
     if (!ok) return { text: "Person not found in this workspace." };
-    return { text: "Queued research for that person. Watch the top bar." };
+    return { text: "Queued research for that person. Watch the top bar.", open: "/people", openLabel: "Open People" };
   }
 
   if (name === "start_radar") {
@@ -345,6 +347,7 @@ export async function runTool(
     return {
       text: `Radar scan started: "${eventName}", ${slug}, last ${days} days, ${pool === "extended" ? "2nd/3rd" : "1st"} degree. Watch the top bar.`,
       open: `/radar?days=${days}&pool=${pool}&country=${slug}&scanning=1&event=${encodeURIComponent(eventName)}&q=${encodeURIComponent(eventName)}`,
+      openLabel: "Open Radar",
     };
   }
 
@@ -426,6 +429,7 @@ export async function runTool(
         ? `Shortlist has ${result.accounts} companies but 0 people queued (already researched or empty).`
         : `Queued research for ${result.people} people across ${result.accounts} shortlisted companies.`,
       open: `/accounts?view=shortlist&enriched=${result.people}`,
+      openLabel: "Open shortlist",
     };
   }
 
@@ -455,6 +459,7 @@ export async function runTool(
     return {
       text: rows.map((p) => `${p.firstName} ${p.lastName} @ ${p.companyRaw ?? "—"}`).join("\n"),
       open: `/review?tab=ready`,
+      openLabel: "Open Review",
     };
   }
 
