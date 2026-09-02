@@ -62,6 +62,21 @@ const REACHABLE = sql`(${connection.memberId} is not null
   or ${connection.publicIdentifier} is not null
   or coalesce(${connection.linkedinUrl}, '') like '%/in/%')`;
 
+/** The excerpt a reader actually sees.
+ *
+ *  One definition, because two copies drifted the moment they existed: a `\s`
+ *  inside a TS template literal collapses to a bare `s`, so a second hand-typed
+ *  copy trimmed a trailing "s" instead of a trailing word. Both callers cut at
+ *  the same place or the same post reads differently on two screens.
+ *
+ *  240 rather than the full text: two clamped lines is the design, but on a wide
+ *  screen far more than that fits, so THIS is the cut — trimmed back to a word
+ *  boundary and marked, rather than ending someone mid-word inside quotes. */
+const EXCERPT_SQL = sql`case
+  when length(${post.text}) <= 240 then ${post.text}
+  else regexp_replace(left(${post.text}, 240), '\\s\\S*$', '') || '…'
+end`;
+
 /** The bands the judge was told to use, quoted so the screen explains a score
  *  in the same words that produced it. */
 export const RELEVANCE_BANDS = [
@@ -93,14 +108,7 @@ export async function hookFeed(orgId: string, opts: { batchId: string; limit?: n
   const best = db.select({
     postId: post.id,
     connectionId: post.connectionId,
-    // post.text is unbounded in the DB; only the model's input was capped. Two
-    // clamped lines is the design, but on a wide screen 400 characters fit, so
-    // THIS is the cut the reader sees — trim it back to a word boundary and say
-    // it was cut, rather than ending someone's sentence mid-word inside quotes.
-    postExcerpt: sql<string>`case
-      when length(${post.text}) <= 240 then ${post.text}
-      else regexp_replace(left(${post.text}, 240), '\\s\\S*$', '') || '…'
-    end`.as("post_excerpt"),
+    postExcerpt: sql<string>`${EXCERPT_SQL}`.as("post_excerpt"),
     postUrl: post.url,
     postedAt: post.postedAt,
     relevance: post.relevance,
@@ -558,4 +566,59 @@ export async function liveJob(orgId: string) {
     ))
     .limit(1);
   return row ?? null;
+}
+
+/** The best live reason for each of a given set of people.
+ *
+ *  Review already loads its rows, so this is one extra indexed query over ids
+ *  it holds rather than a second pass over the batch. Same threshold and same
+ *  14-day fade as the feed, so a reason shown here and a reason shown on Today
+ *  can never disagree about the same person.
+ *
+ *  Keyed by connection id, not by human: Review is showing one specific row and
+ *  its draft, so collapsing duplicates would attach a reason to the wrong one.
+ *  Pitchable-joined like everything else here, so a peer who somehow reached a
+ *  caller's list can never be handed a reason to reach out.
+ */
+export async function hooksForPeople(orgId: string, connectionIds: string[]) {
+  const out = new Map<string, {
+    postId: string; hook: string; excerpt: string; url: string | null;
+    postedAt: Date | null; relevance: number | null; hookScore: number; ageDays: number;
+  }>();
+  if (connectionIds.length === 0) return out;
+
+  const best = db.select({
+    connectionId: post.connectionId,
+    postId: post.id,
+    hook: post.hook,
+    excerpt: sql<string>`${EXCERPT_SQL}`.as("excerpt"),
+    url: post.url,
+    postedAt: post.postedAt,
+    relevance: post.relevance,
+    hookScore: sql<number>`round(${HOOK_SCORE_SQL})::int`.as("hook_score"),
+    ageDays: sql<number>`greatest(0, round(extract(epoch from (now() - ${post.postedAt})) / 86400.0, 1))::float8`.as("age_days"),
+    rn: sql<number>`row_number() over (
+      partition by ${post.connectionId}
+      order by ${HOOK_SCORE_SQL} desc, ${post.postedAt} desc nulls last, ${post.id} asc)`.as("rn"),
+  }).from(post)
+    .innerJoin(connection, eq(connection.id, post.connectionId))
+    .where(and(
+      eq(post.orgId, orgId),
+      eq(connection.bucket, "pitchable"),
+      inArray(post.connectionId, connectionIds),
+      isNotNull(post.hook),
+      gte(post.relevance, HOOK_MIN_RELEVANCE),
+      gte(post.postedAt, FRESH),
+    ))
+    .as("best");
+
+  const rows = await db.select().from(best).where(eq(best.rn, 1));
+  for (const r of rows) {
+    if (!r.hook) continue;
+    out.set(r.connectionId, {
+      postId: r.postId, hook: r.hook, excerpt: r.excerpt, url: r.url,
+      postedAt: r.postedAt, relevance: r.relevance, hookScore: r.hookScore, ageDays: r.ageDays,
+    });
+  }
+  return out;
 }

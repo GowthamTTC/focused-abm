@@ -3,7 +3,8 @@ import { and, eq, sql } from "drizzle-orm";
 import { db, connection } from "@/db";
 import { Shell, requirePage } from "@/app/shell";
 import { CopyButton } from "@/components/copy-button";
-import { ActivityBadge, CampaignSwitcher, NoCampaign, resolveBatch } from "@/components/dash-bits";
+import { ActivityBadge, ago, CampaignSwitcher, NoCampaign, resolveBatch } from "@/components/dash-bits";
+import { hooksForPeople } from "@/modules/posts/feed";
 import { ReviewKeys } from "@/components/review-keys";
 import { checkQueuePosts, flagVerdict, markSent, undoSent } from "@/app/dashboard/actions";
 import { retryPerson } from "@/app/batches/[id]/actions";
@@ -38,6 +39,11 @@ export default async function ReviewPage({ searchParams }: {
   const sent = enriched.filter((p) => p.sentAt).sort((a, b) => b.sentAt!.getTime() - a.sentAt!.getTime());
   const list = tab === "decisions" ? decisions : tab === "ready" ? ready : sent;
   const person = list.find((p) => p.id === sp.p) ?? list[0] ?? null;
+  // The reason to open, for the people already on screen: one indexed query
+  // over ids this page holds, on the same threshold and the same 14-day fade
+  // Today uses — so the two screens cannot disagree about the same person.
+  const reasons = await hooksForPeople(user.orgId, list.map((p) => p.id));
+  const reason = person ? reasons.get(person.id) : undefined;
   const base = `/review?tab=${tab}&c=${batch.id}${sort === "rank" ? "&sort=rank" : ""}`;
 
   const TabLink = ({ t, label, n, owed }: { t: Tab; label: string; n: number; owed?: boolean }) => (
@@ -97,6 +103,9 @@ export default async function ReviewPage({ searchParams }: {
                   <Link href={`${base}&p=${p.id}`}
                     className={`block px-4 py-3 transition-colors duration-[130ms] ${person?.id === p.id ? "bg-[#EEF1FC]" : "hover:bg-[#F4F6FB]"}`}>
                     <div className="flex items-center gap-2 text-[13px]">
+                      {reasons.has(p.id) && (
+                        <span title="Has a post from the last 14 days you can open with" className="shrink-0 text-[#263BAA]">●</span>
+                      )}
                       <span className="truncate font-medium">{p.firstName} {p.lastName}</span>
                       {p.tier && <span className={`tnum rounded-[4px] px-1 text-[10px] ${p.tier === 1 ? "bg-[#EEF1FC] text-[#263BAA]" : "bg-[#F4F6FB] text-[#475467]"}`}>T{p.tier}</span>}
                       {tab === "decisions" && <span className="ml-auto text-[#B42318]">⚑</span>}
@@ -145,15 +154,39 @@ export default async function ReviewPage({ searchParams }: {
                 </div>
               )}
 
+              {reason && (
+                <div className="mt-3 rounded-[10px] border border-[#DDE2EE] bg-[#FAFBFE] p-3.5">
+                  <div className="flex flex-wrap items-baseline gap-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-[.08em] text-[#98A2B3]">Their words — the reason to open</p>
+                    <span className="tnum ml-auto text-[11px] text-[#98A2B3]">
+                      relevance {reason.relevance} × (1 − {reason.ageDays} of 14 days) = {reason.hookScore}
+                      {reason.postedAt && ` · posted ${ago(reason.postedAt)}`}
+                    </span>
+                  </div>
+                  <p className="mt-1.5 text-[12.5px] leading-relaxed text-[#101828]">{reason.hook}</p>
+                  <p className="mt-1.5 line-clamp-3 text-[12px] italic leading-5 text-[#475467]">&ldquo;{reason.excerpt}&rdquo;</p>
+                  {reason.url
+                    ? <a href={reason.url} target="_blank" rel="noreferrer" className="mt-2 inline-block text-[12px] text-[#263BAA] underline underline-offset-2">Open the post ↗</a>
+                    : <span className="mt-2 inline-block text-[12px] text-[#98A2B3]">no link captured for this post</span>}
+                </div>
+              )}
+
               {person.outreachMessage && (
                 <div className="mt-4 rounded-[10px] border border-[#DDE2EE] bg-[#F4F6FB] p-4 text-[14px] leading-relaxed text-[#101828]">
                   {person.outreachMessage}
                 </div>
               )}
               {person.lastPostAt && person.enrichedAt && person.lastPostAt > person.enrichedAt && !person.sentAt && (
-                <div className="mt-2 flex items-center justify-between rounded-[8px] border border-[#E7CE96] bg-[#FDF6E7] px-3 py-1.5 text-[12px] text-[#B54708]">
-                  New activity since this draft — re-run before sending.
-                  <form action={retryPerson.bind(null, batch.id, person.id)}><button className="underline">Re-run</button></form>
+                <div className="mt-2 rounded-[8px] border border-[#E7CE96] bg-[#FDF6E7] px-3 py-1.5 text-[12px] text-[#B54708]">
+                  <div className="flex items-center justify-between gap-3">
+                    <span>
+                      New activity since this draft — re-run before sending.
+                      {reason && reason.postedAt && person.enrichedAt && reason.postedAt > person.enrichedAt
+                        ? " The post above is the newer one, and this draft was written before it."
+                        : " The newer post has not been read against your ICPs yet, so there is no opener from it."}
+                    </span>
+                    <form action={retryPerson.bind(null, batch.id, person.id)}><button className="shrink-0 underline">Re-run</button></form>
+                  </div>
                 </div>
               )}
 

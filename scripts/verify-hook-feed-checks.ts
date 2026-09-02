@@ -24,6 +24,7 @@ import { db, connection, channelAccount, job, org, post, service } from "../src/
 import { buildFixture } from "./verify-hook-feed";
 import {
   bandFor, deepLinkFor, feedStatus, frontierWithHookCount, hookFeed, hooksElsewhere,
+  hooksForPeople,
   liveJob, pickHookFrontier, pickScanTargets, pipelineCounts, pipelineWithHooks,
   planRead, planScan, rowState, scanCoverage, waitingToRead, type RowState,
 } from "../src/modules/posts/feed";
@@ -209,6 +210,31 @@ async function main() {
     `rows=${dupFeed.rows.length} collapsed=${dupFeed.collapsed}`);
   await db.delete(post).where(eq(post.connectionId, dupPerson!.id));
   await db.delete(connection).where(eq(connection.id, dupPerson!.id));
+
+  // ── Review's reason block: the same rule, over ids a caller already holds ──
+  const everyone = Object.values(people);
+  const reasons = await hooksForPeople(orgA, everyone);
+  // Batch scoping is the CALLER's job here — Review hands over the ids it is
+  // already showing — so a person in another batch of the same workspace is
+  // legitimately answered when asked for by id.
+  eqCheck("a reason is offered for exactly the people who have one",
+    [...reasons.keys()].map((k) => Object.entries(people).find(([, v]) => v === k)![0]).sort(),
+    ["drafted", "flagged", "other_batch", "sent", "three_posts"]);
+  const ashaReason = reasons.get(people.three_posts)!;
+  check("the reason is the same post, score and age the feed chose",
+    ashaReason.postId === asha.postId && ashaReason.hookScore === asha.hookScore
+    && ashaReason.ageDays === asha.ageDays && ashaReason.hook === asha.hook,
+    `${ashaReason.postId === asha.postId} score=${ashaReason.hookScore}/${asha.hookScore} age=${ashaReason.ageDays}/${asha.ageDays}`);
+  check("its excerpt is cut and marked like the feed's",
+    ashaReason.excerpt === asha.postExcerpt && ashaReason.excerpt.endsWith("…"),
+    `${ashaReason.excerpt.length} vs ${asha.postExcerpt.length}`);
+  check("a peer with a live hook is never handed a reason to reach out",
+    !reasons.has(people.peer) && !reasons.has(people.off_icp));
+  check("a stale or sub-threshold post is not a reason",
+    !reasons.has(people.stale) && !reasons.has(people.weak) && !reasons.has(people.never_scanned));
+  check("another workspace's person gets nothing, even asked for by id",
+    !(await hooksForPeople(orgA, [people.other_org])).has(people.other_org));
+  check("no ids means no query and no reasons", (await hooksForPeople(orgA, [])).size === 0);
 
   // ── C · the numbers on screen ──
   eqCheck("feedStatus, batch- and pitchable-scoped", {
