@@ -10,7 +10,7 @@ import { db, connection, service } from "@/db";
 import { env } from "@/lib/env";
 import type { IcpJson } from "@/db/schema";
 import { complete } from "@/llm/client";
-import { companyPeerSignal, offIcpTitleSignal, rulePass } from "./rule-pass";
+import { DEFAULT_OFF_ICP_TITLE_SIGNALS, DEFAULT_PEER_COMPANY_SIGNALS, companyPeerSignal, offIcpTitleSignal, offIcpWhy, peerWhy, rulePass } from "./rule-pass";
 import { ownCompanyWhy } from "./own-company";
 import { detectSeniority } from "./normalize";
 import { getOrgSettings } from "@/modules/settings/org-settings";
@@ -55,6 +55,8 @@ export async function classifyBatch(
   // needs sellerName, and the LLM cap is not read until pass 2.
   const settings = await getOrgSettings(orgId);
   const ownCompany = (settings.sellerName ?? "").toLowerCase().trim();
+  const peerSignals = settings.peerSignals ?? DEFAULT_PEER_COMPANY_SIGNALS;
+  const offIcpSignals = settings.offIcpSignals ?? DEFAULT_OFF_ICP_TITLE_SIGNALS;
 
   // Default: touch ONLY unclassified rows, so repeated runs genuinely continue
   // from where the guardrail stopped (and never re-bill the same people).
@@ -85,14 +87,14 @@ export async function classifyBatch(
       ruleVerdicts.push({ id: c.id, bucket: "excluded", slug: null, conf: 95, why: "Title signals student/intern/fresher — excluded.", method: "rule" });
       done += 1; continue;
     }
-    const peerSig = companyPeerSignal(c.companyRaw ?? "");
+    const peerSig = companyPeerSignal(c.companyRaw ?? "", peerSignals);
     if (peerSig) {
-      ruleVerdicts.push({ id: c.id, bucket: "peer_competitor", slug: null, conf: 85, why: `Company name signals an agency/studio ("${peerSig}") — peer, not buyer.`, method: "rule" });
+      ruleVerdicts.push({ id: c.id, bucket: "peer_competitor", slug: null, conf: 85, why: peerWhy(peerSig), method: "rule" });
       done += 1; continue;
     }
-    const offSig = offIcpTitleSignal(title);
+    const offSig = offIcpTitleSignal(title, offIcpSignals);
     if (offSig) {
-      ruleVerdicts.push({ id: c.id, bucket: "off_icp", slug: null, conf: 85, why: `Title signals coach/personal-brand ("${offSig}") — audience, not buyer.`, method: "rule" });
+      ruleVerdicts.push({ id: c.id, bucket: "off_icp", slug: null, conf: 85, why: offIcpWhy(offSig), method: "rule" });
       done += 1; continue;
     }
     const rule = rulePass(title, services);

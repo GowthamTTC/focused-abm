@@ -37,6 +37,12 @@ export interface OrgSettings {
   /** Who the outreach is FROM, in one sentence — the message drafter is told
    *  this and sells the workspace's own services in its terms. */
   sellerContext?: string;
+  /** Company-name fragments that mark a PEER (a competitor, not a buyer), and
+   *  title fragments that mark someone OFF-TARGET. Both run before persona
+   *  matching, so they are the workspace's own or its ICP cannot win.
+   *  undefined = use the built-in defaults; [] = rule off. */
+  peerSignals?: string[];
+  offIcpSignals?: string[];
   /** Compact style profile distilled from the user's own LinkedIn posts;
    *  injected into every drafted message so outreach sounds like THEM. */
   voiceProfile?: string;

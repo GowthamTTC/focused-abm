@@ -2,7 +2,8 @@ import { eq } from "drizzle-orm";
 import { db, channelAccount } from "@/db";
 import { unipileConfigured } from "@/lib/env";
 import { Shell, requirePage } from "@/app/shell";
-import { claimLinkedInSeats, disconnect, linkUnipileAccountId, refreshStatus, saveClassifyCap, saveEnrichLimit, saveSeller, scanVoice, startConnect } from "./actions";
+import { claimLinkedInSeats, disconnect, linkUnipileAccountId, refreshStatus, saveClassifyCap, saveEnrichLimit, saveSeller, saveSignals, scanVoice, startConnect } from "./actions";
+import { DEFAULT_OFF_ICP_TITLE_SIGNALS, DEFAULT_PEER_COMPANY_SIGNALS } from "@/modules/matching/rule-pass";
 import { CLASSIFY_CAP_OPTIONS, ENRICH_LIMIT_OPTIONS, getOrgSettings } from "@/modules/settings/org-settings";
 import { getDailyEnrichUsage } from "@/modules/enrich/usage";
 import { UsageMeter } from "@/components/usage-meter";
@@ -27,7 +28,7 @@ function Segmented({ name, options, current, allLabel }: {
 export default async function SettingsPage({ searchParams }: {
   searchParams: Promise<{
     saved?: string; connected?: string; connect_failed?: string; link_err?: string;
-    excluded?: string; released?: string;
+    excluded?: string; released?: string; peered?: string; offt?: string;
   }>;
 }) {
   const user = await requirePage();
@@ -35,6 +36,8 @@ export default async function SettingsPage({ searchParams }: {
   const { saved, connected, connect_failed, link_err } = sp;
   const nExcluded = Number(sp.excluded ?? 0) || 0;
   const nReleased = Number(sp.released ?? 0) || 0;
+  const nPeered = Number(sp.peered ?? 0) || 0;
+  const nOffT = Number(sp.offt ?? 0) || 0;
 
   // After hosted auth redirect, claim seats even if webhook was missed.
   if (connected === "1") {
@@ -45,6 +48,10 @@ export default async function SettingsPage({ searchParams }: {
   const accounts = await db.select().from(channelAccount)
     .where(eq(channelAccount.orgId, user.orgId));
   const settings = await getOrgSettings(user.orgId);
+  // undefined means "never configured" — show the defaults that are actually
+  // in force, so the box always reflects live behaviour. [] stays empty: off.
+  const peerList = settings.peerSignals ?? DEFAULT_PEER_COMPANY_SIGNALS;
+  const offList = settings.offIcpSignals ?? DEFAULT_OFF_ICP_TITLE_SIGNALS;
   const usage = await getDailyEnrichUsage(user.orgId);
 
   return (
@@ -220,6 +227,62 @@ export default async function SettingsPage({ searchParams }: {
           needed. Change the name and the previous firm&apos;s staff are released back for
           re-matching. Matching is by substring, so keep the name specific: &ldquo;Ace&rdquo; would
           also catch &ldquo;Aceso Pharma&rdquo;.
+        </p>
+      </section>
+
+      <section className="mt-6 rounded-[14px] border border-[#DDE2EE] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,.04)]">
+        <h2 className="font-medium">Who is not a prospect</h2>
+        <p className="mt-1 max-w-2xl text-sm text-[#475467]">
+          Two lists that run <em>before</em> anyone is matched against your ICPs, so they have the
+          final say. Keep them describing <strong>your</strong> market — the defaults describe a
+          marketing agency&apos;s competitors and will discard good prospects if that is not you.
+        </p>
+        <form action={saveSignals} className="mt-4 grid gap-5 md:grid-cols-2">
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-[#98A2B3]">
+              Competitor company names
+            </label>
+            <p className="mt-1 text-xs text-[#98A2B3]">
+              A company containing any of these is filed as a peer, not a buyer.
+            </p>
+            <textarea name="peerSignals" rows={9} defaultValue={peerList.join("\n")}
+              className="mt-2 w-full rounded-[10px] border border-[#DDE2EE] bg-white px-3 py-2 font-mono text-xs" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-[#98A2B3]">
+              Off-target job titles
+            </label>
+            <p className="mt-1 text-xs text-[#98A2B3]">
+              A title containing any of these is an audience, not a buyer.
+            </p>
+            <textarea name="offIcpSignals" rows={9} defaultValue={offList.join("\n")}
+              className="mt-2 w-full rounded-[10px] border border-[#DDE2EE] bg-white px-3 py-2 font-mono text-xs" />
+          </div>
+          <div className="md:col-span-2 flex flex-wrap items-center gap-3">
+            <button className="rounded-[10px] bg-[#263BAA] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#1D2E86]">
+              Save and apply
+            </button>
+            {saved === "signals" && (
+              <span className="text-sm text-[#067647]">
+                {nPeered === 0 && nOffT === 0 && nReleased === 0
+                  ? "Saved. No verdicts changed."
+                  : [
+                      nPeered > 0 && `${nPeered} filed as peers`,
+                      nOffT > 0 && `${nOffT} filed off-target`,
+                      nReleased > 0 && `${nReleased} released for re-matching`,
+                    ].filter(Boolean).join(" · ")}
+              </span>
+            )}
+            <span className="text-xs text-[#98A2B3]">
+              One per line. Matched as substrings of the normalised text, so &ldquo;advertis&rdquo;
+              catches advertising and advertisement. Empty box = rule off.
+            </span>
+          </div>
+        </form>
+        <p className="mt-3 text-xs text-[#98A2B3]">
+          Applies straight away, both ways: people who now match are re-filed, and people these
+          rules previously filed who no longer match are released for the next matching run.
+          Verdicts the model made on other grounds are left alone.
         </p>
       </section>
 

@@ -102,6 +102,26 @@ export async function saveSeller(formData: FormData) {
   redirect(`/settings?saved=seller&excluded=${excluded}&released=${released}`);
 }
 
+/** One signal per line, commas tolerated. Lowercased because both matchers
+ *  compare against normalised text. An EMPTY list is meaningful — it turns the
+ *  rule off — so it is stored as [], never left undefined (which means
+ *  "use the built-in defaults"). */
+function parseSignals(raw: string): string[] {
+  return [...new Set(
+    raw.split(/[\n,]/).map((s) => s.trim().toLowerCase()).filter(Boolean).map((s) => s.slice(0, 60)),
+  )].slice(0, 200);
+}
+
+export async function saveSignals(formData: FormData) {
+  const user = await requireUser();
+  const peerSignals = parseSignals(String(formData.get("peerSignals") ?? ""));
+  const offIcpSignals = parseSignals(String(formData.get("offIcpSignals") ?? ""));
+  await updateOrgSettings(user.orgId, { peerSignals, offIcpSignals });
+  const { applySignalRules } = await import("@/modules/matching/signal-rules");
+  const r = await applySignalRules(user.orgId, peerSignals, offIcpSignals);
+  redirect(`/settings?saved=signals&peered=${r.peered}&offt=${r.offTarget}&released=${r.released}`);
+}
+
 /** Sample the seat owner's own posts and distill a voice profile the
  *  message drafter follows. One light seat touch. */
 export async function scanVoice(formData: FormData) {
