@@ -80,6 +80,18 @@ export async function Shell({ user, active, children }: {
       ready: sql<number>`count(*) filter (where enrich_status = 'done' and outreach_message is not null and sent_at is null and (flag is null or flag_verdict = 'variant'))::int`,
     }).from(connection).where(eq(connection.orgId, user.orgId)),
   ]);
+  // Admin-only: how many workspaces have something unactionable sitting in them.
+  // One grouped query, and only for the one account that can see the page.
+  let adminAttention = 0;
+  if (isAdmin) {
+    const rows = await db.select({
+      orgId: connection.orgId,
+      stuck: sql<number>`count(*) filter (
+        where bucket is null or (bucket = 'pitchable' and service_slug is null))::int`,
+    }).from(connection).groupBy(connection.orgId);
+    adminAttention = rows.filter((r) => r.stuck > 0).length;
+  }
+
   const latest = jobs[0];
   const running = latest && ["running", "queued", "stopping"].includes(latest.status) ? latest : null;
   const dismissed = Boolean((latest?.payloadJson as { dismissed?: boolean } | null)?.dismissed);
@@ -137,11 +149,25 @@ export async function Shell({ user, active, children }: {
           {isAdmin && (
             <div className="mb-4">
               <p className="mb-[6px] px-2 text-[9px] font-semibold uppercase tracking-[.12em] text-[#98A2B3]">Admin</p>
-              <Link href="/admin"
-                className={`flex items-center gap-[9px] rounded-[8px] px-[10px] py-[7px] text-[13px] transition-colors duration-[130ms] ${active === "admin"
-                  ? "bg-[#EEF1FC] font-medium text-[#263BAA]" : "text-[#475467] hover:bg-[#F4F6FB] hover:text-[#101828]"}`}>
-                <NavIcon name="admin" /><span>Console</span>
-              </Link>
+              <div className="space-y-[2px]">
+                <Link href="/admin"
+                  className={`flex items-center gap-[9px] rounded-[8px] px-[10px] py-[7px] text-[13px] transition-colors duration-[130ms] ${active === "admin"
+                    ? "bg-[#EEF1FC] font-medium text-[#263BAA]" : "text-[#475467] hover:bg-[#F4F6FB] hover:text-[#101828]"}`}>
+                  <NavIcon name="admin" /><span>Console</span>
+                </Link>
+                <Link href="/admin/health" data-tip="Every client workspace: what is stuck, what is unactionable"
+                  className={`nav-tip flex items-center justify-between gap-2 rounded-[8px] px-[10px] py-[7px] text-[13px] transition-colors duration-[130ms] ${active === "admin-health"
+                    ? "bg-[#EEF1FC] font-medium text-[#263BAA]" : "text-[#475467] hover:bg-[#F4F6FB] hover:text-[#101828]"}`}>
+                  <span className="flex min-w-0 flex-1 items-center gap-[9px]">
+                    <NavIcon name="alerts" /><span className="whitespace-nowrap">Health</span>
+                  </span>
+                  {adminAttention > 0 && (
+                    <span className="tnum rounded-[4px] bg-[#FDF6E7] px-[5px] py-px text-[10px] text-[#B54708]">
+                      {adminAttention}
+                    </span>
+                  )}
+                </Link>
+              </div>
             </div>
           )}
         </nav>

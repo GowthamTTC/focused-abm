@@ -35,7 +35,13 @@ export default async function AdminPage({ searchParams }: {
 
   return (
     <Shell user={user} active="admin">
-      <h1 className="text-2xl font-semibold">Admin console</h1>
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <h1 className="text-2xl font-semibold">Admin console</h1>
+        <Link href="/admin/health"
+          className="rounded-[8px] border border-[#DDE2EE] px-3 py-1.5 text-sm text-[#475467] hover:bg-[#F4F6FB]">
+          Workspace health →
+        </Link>
+      </div>
       <p className="mt-1 max-w-2xl text-sm text-[#98A2B3]">
         Account = the client company. Users belong to an account. Each user has a private workspace
         (LinkedIn seat, connections, shortlist) — teammates do not share data.
