@@ -33,6 +33,8 @@ import { judgeStats } from "../src/modules/posts/judge";
 import { getChannelProvider } from "../src/providers/channel";
 import { processNext, enqueue } from "../src/jobs/runner";
 import { updateOrgSettings } from "../src/modules/settings/org-settings";
+import { classifyIntent } from "../src/modules/agent/intent";
+import { runTool } from "../src/modules/agent/tools";
 
 let passed = 0;
 const failures: string[] = [];
@@ -235,6 +237,49 @@ async function main() {
   check("another workspace's person gets nothing, even asked for by id",
     !(await hooksForPeople(orgA, [people.other_org])).has(people.other_org));
   check("no ids means no query and no reasons", (await hooksForPeople(orgA, [])).size === 0);
+
+  // ── Nova: the question the intent regex was taught to allow, and a tool
+  //    that can actually answer it. No model call — the routing and the tool
+  //    body are the parts with logic in them. ──
+  for (const [ask, want] of [
+    ["who posted something I can open with?", "reasons_to_reach_out"],
+    ["any reason to reach out today?", "reasons_to_reach_out"],
+    ["show me hooks", "reasons_to_reach_out"],
+    // Radar owns events; a metro scan is not a reason to message someone.
+    ["who posted about the conference in Bengaluru?", null],
+    ["top 10 accounts", null],
+  ] as const) {
+    const intent = classifyIntent(ask, []);
+    check(`Nova routes "${ask.slice(0, 42)}"${want ? "" : " away"}`,
+      want ? intent.tool === want : intent.tool !== "reasons_to_reach_out",
+      `tool=${intent.tool} offTopic=${intent.offTopic}`);
+  }
+
+  const novaReasons = await runTool({ orgId: orgA }, "reasons_to_reach_out", { n: 8 });
+  check("the reason tool answers with the people, their words and the link",
+    novaReasons.text.includes("Asha") && novaReasons.text.includes("attribution model")
+    && novaReasons.text.includes("hook 75") && (novaReasons.cards?.length ?? 0) === 4
+    && novaReasons.open === "/dashboard",
+    novaReasons.text.slice(0, 140));
+  check("and it is org-scoped — no other workspace's person appears",
+    !novaReasons.text.includes("Zane") && !novaReasons.text.includes("Vikram")
+    && !novaReasons.text.includes("Priya"));
+  // Org-wide on purpose: Nova has no campaign, so the older batch's person is
+  // legitimately in scope where Today's campaign-scoped feed excludes her.
+  check("it is workspace-wide, not campaign-scoped", novaReasons.text.includes("Gita"),
+    novaReasons.text.slice(0, 200));
+
+  const novaLeft = await runTool({ orgId: orgA }, "whats_left", {});
+  check("whats_left no longer calls the queue clear while posts sit unread",
+    novaLeft.text.includes("not read against your ICPs: 2")
+    && /People with a post you can open with, nobody messaged yet: 4/.test(novaLeft.text),
+    novaLeft.text.slice(-300));
+
+  const novaSnap = await runTool({ orgId: orgA }, "workspace_snapshot", {});
+  check("the snapshot reports what has been looked at, not only what exists",
+    /With a post you can open with: 4/.test(novaSnap.text)
+    && /ever scanned/.test(novaSnap.text) && /not read yet: 2/.test(novaSnap.text),
+    novaSnap.text.slice(-260));
 
   // ── C · the numbers on screen ──
   eqCheck("feedStatus, batch- and pitchable-scoped", {
@@ -639,6 +684,22 @@ async function main() {
   check("not one of those refusals inserted a job",
     jobsAfter[0]!.n === jobsBefore[0]!.n,
     `before=${jobsBefore[0]!.n} after=${jobsAfter[0]!.n}`);
+
+  // ── The one destructive scenario, deliberately last: a workspace that has
+  //    scanned nobody must read as UNOBSERVED, never as quiet. It empties the
+  //    workspace, and buildFixture() mints fresh ids, so anything after it
+  //    would be asserting against rows that no longer exist. ──
+  await db.update(connection).set({ lastScanAt: null }).where(eq(connection.orgId, orgA));
+  await db.delete(post).where(eq(post.orgId, orgA));
+  const unobserved = await runTool({ orgId: orgA }, "reasons_to_reach_out", { n: 8 });
+  const unobservedSnap = await runTool({ orgId: orgA }, "workspace_snapshot", {});
+  const unobservedLeft = await runTool({ orgId: orgA }, "whats_left", {});
+  check("with nobody scanned, Nova says unobserved rather than quiet",
+    /none scanned/.test(unobserved.text)
+    && /it is unobserved/.test(unobserved.text)
+    && /nothing is known about who is talking/.test(unobservedSnap.text)
+    && /no reason list to work from/.test(unobservedLeft.text),
+    unobserved.text.slice(0, 200));
 
   // ── G · cleanup ──
   await db.delete(post).where(eq(post.connectionId, scanTarget!.id));

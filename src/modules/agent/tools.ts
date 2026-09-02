@@ -210,7 +210,7 @@ export const TOOL_DEFS = [
     type: "function" as const,
     function: {
       name: "workspace_snapshot",
-      description: "Totals for this workspace: people, pitchable, companies, shortlist, researched, ready drafts.",
+      description: "Totals for this workspace: people, pitchable, companies, shortlist, researched, ready drafts, and how many have a post you can open with.",
       parameters: { type: "object", properties: {} },
     },
   },
@@ -252,8 +252,16 @@ export const TOOL_DEFS = [
   {
     type: "function" as const,
     function: {
+      name: "reasons_to_reach_out",
+      description: "Who posted something you can open with: their own words, scored against this workspace's ICPs and faded over 14 days. Use for 'who posted', 'what can I open with', 'any reason to reach out', hooks, recent activity worth a message.",
+      parameters: { type: "object", properties: { n: { type: "number", description: "How many people, default 8" } } },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "whats_left",
-      description: "What is still open: shortlist not researched, ready drafts, latest Radar job. Use for 'what else left', leftover, remaining.",
+      description: "What is still open: shortlist not researched, ready drafts, unread posts, people with a reason nobody has opened, latest Radar job. Use for 'what else left', leftover, remaining.",
       parameters: { type: "object", properties: {} },
     },
   },
@@ -701,6 +709,8 @@ export async function runTool(
       companies: sql<number>`count(distinct company_raw) filter (where bucket = 'pitchable' and company_raw is not null and company_raw <> '')::int`,
     }).from(connection).where(eq(connection.orgId, orgId));
     const [sl] = await db.select({ n: sql<number>`count(*)::int` }).from(accountShortlist).where(eq(accountShortlist.orgId, orgId));
+    const { orgReasonSummary } = await import("@/modules/posts/feed");
+    const reasons = await orgReasonSummary(orgId);
     return {
       text: [
         `People: ${row?.people ?? 0}`,
@@ -710,7 +720,13 @@ export async function runTool(
         `Researched: ${row?.researched ?? 0}`,
         `Pitchable not researched: ${row?.pending ?? 0}`,
         `Ready drafts: ${row?.ready ?? 0}`,
-      ].join("\n"),
+        // Never inferred from a count of posts: a workspace that has scanned
+        // nobody must read as unobserved, not as quiet.
+        reasons.everScanned === 0
+          ? `Posts looked at: none of ${reasons.pitchable} pitchable people have been scanned, so nothing is known about who is talking`
+          : `With a post you can open with: ${reasons.people} (from ${reasons.everScanned} of ${reasons.pitchable} pitchable people ever scanned)`,
+        reasons.unread > 0 ? `Posts stored but not read yet: ${reasons.unread}` : null,
+      ].filter(Boolean).join("\n"),
     };
   }
 
@@ -811,6 +827,43 @@ export async function runTool(
     };
   }
 
+  if (name === "reasons_to_reach_out") {
+    const { hookFeed, orgReasonSummary } = await import("@/modules/posts/feed");
+    const want = Math.min(Math.max(Number(args.n ?? 8) || 8, 1), 20);
+    // Org-wide: Nova has no campaign, so the feed is asked without a batch.
+    const [{ rows }, summary] = await Promise.all([
+      hookFeed(orgId, { limit: want }),
+      orgReasonSummary(orgId),
+    ]);
+    if (rows.length === 0) {
+      return {
+        text: summary.everScanned === 0
+          ? `Nobody's posts have been looked at yet — ${summary.pitchable} pitchable people, none scanned. Run a post scan from Today first; nothing here is quiet, it is unobserved.`
+          : summary.unread > 0
+            ? `No live reasons yet, but ${summary.unread} stored posts have not been read against your ICPs. Press Read on Today.`
+            : "Nobody has a post from the last 14 days that scores against your ICPs. That is the filter working, not a failure.",
+      };
+    }
+    return {
+      text: [
+        `${summary.people} ${summary.people === 1 ? "person has" : "people have"} a post you can open with. Strongest first, faded over 14 days:`,
+        ...rows.map((r) => [
+          `- ${r.firstName} ${r.lastName}${r.company ? ` @ ${r.company}` : ""} · hook ${r.hookScore}`,
+          `  ${r.hook}`,
+          `  "${r.postExcerpt}"`,
+          r.postUrl ? `  ${r.postUrl}` : "  (no link captured for this post)",
+        ].join("\n")),
+      ].join("\n"),
+      cards: rows.slice(0, 10).map((r) => ({
+        kind: "person" as const,
+        title: `${r.firstName} ${r.lastName}`,
+        subtitle: r.hook ?? "",
+        pills: [`hook ${r.hookScore}`, r.company ?? "", r.ageDays != null ? `posted ${r.ageDays === 0 ? "today" : `${r.ageDays}d ago`}` : ""].filter(Boolean),
+      })),
+      open: "/dashboard",
+    };
+  }
+
   if (name === "whats_left") {
     const { recommendAll } = await import("@/modules/recommend");
     const rec = await recommendAll(orgId);
@@ -820,12 +873,23 @@ export async function runTool(
     const [ready] = await db.select({
       n: sql<number>`count(*) filter (where outreach_message is not null and sent_at is null)::int`,
     }).from(connection).where(eq(connection.orgId, orgId));
+    // A clear shortlist is not an empty queue: unread posts and unopened
+    // reasons are work, and reporting "complete" over the top of them is how
+    // this tool ends up contradicting the Today screen.
+    const { orgReasonSummary } = await import("@/modules/posts/feed");
+    const reasons = await orgReasonSummary(orgId);
     const text = [
       `Shortlisted accounts: ${short.length}.`,
       `Still need research: ${need.length} accounts (${need.reduce((s, a) => s + a.pending, 0)} people).`,
       need.length ? need.map((a) => `- ${a.name}: ${a.pending} left`).join("\n") : "- Shortlist research is complete.",
       `Ready drafts not sent: ${ready?.n ?? 0}.`,
-    ].join("\n");
+      reasons.people > 0
+        ? `People with a post you can open with, nobody messaged yet: ${reasons.people}. Open Today.`
+        : reasons.everScanned === 0
+          ? `Nobody's posts have been looked at yet — ${reasons.pitchable} pitchable people, none scanned, so there is no reason list to work from.`
+          : "Nobody has a post from the last 14 days worth opening with.",
+      reasons.unread > 0 ? `Posts stored but not read against your ICPs: ${reasons.unread}.` : null,
+    ].filter(Boolean).join("\n");
     return {
       text,
       cards: (need.length ? need : short).slice(0, 10).map((a) => ({

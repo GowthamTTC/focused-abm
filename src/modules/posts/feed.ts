@@ -97,7 +97,7 @@ export function bandFor(relevance: number | null) {
  *  rank-2 person who said something adjacent last week. Every row carries the
  *  arithmetic that placed it so the screen can show its work.
  */
-export async function hookFeed(orgId: string, opts: { batchId: string; limit?: number }) {
+export async function hookFeed(orgId: string, opts: { batchId?: string; limit?: number }) {
   const want = Math.min(Math.max(opts.limit ?? FEED_DEFAULT_ROWS, 1), FEED_MAX_ROWS);
 
   // Pass 1 — every post that can score, ranked WITHIN each person.
@@ -165,7 +165,10 @@ export async function hookFeed(orgId: string, opts: { batchId: string; limit?: n
     .where(and(
       eq(best.rn, 1),
       eq(connection.orgId, orgId),
-      eq(connection.batchId, opts.batchId),   // post has NO batch_id — this join IS the scoping
+      // post has NO batch_id, so this join IS the campaign scoping. Optional
+      // because Nova is org-scoped and has no campaign to speak of; every
+      // screen passes one.
+      opts.batchId ? eq(connection.batchId, opts.batchId) : undefined,
       eq(connection.bucket, "pitchable"),     // a bucket can change AFTER judging
       isNull(connection.sentAt),              // already messaged is not a reason to message
       or(isNull(connection.flagVerdict), ne(connection.flagVerdict, "dropped")),
@@ -621,4 +624,37 @@ export async function hooksForPeople(orgId: string, connectionIds: string[]) {
     });
   }
   return out;
+}
+
+/** The workspace's reasons in one line, for callers with no campaign.
+ *
+ *  Nova is org-scoped: it has no CampaignSwitcher and no batch to speak of, so
+ *  it cannot use feedStatus. Same rules as the feed — pitchable, above the
+ *  threshold, inside the fade, not already messaged, not dropped — counted
+ *  across every batch, and counted per HUMAN so a re-import does not inflate it.
+ */
+export async function orgReasonSummary(orgId: string) {
+  const fresh = sql`${post.hook} is not null and ${post.relevance} >= ${HOOK_MIN_RELEVANCE} and ${post.postedAt} > ${FRESH}`;
+  const [row] = await db.select({
+    people: sql<number>`count(distinct ${HUMAN}) filter (
+      where ${fresh} and ${connection.sentAt} is null
+        and (${connection.flagVerdict} is null or ${connection.flagVerdict} <> 'dropped'))::int`,
+    unread: sql<number>`count(*) filter (where ${post.judgedAt} is null)::int`,
+    newestHook: sql<string | null>`max(${post.postedAt}) filter (where ${fresh})`,
+  }).from(post)
+    .innerJoin(connection, eq(connection.id, post.connectionId))
+    .where(and(eq(post.orgId, orgId), eq(connection.bucket, "pitchable")));
+  const [scan] = await db.select({
+    newestScan: sql<string | null>`max(${connection.lastScanAt}) filter (where ${connection.bucket} = 'pitchable')`,
+    everScanned: sql<number>`count(*) filter (where ${connection.bucket} = 'pitchable' and ${connection.lastScanAt} is not null)::int`,
+    pitchable: sql<number>`count(*) filter (where ${connection.bucket} = 'pitchable')::int`,
+  }).from(connection).where(eq(connection.orgId, orgId));
+  return {
+    people: row?.people ?? 0,
+    unread: row?.unread ?? 0,
+    newestHookAt: row?.newestHook ? new Date(row.newestHook) : null,
+    newestScanAt: scan?.newestScan ? new Date(scan.newestScan) : null,
+    everScanned: scan?.everScanned ?? 0,
+    pitchable: scan?.pitchable ?? 0,
+  };
 }

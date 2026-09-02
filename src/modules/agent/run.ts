@@ -20,6 +20,7 @@ Use tool output as ground truth. Never invent HQ, revenue, counts, or people.
 "Next N accounts" = best ICP matches that are NOT shortlisted. Never repeat the shortlisted page.
 Writes need permission; the server already asked Yes/No when needed.
 Radar is ONLY for an event/conference scan. Enrich, shortlist, Marketeroid/ICP, and "next 10" are NOT Radar.
+A "reason to reach out" is one of their OWN posts, scored against this workspace's ICPs and faded over 14 days — quote it, never paraphrase it as if it were research, and never call it Radar.
 If the user says it is not Radar, do not mention scanning.
 Talk like a sharp coworker. End with **Recommendation:** when you suggest a next step.`;
 
@@ -42,9 +43,9 @@ export async function runAgent(input: {
   const intent = classifyIntent(input.message, input.history);
   if (intent.offTopic) {
     return {
-      reply: "I'm limited to this workspace (accounts, shortlist, enrich, Radar, drafts). Try: top 10 accounts, enrich them, or who qualified for Marketeroid.",
+      reply: "I'm limited to this workspace (accounts, shortlist, enrich, posts, Radar, drafts). Try: who posted something I can open with, top 10 accounts, or enrich them.",
       tools: [],
-      suggestions: ["Top 10 accounts", "Enrich them", "What else left"],
+      suggestions: ["Who posted something I can open with", "Top 10 accounts", "What else left"],
       pending: [],
       cards: [],
     };

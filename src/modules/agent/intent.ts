@@ -125,6 +125,15 @@ export function classifyIntent(
     return { ...base, tool: "whats_left", wantsWrite: false };
   }
 
+  // The reason list, routed rather than left to the model to guess: it is the
+  // question the whole post ladder exists to answer, and Radar owns anything
+  // about an event or a conference — a scan of a metro is not a reason to
+  // message someone about what they said.
+  if (/\b(who posted|posted something|posted anything|reasons? to (reach|message|open)|open with|hooks?)\b/i.test(m)
+      && !/\b(radar|event|conference|expo|summit|booth|metro)\b/i.test(m)) {
+    return { ...base, tool: "reasons_to_reach_out", wantsWrite: false, args: { n } };
+  }
+
   if (autoYes && /unshortlist all|clear shortlist|unselect all|remove all/i.test(m)) {
     return { ...base, tool: "clear_shortlist", wantsWrite: true, args: { confirm: true } };
   }
