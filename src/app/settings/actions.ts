@@ -102,6 +102,35 @@ export async function saveSeller(formData: FormData) {
   redirect(`/settings?saved=seller&excluded=${excluded}&released=${released}`);
 }
 
+/** Who ranks highest. functionTerms decides which titles earn the buyer bonus;
+ *  serviceWeights maps each offer to what a match with it is worth. Ranking is
+ *  free to re-run, so this applies to the whole pool immediately. */
+export async function saveRanking(formData: FormData) {
+  const user = await requireUser();
+  const functionTerms = parseSignals(String(formData.get("functionTerms") ?? ""));
+
+  const { db, service, connectionBatch } = await import("@/db");
+  const { and, eq } = await import("drizzle-orm");
+  const offers = await db.select({ slug: service.slug }).from(service)
+    .where(and(eq(service.orgId, user.orgId), eq(service.status, "active")));
+
+  const serviceWeights: Record<string, number> = {};
+  for (const o of offers) {
+    const raw = Number(formData.get(`w_${o.slug}`) ?? 0);
+    serviceWeights[o.slug] = Number.isFinite(raw) ? Math.min(40, Math.max(0, Math.round(raw))) : 0;
+  }
+  await updateOrgSettings(user.orgId, { functionTerms, serviceWeights });
+
+  // Re-rank every batch: scoring costs nothing, and a stale rank is worse than
+  // no rank because it looks authoritative.
+  const { rankBatch } = await import("@/modules/scoring/rank");
+  const batches = await db.select({ id: connectionBatch.id }).from(connectionBatch)
+    .where(eq(connectionBatch.orgId, user.orgId));
+  let ranked = 0;
+  for (const b of batches) ranked += await rankBatch(user.orgId, b.id);
+  redirect(`/settings?saved=ranking&ranked=${ranked}`);
+}
+
 /** The slug the classifier falls back to when nothing else fits. Validated
  *  against the live catalog so a renamed or deleted service cannot leave a
  *  dangling marker in the digest. */

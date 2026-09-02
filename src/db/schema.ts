@@ -43,6 +43,13 @@ export interface OrgSettings {
    *  undefined = use the built-in defaults; [] = rule off. */
   peerSignals?: string[];
   offIcpSignals?: string[];
+  /** Words in a job title that mark someone as a BUYER for this workspace.
+   *  Ranking awards its function-fit points on these, so a marketing firm and a
+   *  leadership-development firm must not share them. */
+  functionTerms?: string[];
+  /** Exact slug -> ranking bonus. A workspace knows its own slugs, so this is an
+   *  exact map rather than the substring guessing the defaults still do. */
+  serviceWeights?: Record<string, number>;
   /** Slug the classifier falls back to when nothing else fits. Marked
    *  (CATCH-ALL) in the services digest. Unset = no fallback; a pitchable
    *  person with no good match gets a null service, which is honest. */

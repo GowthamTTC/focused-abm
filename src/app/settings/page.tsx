@@ -2,8 +2,9 @@ import { and, eq } from "drizzle-orm";
 import { db, channelAccount, service } from "@/db";
 import { unipileConfigured } from "@/lib/env";
 import { Shell, requirePage } from "@/app/shell";
-import { claimLinkedInSeats, disconnect, linkUnipileAccountId, refreshStatus, saveClassifyCap, saveEnrichLimit, saveCatchAll, saveSeller, saveSignals, scanVoice, startConnect } from "./actions";
+import { claimLinkedInSeats, disconnect, linkUnipileAccountId, refreshStatus, saveClassifyCap, saveEnrichLimit, saveCatchAll, saveRanking, saveSeller, saveSignals, scanVoice, startConnect } from "./actions";
 import { DEFAULT_OFF_ICP_TITLE_SIGNALS, DEFAULT_PEER_COMPANY_SIGNALS } from "@/modules/matching/rule-pass";
+import { DEFAULT_FUNCTION_TERMS } from "@/modules/scoring/rank";
 import { CLASSIFY_CAP_OPTIONS, ENRICH_LIMIT_OPTIONS, getOrgSettings } from "@/modules/settings/org-settings";
 import { getDailyEnrichUsage } from "@/modules/enrich/usage";
 import { UsageMeter } from "@/components/usage-meter";
@@ -28,7 +29,7 @@ function Segmented({ name, options, current, allLabel }: {
 export default async function SettingsPage({ searchParams }: {
   searchParams: Promise<{
     saved?: string; connected?: string; connect_failed?: string; link_err?: string; err?: string;
-    excluded?: string; released?: string; peered?: string; offt?: string;
+    excluded?: string; released?: string; peered?: string; offt?: string; ranked?: string;
   }>;
 }) {
   const user = await requirePage();
@@ -39,6 +40,7 @@ export default async function SettingsPage({ searchParams }: {
   const nReleased = Number(sp.released ?? 0) || 0;
   const nPeered = Number(sp.peered ?? 0) || 0;
   const nOffT = Number(sp.offt ?? 0) || 0;
+  const nRanked = Number(sp.ranked ?? 0) || 0;
 
   // After hosted auth redirect, claim seats even if webhook was missed.
   if (connected === "1") {
@@ -51,6 +53,7 @@ export default async function SettingsPage({ searchParams }: {
   const settings = await getOrgSettings(user.orgId);
   // undefined means "never configured" — show the defaults that are actually
   // in force, so the box always reflects live behaviour. [] stays empty: off.
+  const fnTerms = settings.functionTerms ?? DEFAULT_FUNCTION_TERMS;
   const peerList = settings.peerSignals ?? DEFAULT_PEER_COMPANY_SIGNALS;
   const offList = settings.offIcpSignals ?? DEFAULT_OFF_ICP_TITLE_SIGNALS;
   const services = await db.select({ slug: service.slug, name: service.name }).from(service)
@@ -231,6 +234,56 @@ export default async function SettingsPage({ searchParams }: {
           re-matching. Matching is by substring, so keep the name specific: &ldquo;Ace&rdquo; would
           also catch &ldquo;Aceso Pharma&rdquo;.
         </p>
+      </section>
+
+      <section className="mt-6 rounded-[14px] border border-[#DDE2EE] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,.04)]">
+        <h2 className="font-medium">Who ranks highest</h2>
+        <p className="mt-1 max-w-2xl text-sm text-[#475467]">
+          Ranking decides the order of your whole pool — the top of it is what you actually work.
+          Tell it which job titles belong to a buyer, and what a match with each offer is worth.
+        </p>
+        <form action={saveRanking} className="mt-4 max-w-3xl">
+          <label className="block text-xs font-semibold uppercase tracking-wide text-[#98A2B3]">
+            Words that mark a buyer&apos;s job title
+          </label>
+          <p className="mt-1 text-xs text-[#98A2B3]">
+            A title containing any of these earns the buyer bonus. The defaults describe a
+            marketing firm&apos;s buyer — replace them with yours.
+          </p>
+          <textarea name="functionTerms" rows={4} defaultValue={fnTerms.join("\n")}
+            className="mt-2 w-full rounded-[10px] border border-[#DDE2EE] bg-white px-3 py-2 font-mono text-xs" />
+
+          <label className="mt-5 block text-xs font-semibold uppercase tracking-wide text-[#98A2B3]">
+            What each offer is worth
+          </label>
+          <p className="mt-1 text-xs text-[#98A2B3]">
+            0&ndash;40 points added when someone is matched to that offer. Raise the ones you most
+            want to sell.
+          </p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            {services.map((s) => (
+              <label key={s.slug} className="flex items-center justify-between gap-3 rounded-[10px] border border-[#DDE2EE] px-3 py-2">
+                <span className="min-w-0 truncate text-sm text-[#475467]">{s.name}</span>
+                <input type="number" name={`w_${s.slug}`} min={0} max={40}
+                  defaultValue={settings.serviceWeights?.[s.slug] ?? 0}
+                  className="tnum w-16 shrink-0 rounded-[8px] border border-[#DDE2EE] bg-white px-2 py-1 text-right text-sm" />
+              </label>
+            ))}
+            {services.length === 0 && (
+              <p className="text-sm text-[#B54708]">No offers yet — add some on the ICPs page first.</p>
+            )}
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button className="rounded-[10px] bg-[#263BAA] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#1D2E86]">
+              Save and re-rank
+            </button>
+            {saved === "ranking" && (
+              <span className="text-sm text-[#067647]">{nRanked.toLocaleString()} people re-ranked.</span>
+            )}
+            <span className="text-xs text-[#98A2B3]">Re-ranking is free — no AI calls.</span>
+          </div>
+        </form>
       </section>
 
       <section className="mt-6 rounded-[14px] border border-[#DDE2EE] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,.04)]">

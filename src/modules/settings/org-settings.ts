@@ -25,6 +25,8 @@ const settingsSchema = z.object({
   sellerContext: z.string().max(2000).optional(),
   peerSignals: z.array(z.string().max(60)).max(200).optional(),
   offIcpSignals: z.array(z.string().max(60)).max(200).optional(),
+  functionTerms: z.array(z.string().max(60)).max(200).optional(),
+  serviceWeights: z.record(z.number().int().min(0).max(40)).optional(),
   catchAllSlug: z.string().max(120).optional(),
   voiceProfile: z.string().optional(),
   voiceSampledAt: z.string().optional(),
