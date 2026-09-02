@@ -138,7 +138,11 @@ export async function judgePosts(
 }
 
 /** The dashboard's hook: relevance decayed over 14 days, so a strong post from
- *  last week loses to a strong post from yesterday but still beats silence. */
+ *  last week loses to a strong post from yesterday but still beats silence.
+ *
+ *  The 14 here is mirrored by HOOK_DECAY_DAYS in src/modules/posts/feed.ts, whose
+ *  pre-filter lets the feed ride an index instead of scoring every post ever
+ *  stored. Change both or neither. */
 export const HOOK_SCORE_SQL = sql`
   case
     when ${post.relevance} is null or ${post.relevance} < 55 or ${post.postedAt} is null then 0

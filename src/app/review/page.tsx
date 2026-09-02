@@ -68,7 +68,7 @@ export default async function ReviewPage({ searchParams }: {
             </div>
             <form action={checkQueuePosts.bind(null, batch.id)}>
               <button className="rounded-[8px] border border-[#DDE2EE] px-3 py-1.5 text-[12px] text-[#475467] hover:bg-[#F4F6FB]"
-                title="Posts only, no AI — refreshes activity badges for everyone here.">
+                title="Reads their recent posts, then reads them against your ICPs — refreshes activity badges and can produce new reasons to reach out.">
                 Check for new posts
               </button>
             </form>

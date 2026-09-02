@@ -38,7 +38,7 @@ function plainError(raw: string | null): string {
   return e.length > 140 ? e.slice(0, 140) + "…" : e;
 }
 
-const KIND_LABEL: Record<string, string> = {
+export const KIND_LABEL: Record<string, string> = {
   classify: "Matching", deep_enrich: "Researching", sync: "Syncing",
   import: "Importing", activity_scan: "Scanning posts", voice_scan: "Sampling voice",
   event_scan: "Event scan",
@@ -49,7 +49,7 @@ const KIND_LABEL: Record<string, string> = {
 const NAV: { section: string; items: [key: string, href: string, label: string, tip: string][] }[] = [
   { section: "Work", items: [
     ["nova", "/nova", "Nova", "Ask Nova — counts, shortlist, enrich, Radar"],
-    ["dashboard", "/dashboard", "Today", "Your daily numbers and the research button"],
+    ["dashboard", "/dashboard", "Today", "Who to message today, and the post that gives you the opener"],
     ["review", "/review", "Review", "Verdicts, ready-to-send drafts, and your sent log"],
     ["people", "/people", "People", "Every person in your network, searchable"],
   ]},

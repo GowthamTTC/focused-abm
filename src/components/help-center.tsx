@@ -7,7 +7,7 @@
 import { useEffect, useState } from "react";
 
 const MENUS: [label: string, what: string][] = [
-  ["Today", "Your daily cockpit: the five numbers that matter, and the sentence that starts a research run."],
+  ["Today", "Who to message today: their own words, the post to reply under, and the draft. Pipeline numbers are collapsed at the bottom."],
   ["Review", "Where drafted messages live. Decisions need a verdict, Ready can be copied and sent, Sent is your log."],
   ["Radar", "Event mode: who is based in a metro and posted recently. Not live GPS."],
   ["People", "Every person in your network, searchable and filterable."],
@@ -36,7 +36,7 @@ const STEPS: { title: string; body: string; href: string; cta: string }[] = [
     body: "Matching reads every connection against your ICPs, sorts them into matched, off-target, peers and excluded, then ranks the matches best-first. Cheap, and it covers the whole network.",
     href: "/sources", cta: "Open the batch" },
   { title: "Research your best matches",
-    body: "On Today, complete the sentence: research your top N matches, optionally in one country, optionally only people who posted recently. Research is the expensive step — it runs best-ranked-first inside your daily budget.",
+    body: "On Today, complete the sentence: research your top N matches, optionally in one country, optionally only people who posted something you can open with. Research is the expensive step — it runs best-ranked-first inside your daily budget.",
     href: "/dashboard", cta: "Open Today" },
   { title: "Review and send",
     body: "Drafts land in Review. Give flagged people a verdict, copy the ready ones into LinkedIn, mark them sent. That log becomes your reply-rate evidence.",

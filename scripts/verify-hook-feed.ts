@@ -19,7 +19,10 @@
  */
 import "./require-local-db";
 import { eq, inArray } from "drizzle-orm";
-import { db, org, connectionBatch, connection, post, service, job } from "../src/db";
+import {
+  db, org, accountShortlist, activityLog, appUser, channelAccount, connectionBatch,
+  connection, exportLog, job, networkSnapshot, novaChat, novaChatMessage, post, service,
+} from "../src/db";
 import type { IcpJson } from "../src/db/schema";
 
 const HOUR = 3600_000;
@@ -48,7 +51,12 @@ export interface Fixture {
   now: number;
 }
 
-/** Wipe anything a previous run of this fixture left behind. */
+/** Wipe anything a previous run of this fixture left behind.
+ *
+ *  The fixture OWNS the l4org* workspaces outright, so everything hanging off
+ *  them goes — including any login created to open the screen by hand, and any
+ *  Nova chat held as that login, both of which hold a foreign key into org and
+ *  would otherwise make the rebuild fail on the second run. */
 async function reset() {
   const orgs = await db.select({ id: org.id }).from(org);
   const mine = orgs.filter((o) => o.id.startsWith("l4org")).map((o) => o.id);
@@ -58,6 +66,20 @@ async function reset() {
   await db.delete(connection).where(inArray(connection.orgId, mine));
   await db.delete(connectionBatch).where(inArray(connectionBatch.orgId, mine));
   await db.delete(service).where(inArray(service.orgId, mine));
+  await db.delete(channelAccount).where(inArray(channelAccount.orgId, mine));
+  const chats = await db.select({ id: novaChat.id }).from(novaChat).where(inArray(novaChat.orgId, mine));
+  if (chats.length > 0) {
+    await db.delete(novaChatMessage).where(inArray(novaChatMessage.chatId, chats.map((c) => c.id)));
+    await db.delete(novaChat).where(inArray(novaChat.orgId, mine));
+  }
+  await db.delete(appUser).where(inArray(appUser.orgId, mine));
+  // Everything else that holds a foreign key into org and accumulates just by
+  // USING the workspace — a login writes an activity_log row, opening a page
+  // writes a snapshot — each of which would block the org delete on the next run.
+  await db.delete(activityLog).where(inArray(activityLog.orgId, mine));
+  await db.delete(networkSnapshot).where(inArray(networkSnapshot.orgId, mine));
+  await db.delete(exportLog).where(inArray(exportLog.orgId, mine));
+  await db.delete(accountShortlist).where(inArray(accountShortlist.orgId, mine));
   for (const id of mine) await db.delete(org).where(eq(org.id, id));
 }
 
@@ -204,7 +226,10 @@ export async function buildFixture(): Promise<Fixture> {
   return { orgA, orgB, batchA: batchA!.id, batchA2: batchA2!.id, batchB: batchB!.id, people: ids, posts: postIds, now };
 }
 
-if (process.argv[1]?.includes("verify-hook-feed")) {
+// Exact basename: "verify-hook-feed-checks.ts" imports this module, and a
+// substring guard would build the fixture twice, concurrently, and deadlock on
+// its own primary keys.
+if (process.argv[1]?.endsWith("verify-hook-feed.ts")) {
   buildFixture().then((f) => {
     console.log("fixture built:", JSON.stringify({ orgA: f.orgA, batchA: f.batchA, people: Object.keys(f.people).length, posts: Object.keys(f.posts).length }, null, 2));
     process.exit(0);

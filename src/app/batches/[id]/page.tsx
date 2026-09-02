@@ -139,7 +139,7 @@ export default async function BatchPage(props: {
               <input name="n" type="number" defaultValue={50} min={1} max={200}
                 className="tnum w-16 rounded-[8px] bg-white border border-[#DDE2EE] rounded-[14px] shadow-[0_1px_2px_rgba(16,24,40,.04)] px-2 py-1.5 text-xs" />
               <button className="rounded-[8px] border border-[#DDE2EE] px-3 py-1.5 text-xs text-[#475467] hover:bg-[#F4F6FB]"
-                title="Fetch recent-post dates only (no AI) so the activity filter has data — light seat touch, its own daily cap.">
+                title="Fetches recent posts, then reads them against your ICPs — light seat touch, its own daily cap.">
                 Scan posts
               </button>
             </form>

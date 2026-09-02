@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 const SCREENS: { label: string; hint: string; href: string }[] = [
-  { label: "Today", hint: "numbers and the next action", href: "/review?tab=decisions" },
+  { label: "Today", hint: "reasons to reach out, freshest first", href: "/dashboard" },
   { label: "Review — Decisions", hint: "flags awaiting a verdict", href: "/review?tab=decisions" },
   { label: "Review — Ready to send", hint: "drafted openers", href: "/review?tab=ready" },
   { label: "Review — Sent", hint: "sent, with undo", href: "/review?tab=sent" },

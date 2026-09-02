@@ -245,7 +245,7 @@ export function classifyIntent(
     };
   }
 
-  const inScope = /\b(account|shortlist|enrich|research|radar|draft|icp|people|person|contact|linkedin|sync|send|vp|founder|director|company|workspace|snapshot|scan|title|committee|lookalike|met|skipped|flag|event|nova|abm|gtm|marketeroid|marketroid)\b/i.test(m)
+  const inScope = /\b(account|shortlist|enrich|research|radar|draft|icp|people|person|contact|linkedin|sync|send|post|posted|posts|hook|vp|founder|director|company|workspace|snapshot|scan|title|committee|lookalike|met|skipped|flag|event|nova|abm|gtm|marketeroid|marketroid)\b/i.test(m)
     || /\b(yes|yep|yeah|ok|okay|no)\b/i.test(m);
   if (!inScope) return { ...base, offTopic: true };
   return base;
