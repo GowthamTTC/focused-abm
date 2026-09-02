@@ -27,7 +27,7 @@ export async function sweepStaleJobs(): Promise<number> {
     error: "Run abandoned — worker restarted or deployed mid-run; the people went back to the pool.",
     updatedAt: new Date(),
   }).where(and(
-    inArray(job.status, ["queued", "running"]),
+    inArray(job.status, ["queued", "running", "stopping"]),
     sql`${job.updatedAt} < now() - interval '${sql.raw(String(STALE_JOB_MINUTES))} minutes'`,
   )).returning({ id: job.id });
   return rows.length;
@@ -44,7 +44,7 @@ export async function releaseOrphans(): Promise<number> {
       select 1 from ${job} j
       where j.org_id = ${connection.orgId}
         and j.kind = 'deep_enrich'
-        and j.status in ('queued', 'running')
+        and j.status in ('queued', 'running', 'stopping')
         and j.updated_at > now() - interval '${sql.raw(String(STALE_JOB_MINUTES))} minutes'
     )`,
   )).returning({ id: connection.id });

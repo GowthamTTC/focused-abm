@@ -1,0 +1,20 @@
+-- Baseline realignment — deliberately does nothing to the database.
+--
+-- drizzle/meta/ carried snapshots only through 0005, but the journal ran to
+-- 0013: migrations 0006–0013 were hand-written SQL. So `drizzle-kit generate`
+-- was still diffing schema.ts against the 0005 snapshot, and the next generated
+-- migration re-created four tables and eleven columns that already exist —
+-- unguarded, so it would have aborted on its first statement in production.
+--
+-- The companion 0014_snapshot.json is a full, accurate snapshot of schema.ts.
+-- Recording it as the head is the whole point of this migration; the SQL is
+-- empty because 0006–0013 already made every one of those changes, on existing
+-- databases and on fresh ones alike. Generates from here diff against reality.
+--
+-- Known cosmetic divergence, left alone on purpose: 0009/0010/0012 declared
+-- their foreign keys inline, so Postgres auto-named them (..._fkey) while the
+-- snapshot records drizzle's own names (..._org_id_fk). `generate` never looks
+-- at the database, so this is inert — but `drizzle-kit push`/`introspect` would
+-- see it. Neither is in this project's scripts. Do not "fix" it by renaming
+-- constraints in production.
+SELECT 1;

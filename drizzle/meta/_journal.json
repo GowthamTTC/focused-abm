@@ -99,6 +99,13 @@
       "when": 1788020000000,
       "tag": "0013_nova_cards",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1788330203173,
+      "tag": "0014_snapshot_realign",
+      "breakpoints": true
     }
   ]
 }

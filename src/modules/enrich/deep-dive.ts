@@ -135,7 +135,10 @@ export async function deepEnrichOne(orgId: string, connectionId: string): Promis
       flag: dive.flag,
       outreachMessage: msg.message,
       enrichedAt: new Date(),
-      lastPostAt,
+      // Never erase a date we already know: the profile/posts fetch is allowed
+      // to fail (no seat, no identifier, LinkedIn hiccup) and leave this null,
+      // and the cheap activity scan may have paid for this value already.
+      lastPostAt: lastPostAt ?? c.lastPostAt,
     }).where(eq(connection.id, c.id));
   } catch (e) {
     await db.update(connection).set({
