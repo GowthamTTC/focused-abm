@@ -18,6 +18,11 @@ const settingsSchema = z.object({
   /** "managed"  — TTC-run seat; the admin catalog sync may overwrite services.
    *  "own"      — client-defined offers; sync NEVER touches this workspace. */
   catalogMode: z.enum(["managed", "own"]).default("managed"),
+  /** Optional on purpose. safeParse failure here returns DEFAULT_ORG_SETTINGS
+   *  for the WHOLE object, so a required field would silently wipe every
+   *  existing workspace's voice profile and guardrails. Never make one required. */
+  sellerName: z.string().max(120).optional(),
+  sellerContext: z.string().max(2000).optional(),
   voiceProfile: z.string().optional(),
   voiceSampledAt: z.string().optional(),
   pickN: z.number().int().positive().max(80).optional(),

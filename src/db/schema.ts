@@ -30,6 +30,13 @@ export interface OrgSettings {
   /** "managed" — TTC-run seat, admin catalog sync may overwrite the services.
    *  "own"     — client defines their own offers; sync never touches them. */
   catalogMode?: "managed" | "own";
+  /** The firm whose seat this workspace is. Drives the "works at our own
+   *  company" exclusion and the {{own_company}} prompt variable. Blank = the
+   *  rule is off; nothing is excluded for employer. */
+  sellerName?: string;
+  /** Who the outreach is FROM, in one sentence — the message drafter is told
+   *  this and sells the workspace's own services in its terms. */
+  sellerContext?: string;
   /** Compact style profile distilled from the user's own LinkedIn posts;
    *  injected into every drafted message so outreach sounds like THEM. */
   voiceProfile?: string;

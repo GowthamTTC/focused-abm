@@ -16,6 +16,16 @@ async function main() {
     console.log("org created:", o.name);
   }
 
+  // Own-company exclusion used to be a constant in service-fit.ts; it is now a
+  // per-workspace setting. Backfill the founding org so its matching behaviour
+  // is identical after the change. Never overwrites a name already set.
+  const { getOrgSettings, updateOrgSettings } = await import("../src/modules/settings/org-settings");
+  const seeded = await getOrgSettings(o.id);
+  if (!seeded.sellerName) {
+    await updateOrgSettings(o.id, { sellerName: o.name });
+    console.log("seller name set:", o.name);
+  }
+
   if (env.ADMIN_EMAIL && env.ADMIN_PASSWORD) {
     const [u] = await db.select().from(appUser).where(eq(appUser.email, env.ADMIN_EMAIL.toLowerCase()));
     if (!u) {

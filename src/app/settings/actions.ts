@@ -85,6 +85,18 @@ export async function saveClassifyCap(formData: FormData) {
   redirect("/settings?saved=1");
 }
 
+/** Who this workspace sells as. sellerName drives the "works at our own
+ *  company" exclusion in matching; sellerContext is what the message drafter
+ *  is told it represents. Both blank-safe: an empty name turns the exclusion
+ *  off, an empty context falls back to the built-in default. */
+export async function saveSeller(formData: FormData) {
+  const user = await requireUser();
+  const sellerName = String(formData.get("sellerName") ?? "").trim().slice(0, 120);
+  const sellerContext = String(formData.get("sellerContext") ?? "").trim().slice(0, 2000);
+  await updateOrgSettings(user.orgId, { sellerName, sellerContext });
+  redirect("/settings?saved=seller");
+}
+
 /** Sample the seat owner's own posts and distill a voice profile the
  *  message drafter follows. One light seat touch. */
 export async function scanVoice(formData: FormData) {

@@ -15,7 +15,6 @@ import { detectSeniority } from "./normalize";
 import { getOrgSettings } from "@/modules/settings/org-settings";
 
 const BATCH = 25;
-const OWN_COMPANY = "toss the coin"; // TODO: move to org settings
 
 const KNOWN_BUCKETS = new Set(["pitchable", "off_icp", "peer_competitor", "excluded"]);
 const fitItem = z.object({
@@ -51,6 +50,11 @@ export async function classifyBatch(
     .map((s) => ({ slug: s.slug, name: s.name, icp: s.icpJson }));
   if (services.length === 0) throw new Error("No active services — seed or create services first.");
 
+  // Loaded BEFORE the rule pass, not after it: the own-company exclusion below
+  // needs sellerName, and the LLM cap is not read until pass 2.
+  const settings = await getOrgSettings(orgId);
+  const ownCompany = (settings.sellerName ?? "").toLowerCase().trim();
+
   // Default: touch ONLY unclassified rows, so repeated runs genuinely continue
   // from where the guardrail stopped (and never re-bill the same people).
   // reclassifyAll wipes that filter for a deliberate fresh pass after ICP/prompt edits.
@@ -70,8 +74,10 @@ export async function classifyBatch(
       ruleVerdicts.push({ id: c.id, bucket: "excluded", slug: null, conf: 100, why: "Blank row — no position and no company.", method: "rule" });
       done += 1; continue;
     }
-    if (company.includes(OWN_COMPANY)) {
-      ruleVerdicts.push({ id: c.id, bucket: "excluded", slug: null, conf: 100, why: "Works at our own company.", method: "rule" });
+    // Blank sellerName = rule off. Without the guard an empty string matches
+    // every company and excludes the entire batch.
+    if (ownCompany && company.includes(ownCompany)) {
+      ruleVerdicts.push({ id: c.id, bucket: "excluded", slug: null, conf: 100, why: `Works at ${settings.sellerName} — our own company.`, method: "rule" });
       done += 1; continue;
     }
     if (detectSeniority(title) === "junior") {
@@ -104,7 +110,7 @@ export async function classifyBatch(
 
   // Pass 2 — LLM in batches of 25, capped by the matching guardrail,
   // v10: 3 calls in flight at once; each call's 25 verdicts land in one bulk write.
-  const { classifyLlmPeopleCap } = await getOrgSettings(orgId);
+  const { classifyLlmPeopleCap } = settings;
   const digest = servicesDigest(services);
   const slices: (typeof rows)[] = [];
   let planned = 0;
@@ -131,7 +137,7 @@ export async function classifyBatch(
       stage: "classify",
       prompt: "service-fit",
       version: env.CLASSIFY_PROMPT_VERSION,
-      vars: { people_json: peopleJson, own_company: OWN_COMPANY },
+      vars: { people_json: peopleJson, own_company: settings.sellerName || "the firm itself" },
       cachedContext: digest,
       schema: fitArray,
       maxTokens: 6000,

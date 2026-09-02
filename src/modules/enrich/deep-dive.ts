@@ -14,7 +14,10 @@ import { complete } from "@/llm/client";
 import { getChannelProvider } from "@/providers/channel";
 import { servicesDigest } from "@/modules/matching/service-fit";
 
-const SENDER_CONTEXT =
+/** Fallback only. A workspace that sells something else sets its own in
+ *  Settings → Who you are; without that, every client's drafts would open by
+ *  introducing them as a B2B marketing firm. */
+export const DEFAULT_SELLER_CONTEXT =
   "toss the coin — a B2B marketing services firm (demand gen + ABM + content, CMO office, GTM office, Marketeroid for founders, branding/rebranding, sales enablement). Warm, specific, senior voice.";
 
 const deepDiveOut = z.object({
@@ -92,13 +95,15 @@ export async function deepEnrichOne(orgId: string, connectionId: string): Promis
       maxTokens: 1600,
     });
 
-    // 3 — outreach draft, in the seat owner's own voice when sampled.
-    const voice = (await getOrgSettings(c.orgId)).voiceProfile;
+    // 3 — outreach draft, from this workspace's own firm, in the seat owner's
+    // own voice when sampled. One settings read serves both.
+    const orgSettings = await getOrgSettings(c.orgId);
+    const voice = orgSettings.voiceProfile;
     const msg = await complete({
       stage: "deepdive",
       prompt: "outreach-message",
       vars: {
-        sender_context: SENDER_CONTEXT + (voice
+        sender_context: (orgSettings.sellerContext?.trim() || DEFAULT_SELLER_CONTEXT) + (voice
           ? `\n\nWRITE IN THE SENDER'S OWN VOICE — follow this style profile exactly (it overrides generic tone rules, but never the hard rules):\n${voice}`
           : ""),
         target_block: [
