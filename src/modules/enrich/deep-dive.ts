@@ -72,7 +72,9 @@ export async function deepEnrichOne(orgId: string, connectionId: string): Promis
     const activityUrl = c.linkedinUrl
       ? `${c.linkedinUrl.replace(/\/+$/, "")}/recent-activity/all/` : null;
 
-    // 2 — deep-dive analysis.
+    // 2 — deep-dive analysis. Settings are read once here and serve both the
+    // digest's catch-all marker below and the sender context in step 3.
+    const orgSettings = await getOrgSettings(c.orgId);
     const services = (await db.select().from(service)
       .where(and(eq(service.orgId, orgId), eq(service.status, "active"))))
       .map((s) => ({ slug: s.slug, name: s.name, icp: s.icpJson }));
@@ -90,14 +92,13 @@ export async function deepEnrichOne(orgId: string, connectionId: string): Promis
         about: about || "(not available)",
         posts_block: postsBlock,
       },
-      cachedContext: servicesDigest(services),
+      cachedContext: servicesDigest(services, orgSettings.catchAllSlug),
       schema: deepDiveOut,
       maxTokens: 1600,
     });
 
     // 3 — outreach draft, from this workspace's own firm, in the seat owner's
-    // own voice when sampled. One settings read serves both.
-    const orgSettings = await getOrgSettings(c.orgId);
+    // own voice when sampled.
     const voice = orgSettings.voiceProfile;
     const msg = await complete({
       stage: "deepdive",

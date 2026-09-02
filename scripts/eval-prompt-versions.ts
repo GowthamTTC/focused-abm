@@ -123,7 +123,13 @@ async function loadDigest(): Promise<{ digest: string; slugs: Set<string> }> {
   await pg.end();
   const services = r.rows.map((x) => ({ slug: x.slug, name: x.name, icp: x.icp_json as IcpJson }));
   if (!services.length) throw new Error("No services found for the reference catalog.");
-  return { digest: servicesDigest(services), slugs: new Set(services.map((s) => s.slug)) };
+  // v4 reads the catch-all from the digest instead of naming it in the prompt.
+  // The Batch-1 ground truth used "GTM Office" as the catch-all (2,528 of 4,502).
+  const catchAll = process.env.CATCH_ALL ?? "gtm-office";
+  return {
+    digest: servicesDigest(services, catchAll),
+    slugs: new Set(services.map((s) => s.slug)),
+  };
 }
 
 const fitArray = z.array(z.object({
@@ -178,6 +184,7 @@ const BUCKETS = ["pitchable", "off_icp", "peer_competitor", "excluded", "other"]
 function score(people: Person[], verdicts: Map<string, Verdict>, slugs: Set<string>) {
   const matrix = new Map<string, Map<string, number>>();
   let correct = 0, judged = 0, unknownSlug = 0, svcJudged = 0, svcAgree = 0;
+  const svcDist = new Map<string, number>();
 
   for (const p of people) {
     const v = verdicts.get(p.key);
@@ -189,13 +196,17 @@ function score(people: Person[], verdicts: Map<string, Verdict>, slugs: Set<stri
     row.set(pred, (row.get(pred) ?? 0) + 1);
     if (pred === p.bucket) correct += 1;
 
+    if (pred === "pitchable") {
+      const k = v.slug ?? "(null)";
+      svcDist.set(k, (svcDist.get(k) ?? 0) + 1);
+    }
     if (pred === "pitchable" && v.slug && !slugs.has(v.slug)) unknownSlug += 1;
     if (p.bucket === "pitchable" && p.service && pred === "pitchable" && v.slug) {
       svcJudged += 1;
       if (v.slug === p.service) svcAgree += 1;
     }
   }
-  return { matrix, correct, judged, unknownSlug, svcJudged, svcAgree };
+  return { matrix, correct, judged, unknownSlug, svcJudged, svcAgree, svcDist };
 }
 
 function pct(n: number, d: number) { return d ? `${((n / d) * 100).toFixed(1)}%` : "n/a"; }
@@ -251,6 +262,10 @@ async function main() {
     }
     console.log(`  service agreement  ${pct(r.svcAgree, r.svcJudged)} (${r.svcAgree}/${r.svcJudged} where both named a service)`);
     console.log(`  slugs outside the catalog: ${r.unknownSlug}`);
+    const dist = [...r.svcDist].sort((a, b) => b[1] - a[1]);
+    const distTotal = dist.reduce((a, d) => a + d[1], 0);
+    console.log(`  where it routes pitchable people:`);
+    for (const [k, n] of dist) console.log(`     ${String(n).padStart(4)}  ${pct(n, distTotal).padStart(6)}  ${k}`);
   }
   console.log("\n" + "=".repeat(72));
 }

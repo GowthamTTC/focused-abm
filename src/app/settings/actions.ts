@@ -102,6 +102,25 @@ export async function saveSeller(formData: FormData) {
   redirect(`/settings?saved=seller&excluded=${excluded}&released=${released}`);
 }
 
+/** The slug the classifier falls back to when nothing else fits. Validated
+ *  against the live catalog so a renamed or deleted service cannot leave a
+ *  dangling marker in the digest. */
+export async function saveCatchAll(formData: FormData) {
+  const user = await requireUser();
+  const raw = String(formData.get("catchAllSlug") ?? "").trim();
+  const { db, service } = await import("@/db");
+  const { and, eq } = await import("drizzle-orm");
+  let catchAllSlug = "";
+  if (raw) {
+    const [hit] = await db.select({ slug: service.slug }).from(service)
+      .where(and(eq(service.orgId, user.orgId), eq(service.slug, raw)));
+    if (!hit) redirect("/settings?err=catchall");
+    catchAllSlug = hit.slug;
+  }
+  await updateOrgSettings(user.orgId, { catchAllSlug });
+  redirect("/settings?saved=catchall");
+}
+
 /** One signal per line, commas tolerated. Lowercased because both matchers
  *  compare against normalised text. An EMPTY list is meaningful — it turns the
  *  rule off — so it is stored as [], never left undefined (which means

@@ -43,6 +43,10 @@ export interface OrgSettings {
    *  undefined = use the built-in defaults; [] = rule off. */
   peerSignals?: string[];
   offIcpSignals?: string[];
+  /** Slug the classifier falls back to when nothing else fits. Marked
+   *  (CATCH-ALL) in the services digest. Unset = no fallback; a pitchable
+   *  person with no good match gets a null service, which is honest. */
+  catchAllSlug?: string;
   /** Compact style profile distilled from the user's own LinkedIn posts;
    *  injected into every drafted message so outreach sounds like THEM. */
   voiceProfile?: string;

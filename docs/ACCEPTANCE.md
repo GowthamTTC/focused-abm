@@ -4,9 +4,10 @@ Run 2026-09-02 against `TTC-LinkedIn-ABM-Batch1-completed.xlsx`.
 Reproduce with:
 
 ```bash
-npx tsx scripts/eval-prompt-versions.ts v2 v3   # LLM calls (~$0.50 on Haiku)
-npx tsx scripts/eval-rule-coverage.ts           # free
-npx tsx scripts/eval-signal-precision.ts        # free
+npx tsx scripts/eval-prompt-versions.ts v2 v3 v4  # LLM calls (~$0.25 per version)
+npx tsx scripts/eval-foreign-catalog.ts v3 v4     # routing on a client's own catalog
+npx tsx scripts/eval-rule-coverage.ts             # free
+npx tsx scripts/eval-signal-precision.ts          # free
 ```
 
 ## The dataset
@@ -128,16 +129,75 @@ Never fire: `motivational`, `astrolog`, `numerolog`, `tarot`, `spiritual`.
 Well tuned. Dropping `facilitator`, `personal brand` and `yoga` recovers 11
 prospects and loses zero detections.
 
+## v4 — built, measured, shipped
+
+v4 is v3 with three surgical edits: peer detection defined relative to the
+digest instead of naming marketing agencies, the fallback service taken from a
+`(CATCH-ALL)` mark in the digest instead of the literal `gtm-office`, and a
+rule that bucket and service are decided independently.
+
+An earlier v4 draft rewrote far more of the prompt and measured **worse on
+every class** — v3's terse, concrete wording turned out to be doing real work.
+Then, before the independence rule was added, v4 was still losing 16 pitchable
+people to off-ICP: without a named default service the model treated "no
+service fits" as evidence the person did not belong in the pool. One sentence
+fixed it. Both regressions were caught by measurement, not review.
+
+### Bucket accuracy holds
+
+| | v3 | v4 |
+|---|---|---|
+| pitchable (300) | 80.0% | 79.3% |
+| off_icp (85) | 55.3% | 58.8% |
+| peer_competitor (114) | 84.2% | 85.1% |
+| **Population-weighted** | **79.7%** | **79.1%** |
+
+Inside run-to-run noise — v3 alone measured 79.4 / 79.7 / 79.7 across three
+runs, with off-ICP swinging 55.3–60.0%. v4 is better on two classes of three.
+
+### Routing on a foreign catalog — the test this workbook cannot run
+
+Adam's workspace sells executive coaching and leadership development: six
+slugs, none of which any prompt was written around. Of the people each version
+called pitchable, how many got a service that actually exists in his catalog?
+
+| | v3 | v4 |
+|---|---|---|
+| Service from his catalog | 46.8% | **100%** |
+| Invented a slug | **53.2%** | **0%** |
+
+v3's inventions were `gtm-office` (41), `marketeroid` (13), `sales-enablement`
+(10) — TTC's vocabulary, offered to a leadership-development firm. v4 spread
+its picks across all six of his services, with 48% landing on the catch-all.
+
+### A caveat on service agreement
+
+v4 scores 40.8% service agreement against this workbook versus v3's 77.5%, and
+that number should not be read as a regression. The workbook's service labels
+were produced by exactly the hardcoded routing v3 still carries, so v3 agrees
+with them by construction. v4 reads the live ICP descriptions instead — and
+those have been rewritten since: the slug `cmo-office` is now named "GMO
+Office", `gtm-office` is "GTM for Manufacturing". v4 routes to the catalog that
+exists today; v3 routes to the one that generated these labels in 2026-08.
+
 ## Verdicts
 
-**Base v4 on v3.** It is 14 points better population-weighted, its service
-agreement is equal, and its one weakness is the class the free rule pass
-already handles 60% of. v2's habit of filing a quarter of genuine prospects as
-off-target is the more expensive error and the harder one to see, because the
-people it loses never appear anywhere for anyone to review.
+**v3 beat v2 by 14 points** population-weighted, at equal service agreement.
+v2's habit of filing a quarter of genuine prospects as off-target is the more
+expensive error and the harder one to see, because the people it loses never
+appear anywhere for anyone to review. v3's mirror error — leaking off-ICP into
+the pool — is cheaper, visible, and 60% pre-empted by the free rule pass.
 
-**Neither reaches the 85% bucket bar**, so v4 should not be a rename of v3. The
-gap is worth closing while the file is open.
+**v4 ships, based on v3.** It holds v3's bucket accuracy (79.1% vs 79.7%,
+inside noise, better on two classes of three) and takes routing on a foreign
+catalog from 46.8% valid to 100%. That is the whole point of the change: TTC's
+own numbers stay put, and every other workspace stops being handed TTC's
+vocabulary.
+
+**Nothing here reaches the 85% bucket bar** — v4 included, at 79.1%. The
+remaining gap is dominated by one error: roughly one pitchable person in five
+is sent to off-ICP or peers. That is the next thing worth attacking, and it is
+a prompt problem, not a catalog problem.
 
 **Tighten the competitor list.** Per the table above — this is now a Settings
 change, no code needed.
@@ -145,7 +205,8 @@ change, no code needed.
 ## Caveats
 
 - Sampling error on 300 pitchable is roughly ±2.5 points at 95% confidence;
-  the v2/v3 gap is far larger than that, the absolute values less certain.
+  the v2/v3 gap is far larger than that; the v3/v4 gap is INSIDE it, which is
+  why the foreign-catalog test rather than this one decides between them.
 - The pipeline estimate applies model accuracy measured on a full sample to the
   post-rules remainder. It is an estimate, not a measurement.
 - "Provisional Service" in the workbook was itself metadata-matched, so service

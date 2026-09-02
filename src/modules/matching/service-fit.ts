@@ -27,10 +27,17 @@ const fitItem = z.object({
 });
 const fitArray = z.array(fitItem);
 
-export function servicesDigest(services: { slug: string; name: string; icp: IcpJson }[]): string {
+/** The catch-all is marked inline rather than named in the prompt: the prompt
+ *  must not know any workspace's slugs. An unknown or unset slug simply marks
+ *  nothing, and the classifier returns null when nothing fits. */
+export function servicesDigest(
+  services: { slug: string; name: string; icp: IcpJson }[],
+  catchAllSlug?: string,
+): string {
+  const catchAll = services.some((s) => s.slug === catchAllSlug) ? catchAllSlug : undefined;
   return "SERVICES (choose service_slug from these):\n" + services.map((s) =>
     [
-      `— slug: ${s.slug} · ${s.name}`,
+      `— slug: ${s.slug} · ${s.name}${s.slug === catchAll ? "  (CATCH-ALL — use when nothing else fits)" : ""}`,
       `  what: ${s.icp.summary}`,
       `  fit signals: ${s.icp.fit_signals.join("; ")}`,
       `  typical pains: ${s.icp.pain_points.slice(0, 4).join("; ")}`,
@@ -114,7 +121,7 @@ export async function classifyBatch(
   // Pass 2 — LLM in batches of 25, capped by the matching guardrail,
   // v10: 3 calls in flight at once; each call's 25 verdicts land in one bulk write.
   const { classifyLlmPeopleCap } = settings;
-  const digest = servicesDigest(services);
+  const digest = servicesDigest(services, settings.catchAllSlug);
   const slices: (typeof rows)[] = [];
   let planned = 0;
   for (let i = 0; i < needLlm.length; i += BATCH) {
