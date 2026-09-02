@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db, channelAccount, service } from "@/db";
 import { unipileConfigured } from "@/lib/env";
 import { Shell, requirePage } from "@/app/shell";
-import { claimLinkedInSeats, disconnect, linkUnipileAccountId, refreshStatus, saveClassifyCap, saveEnrichLimit, saveCatchAll, saveRanking, saveSeller, saveSignals, scanVoice, startConnect } from "./actions";
+import { claimLinkedInSeats, disconnect, linkUnipileAccountId, refreshStatus, saveClassifyCap, saveEnrichLimit, saveCatchAll, savePostScanCap, saveRanking, saveSeller, saveSignals, scanVoice, startConnect } from "./actions";
 import { DEFAULT_OFF_ICP_TITLE_SIGNALS, DEFAULT_PEER_COMPANY_SIGNALS } from "@/modules/matching/rule-pass";
 import { DEFAULT_FUNCTION_TERMS } from "@/modules/scoring/rank";
 import { CLASSIFY_CAP_OPTIONS, ENRICH_LIMIT_OPTIONS, getOrgSettings } from "@/modules/settings/org-settings";
@@ -84,6 +84,23 @@ export default async function SettingsPage({ searchParams }: {
         <p className="mt-3 text-xs text-[#98A2B3]">
           Echoed in the batch toolbar as a "run limit {settings.enrichLimit === "all" ? "off" : settings.enrichLimit}" tag beside Select top N — links here.
         </p>
+
+        <div className="mt-5 border-t border-[#EEF1F8] pt-4">
+          <p className="text-sm font-medium text-[#101828]">Daily post-scan cap</p>
+          <p className="mt-1 max-w-2xl text-sm text-[#98A2B3]">
+            How many people one day of post scanning may read. Lower it for a new or fragile
+            LinkedIn seat. Scanning reads posts you would see by visiting the profile — it never
+            posts, likes or connects.
+          </p>
+          <form action={savePostScanCap} className="mt-3 flex flex-wrap items-center gap-3">
+            <input type="number" name="postScanDailyCap" min={1} max={2000}
+              defaultValue={settings.postScanDailyCap ?? env.ACTIVITY_SCAN_DAILY_CAP}
+              className="tnum w-24 rounded-[10px] border border-[#DDE2EE] bg-white px-3 py-2 text-sm" />
+            <span className="text-sm text-[#98A2B3]">people / day</span>
+            <button className="rounded-[8px] bg-[#263BAA] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1D2E86]">Save</button>
+            {saved === "scan" && <span className="text-sm text-[#067647]">Saved.</span>}
+          </form>
+        </div>
       </section>
 
       <section className="mt-6 bg-white border border-[#DDE2EE] rounded-[14px] shadow-[0_1px_2px_rgba(16,24,40,.04)] p-5">

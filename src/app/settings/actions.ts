@@ -77,6 +77,17 @@ export async function saveEnrichLimit(formData: FormData) {
   redirect("/settings?saved=1");
 }
 
+/** How many people one day of post scanning may touch. Lower for a fresh or
+ *  fragile LinkedIn seat; the env value is the default. */
+export async function savePostScanCap(formData: FormData) {
+  const user = await requireUser();
+  const raw = Number(formData.get("postScanDailyCap") ?? 0);
+  const postScanDailyCap = Number.isFinite(raw) && raw > 0
+    ? Math.min(2000, Math.round(raw)) : undefined;
+  await updateOrgSettings(user.orgId, { postScanDailyCap });
+  redirect("/settings?saved=scan");
+}
+
 export async function saveClassifyCap(formData: FormData) {
   const user = await requireUser();
   const raw = String(formData.get("cap") ?? "1000");

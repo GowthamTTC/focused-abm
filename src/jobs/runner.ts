@@ -12,10 +12,11 @@ import { rankBatch } from "@/modules/scoring/rank";
 import { deepEnrichOne } from "@/modules/enrich/deep-dive";
 import { z } from "zod";
 import { complete } from "@/llm/client";
-import { updateOrgSettings } from "@/modules/settings/org-settings";
+import { getOrgSettings, updateOrgSettings } from "@/modules/settings/org-settings";
 import { idleSweep, releaseIds } from "@/jobs/reap";
 import { runEventScan } from "@/modules/radar/scan";
 import { runEventExtended } from "@/modules/radar/extended";
+import { storePosts } from "@/modules/posts/store";
 
 export async function enqueue(orgId: string, kind: string, payload: Record<string, unknown>) {
   const [row] = await db.insert(job).values({ orgId, kind, payloadJson: payload }).returning();
@@ -197,11 +198,14 @@ export async function processNext(): Promise<boolean> {
         .where(and(eq(channelAccount.orgId, next.orgId), eq(channelAccount.status, "operational")));
       if (!seat) throw new Error("Connect a LinkedIn account in Settings first.");
       const provider = getChannelProvider();
+      // A workspace can lower this without a deploy; the env value is the default.
+      const scanSettings = await getOrgSettings(next.orgId);
+      const scanCap = scanSettings.postScanDailyCap ?? env.ACTIVITY_SCAN_DAILY_CAP;
       let done = 0;
       for (const cid of ids) {
         if (await stopRequested(next.id)) { await markStopped(next.id, done, ids.length); return true; }
-        if ((await scannedToday(next.orgId)) >= env.ACTIVITY_SCAN_DAILY_CAP) {
-          throw new Error(`Daily post-scan cap (${env.ACTIVITY_SCAN_DAILY_CAP}) reached — remaining rows stay queued.`);
+        if ((await scannedToday(next.orgId)) >= scanCap) {
+          throw new Error(`Daily post-scan cap (${scanCap}) reached — remaining rows stay queued.`);
         }
         try {
           const [c] = await db.select().from(connection).where(eq(connection.id, cid));
@@ -218,11 +222,11 @@ export async function processNext(): Promise<boolean> {
             }
             let lastPostAt: Date | null = null;
             if (postsId) {
-              const posts = await provider.fetchRecentPosts({ accountId: seat.unipileAccountId, identifier: postsId, limit: 3 });
-              for (const post of posts) {
-                const d = post.postedAt ? new Date(post.postedAt) : null;
-                if (d && !Number.isNaN(d.getTime()) && (!lastPostAt || d > lastPostAt)) lastPostAt = d;
-              }
+              // 5 rather than 3: same single request, and the dashboard wants a
+              // choice of hooks rather than only the most recent thing said.
+              const fetched = await provider.fetchRecentPosts({ accountId: seat.unipileAccountId, identifier: postsId, limit: 5 });
+              const { newest } = await storePosts(next.orgId, cid, fetched);
+              lastPostAt = newest;
             }
             await db.update(connection)
               .set({ lastPostAt: lastPostAt ?? c.lastPostAt, lastScanAt: new Date() })

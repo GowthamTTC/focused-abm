@@ -11,6 +11,7 @@ import { toCountry } from "@/modules/connections/country";
 import { metroBySlug, stampMetro } from "@/modules/geo/metros";
 import { mentionForEvent, mentionForSlug } from "@/modules/radar/mentions";
 import { countryBySlug } from "@/modules/geo/countries";
+import { storePosts } from "@/modules/posts/store";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -205,11 +206,10 @@ export async function runEventScan(
     const useId = postsId ?? ident;
     const posts = await withBackoff(() =>
       provider.fetchRecentPosts({ accountId: seat.unipileAccountId, identifier: useId, limit: 5 }));
-    let lastPostAt: Date | null = null;
-    for (const post of posts) {
-      const d = post.postedAt ? new Date(post.postedAt) : null;
-      if (d && !Number.isNaN(d.getTime()) && (!lastPostAt || d > lastPostAt)) lastPostAt = d;
-    }
+    // Free capture: these posts are already fetched and were previously reduced
+    // to a single date. Storing them adds no requests and no rate-limit risk.
+    const { newest } = await storePosts(orgId, c.id, posts);
+    const lastPostAt: Date | null = newest;
     const mention = country && eventName
       ? mentionForEvent(posts, eventName, country.slug)
       : metro

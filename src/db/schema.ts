@@ -43,6 +43,9 @@ export interface OrgSettings {
    *  undefined = use the built-in defaults; [] = rule off. */
   peerSignals?: string[];
   offIcpSignals?: string[];
+  /** Max people ONE day of post scanning may touch in this workspace. Lower it
+   *  for a fresh or fragile LinkedIn seat without redeploying. */
+  postScanDailyCap?: number;
   /** Words in a job title that mark someone as a BUYER for this workspace.
    *  Ranking awards its function-fit points on these, so a marketing firm and a
    *  leadership-development firm must not share them. */
