@@ -7,6 +7,31 @@ Top-N deep enrichment → the five-tab TTC workbook.
 - **UI design:** `docs/CLAUDE-DESIGN-PROMPT.md` — paste into Claude Design.
 - **Event radar:** `/radar` — metro + last-7-days activity. Home city from profile/headline, travel from posts. Not live GPS. After migrate, `npm run db:migrate`.
 
+## Local database
+
+Tests and scripts write rows, so they run against a **local** Postgres — never
+Railway. One-time setup:
+
+```bash
+brew install postgresql@16 && brew services start postgresql@16
+export PATH="/opt/homebrew/opt/postgresql@16/bin:$PATH"   # add to your shell rc
+createuser -s postgres && createdb -U postgres focused_abm
+psql -U postgres -d postgres -c "ALTER USER postgres WITH PASSWORD 'dev';"
+npm run db:migrate && npm run seed
+```
+
+`.env` keeps `DATABASE_URL` on localhost. The Railway string lives under
+`DATABASE_URL_PRODUCTION` so it is not lost — **do not move it back**: scripts
+read `DATABASE_URL`, so pointing it at production means every test writes to
+live customer data.
+
+Any script that writes rows must import the guard first, which refuses to run
+against a non-local host:
+
+```ts
+import "./scripts/require-local-db";
+```
+
 ## Quickstart
 
 ```bash
