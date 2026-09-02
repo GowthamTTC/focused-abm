@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { currentUser } from "@/auth/session";
+import { novaHidden } from "@/lib/nova-access";
 import { runAgent } from "@/modules/agent/run";
 import { absorb, loadLearn, saveLearn } from "@/modules/agent/learn";
 import { appendTurn } from "@/modules/agent/threads";
@@ -11,6 +12,7 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   const user = await currentUser();
   if (!user) return NextResponse.json({ error: "auth" }, { status: 401 });
+  if (novaHidden(user)) return NextResponse.json({ error: "nova_off" }, { status: 403 });
 
   const ip = clientIp(req);
   const rl = rateLimit(`agent:${user.userId}:${ip}`, 30, 60_000);
