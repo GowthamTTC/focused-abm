@@ -19,17 +19,17 @@
  * lunch is not a suite.
  */
 import "./require-local-db";
-import { and, eq, gte, inArray, isNull, notInArray, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
 import { db, connection, channelAccount, job, org, post, service } from "../src/db";
 import { buildFixture } from "./verify-hook-feed";
 import {
   bandFor, deepLinkFor, feedStatus, frontierWithHookCount, hookFeed, hooksElsewhere,
-  hooksForPeople,
+  hooksForPeople, rereadTargets,
   liveJob, pickHookFrontier, pickScanTargets, pipelineCounts, pipelineWithHooks,
   planRead, planScan, rowState, scanCoverage, waitingToRead, type RowState,
 } from "../src/modules/posts/feed";
 import { getDailyScanUsage } from "../src/modules/posts/usage";
-import { judgeStats } from "../src/modules/posts/judge";
+import { clearVerdicts, judgeStats } from "../src/modules/posts/judge";
 import { getChannelProvider } from "../src/providers/channel";
 import { processNext, enqueue } from "../src/jobs/runner";
 import { updateOrgSettings } from "../src/modules/settings/org-settings";
@@ -672,8 +672,13 @@ async function main() {
   const readPlan = await planRead(orgA);
   check("the read plan promises exactly the posts one press can read",
     readPlan.ok === true && readPlan.posts === 2, JSON.stringify(readPlan));
+  // Only what judgePosts would have read: marking a peer's post judged is a
+  // state the product cannot reach, and later checks would inherit it.
+  const readable = await db.select({ id: post.id }).from(post)
+    .innerJoin(connection, eq(connection.id, post.connectionId))
+    .where(and(eq(post.orgId, orgA), isNull(post.judgedAt), eq(connection.bucket, "pitchable")));
   await db.update(post).set({ judgedAt: new Date(), relevance: 0, category: "personal" })
-    .where(and(eq(post.orgId, orgA), isNull(post.judgedAt)));
+    .where(inArray(post.id, readable.map((r) => r.id)));
   const nothingToRead = await planRead(orgA);
   check("nothing left to read refuses the press instead of queuing a no-op",
     nothingToRead.ok === false && nothingToRead.reason === "none", JSON.stringify(nothingToRead));
@@ -684,6 +689,50 @@ async function main() {
   check("not one of those refusals inserted a job",
     jobsAfter[0]!.n === jobsBefore[0]!.n,
     `before=${jobsBefore[0]!.n} after=${jobsAfter[0]!.n}`);
+
+  // ── Re-reading after an ICP rewrite. Destructive by design, so it sits with
+  //    the other end-of-run scenario. ──
+  const rereadIds = await rereadTargets(orgA);
+  const [judgedPitchable] = await db.select({ n: sql<number>`count(*)::int` }).from(post)
+    .innerJoin(connection, eq(connection.id, post.connectionId))
+    .where(and(eq(post.orgId, orgA), eq(connection.bucket, "pitchable"), isNotNull(post.judgedAt)));
+  // No hardcoded total: an earlier check reads the last unjudged posts, so the
+  // figure depends on where in the run this sits. What must hold is the joint
+  // predicate — judged AND matched — and membership is what proves it.
+  const [ashaWinnerId] = await db.select({ id: post.id }).from(post)
+    .where(eq(post.providerId, "fixture:asha_fresh"));
+  const nonPitchableJudged = await db.select({ id: post.id, providerId: post.providerId }).from(post)
+    .innerJoin(connection, eq(connection.id, post.connectionId))
+    .where(and(eq(post.orgId, orgA), isNotNull(post.judgedAt),
+      sql`${connection.bucket} <> 'pitchable'`));
+  check("a re-read targets the judged posts of matched people",
+    rereadIds.length === judgedPitchable!.n && rereadIds.includes(ashaWinnerId!.id),
+    `targets=${rereadIds.length} judged-pitchable=${judgedPitchable!.n} has-asha=${rereadIds.includes(ashaWinnerId!.id)}`);
+  // The trap this scoping exists to avoid: a cleared verdict on someone the
+  // judge will never select sits unjudged forever and inflates the Read button
+  // into a promise no press can keep.
+  check("and never a verdict nothing would re-read",
+    nonPitchableJudged.length > 0
+    && nonPitchableJudged.every((p) => !rereadIds.includes(p.id)),
+    `${nonPitchableJudged.length} judged non-matched: ${nonPitchableJudged.map((p) => p.providerId).join(",")}`);
+
+  const readBefore = await waitingToRead(orgA);
+  await clearVerdicts(orgA, rereadIds);
+  const readAfter = await waitingToRead(orgA);
+  const feedAfter = await hookFeed(orgA, { batchId: batchA, limit: 12 });
+  check("clearing re-queues exactly those posts and empties the feed until the run",
+    readAfter.posts === readBefore.posts + rereadIds.length && feedAfter.rows.length === 0,
+    `before=${readBefore.posts} after=${readAfter.posts} rows=${feedAfter.rows.length}`);
+  const stillJudged = await db.select({ judgedAt: post.judgedAt }).from(post)
+    .where(inArray(post.id, nonPitchableJudged.map((p) => p.id)));
+  check("and their verdicts survive the clear, so nothing is stranded",
+    stillJudged.length === nonPitchableJudged.length && stillJudged.every((r) => r.judgedAt !== null),
+    `${stillJudged.filter((r) => r.judgedAt === null).length} were stranded`);
+  const rereadPlan = await planRead(orgA);
+  check("every cleared post is work a press can actually do",
+    rereadPlan.ok === true && rereadPlan.posts === readAfter.posts,
+    JSON.stringify(rereadPlan));
+  await buildFixture();
 
   // ── The one destructive scenario, deliberately last: a workspace that has
   //    scanned nobody must read as UNOBSERVED, never as quiet. It empties the

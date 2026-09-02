@@ -658,3 +658,22 @@ export async function orgReasonSummary(orgId: string) {
     pitchable: scan?.pitchable ?? 0,
   };
 }
+
+/** The posts a re-read would actually re-read.
+ *
+ *  Scoped to pitchable people on purpose. clearVerdicts() can blank the whole
+ *  workspace, but judgePosts only ever selects pitchable rows — so clearing a
+ *  peer's old verdict would strand it as permanently unjudged, and the "Read N
+ *  unread posts" button would then promise work no press can do. This is the
+ *  set where clearing and re-reading are the same population.
+ */
+export async function rereadTargets(orgId: string) {
+  const rows = await db.select({ id: post.id }).from(post)
+    .innerJoin(connection, eq(connection.id, post.connectionId))
+    .where(and(
+      eq(post.orgId, orgId),
+      eq(connection.bucket, "pitchable"),
+      isNotNull(post.judgedAt),
+    ));
+  return rows.map((r) => r.id);
+}
