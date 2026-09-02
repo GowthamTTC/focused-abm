@@ -11,6 +11,7 @@ import { env } from "@/lib/env";
 import type { IcpJson } from "@/db/schema";
 import { complete } from "@/llm/client";
 import { companyPeerSignal, offIcpTitleSignal, rulePass } from "./rule-pass";
+import { ownCompanyWhy } from "./own-company";
 import { detectSeniority } from "./normalize";
 import { getOrgSettings } from "@/modules/settings/org-settings";
 
@@ -77,7 +78,7 @@ export async function classifyBatch(
     // Blank sellerName = rule off. Without the guard an empty string matches
     // every company and excludes the entire batch.
     if (ownCompany && company.includes(ownCompany)) {
-      ruleVerdicts.push({ id: c.id, bucket: "excluded", slug: null, conf: 100, why: `Works at ${settings.sellerName} — our own company.`, method: "rule" });
+      ruleVerdicts.push({ id: c.id, bucket: "excluded", slug: null, conf: 100, why: ownCompanyWhy(settings.sellerName!), method: "rule" });
       done += 1; continue;
     }
     if (detectSeniority(title) === "junior") {

@@ -94,7 +94,12 @@ export async function saveSeller(formData: FormData) {
   const sellerName = String(formData.get("sellerName") ?? "").trim().slice(0, 120);
   const sellerContext = String(formData.get("sellerContext") ?? "").trim().slice(0, 2000);
   await updateOrgSettings(user.orgId, { sellerName, sellerContext });
-  redirect("/settings?saved=seller");
+  // Apply the exclusion NOW rather than waiting for the next matching run.
+  // It is a deterministic string test, so there is nothing to pay for and no
+  // reason to make the user reclassify a whole workspace to enact it.
+  const { applyOwnCompanyRule } = await import("@/modules/matching/own-company");
+  const { excluded, released } = await applyOwnCompanyRule(user.orgId, sellerName);
+  redirect(`/settings?saved=seller&excluded=${excluded}&released=${released}`);
 }
 
 /** Sample the seat owner's own posts and distill a voice profile the

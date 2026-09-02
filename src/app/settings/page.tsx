@@ -25,11 +25,16 @@ function Segmented({ name, options, current, allLabel }: {
 }
 
 export default async function SettingsPage({ searchParams }: {
-  searchParams: Promise<{ saved?: string; connected?: string; connect_failed?: string; link_err?: string }>;
+  searchParams: Promise<{
+    saved?: string; connected?: string; connect_failed?: string; link_err?: string;
+    excluded?: string; released?: string;
+  }>;
 }) {
   const user = await requirePage();
   const sp = await searchParams;
   const { saved, connected, connect_failed, link_err } = sp;
+  const nExcluded = Number(sp.excluded ?? 0) || 0;
+  const nReleased = Number(sp.released ?? 0) || 0;
 
   // After hosted auth redirect, claim seats even if webhook was missed.
   if (connected === "1") {
@@ -193,7 +198,16 @@ export default async function SettingsPage({ searchParams }: {
             <button className="rounded-[10px] bg-[#263BAA] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#1D2E86]">
               Save
             </button>
-            {saved === "seller" && <span className="text-sm text-[#98A2B3]">Saved.</span>}
+            {saved === "seller" && (
+              <span className="text-sm text-[#067647]">
+                {nExcluded === 0 && nReleased === 0
+                  ? "Saved. Nobody matched that company name."
+                  : [
+                      nExcluded > 0 && `${nExcluded} ${nExcluded === 1 ? "person" : "people"} excluded`,
+                      nReleased > 0 && `${nReleased} released for re-matching`,
+                    ].filter(Boolean).join(" · ")}
+              </span>
+            )}
             {!settings.sellerName && (
               <span className="text-xs text-[#B54708]">
                 Not set — your own colleagues will show up as targets.
@@ -202,8 +216,10 @@ export default async function SettingsPage({ searchParams }: {
           </div>
         </form>
         <p className="mt-3 text-xs text-[#98A2B3]">
-          Changing the company name only affects the next matching run. To re-judge people already
-          classified, use Reclassify all on the batch.
+          Saving applies straight away — matching people are excluded on the spot, no reclassify
+          needed. Change the name and the previous firm&apos;s staff are released back for
+          re-matching. Matching is by substring, so keep the name specific: &ldquo;Ace&rdquo; would
+          also catch &ldquo;Aceso Pharma&rdquo;.
         </p>
       </section>
 
