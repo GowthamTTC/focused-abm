@@ -17,6 +17,7 @@ import { idleSweep, releaseIds } from "@/jobs/reap";
 import { runEventScan } from "@/modules/radar/scan";
 import { runEventExtended } from "@/modules/radar/extended";
 import { storePosts } from "@/modules/posts/store";
+import { judgePosts } from "@/modules/posts/judge";
 
 export async function enqueue(orgId: string, kind: string, payload: Record<string, unknown>) {
   const [row] = await db.insert(job).values({ orgId, kind, payloadJson: payload }).returning();
@@ -237,6 +238,35 @@ export async function processNext(): Promise<boolean> {
         await setProgress(next.id, done, ids.length);
         const gap = env.ACTIVITY_SCAN_MIN_GAP_SECONDS * 1000;
         await sleep(gap + Math.random() * gap);
+      }
+      // Scanning without judging leaves posts invisible to the dashboard, so
+      // the scan queues its own follow-up rather than relying on the user
+      // knowing there are two steps.
+      const { unjudgedCount } = await import("@/modules/posts/store");
+      if ((await unjudgedCount(next.orgId)) > 0) {
+        await enqueue(next.orgId, "post_judge", {});
+      }
+    } else if (next.kind === "post_judge") {
+      const stoppedEarly = { v: false };
+      const r = await judgePosts(
+        next.orgId,
+        { limit: Number(next.payloadJson.limit ?? 0) || undefined },
+        (done, total) => setProgress(next.id, done, total),
+        async () => {
+          const stop = await stopRequested(next.id);
+          if (stop) stoppedEarly.v = true;
+          return stop;
+        },
+      );
+      await db.update(job).set({ payloadJson: { ...next.payloadJson, result: r }, updatedAt: new Date() })
+        .where(eq(job.id, next.id));
+      if (stoppedEarly.v) {
+        const [row] = await db.select({ p: job.progress, t: job.total }).from(job).where(eq(job.id, next.id));
+        await markStopped(next.id, row?.p ?? 0, row?.t ?? 0);
+        return true;
+      }
+      if (r.failed > 0 && r.judged === 0) {
+        throw new Error(`All ${r.failed} model calls failed — posts stay unjudged, press again to retry.`);
       }
     } else if (next.kind === "event_extended") {
       const payload = next.payloadJson as { country?: string; metro?: string; eventName?: string; days?: number; degree?: "first" | "extended" };

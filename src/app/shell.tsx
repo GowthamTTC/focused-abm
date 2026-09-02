@@ -42,6 +42,7 @@ const KIND_LABEL: Record<string, string> = {
   classify: "Matching", deep_enrich: "Researching", sync: "Syncing",
   import: "Importing", activity_scan: "Scanning posts", voice_scan: "Sampling voice",
   event_scan: "Event scan",
+  post_judge: "Reading posts",
   event_extended: "Event search",
 };
 
