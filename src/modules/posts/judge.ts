@@ -19,6 +19,9 @@ import { getOrgSettings } from "@/modules/settings/org-settings";
 
 const BATCH = 25;
 const CONCURRENCY = 3;
+/** Rows one run will read. A UI that labels a button from a bigger number is
+ *  promising work a single press cannot do. */
+export const JUDGE_MAX_PER_RUN = 2000;
 
 const CATEGORIES = new Set(["substantive", "congrats", "promo", "reshare", "personal"]);
 
@@ -71,7 +74,7 @@ export async function judgePosts(
       isNull(post.judgedAt),
       eq(connection.bucket, "pitchable"),
     ))
-    .limit(opts.limit ?? 2000);
+    .limit(opts.limit ?? JUDGE_MAX_PER_RUN);
 
   const slices: (typeof rows)[] = [];
   for (let i = 0; i < rows.length; i += BATCH) slices.push(rows.slice(i, i + BATCH));
@@ -146,8 +149,12 @@ export async function judgePosts(
 export const HOOK_SCORE_SQL = sql`
   case
     when ${post.relevance} is null or ${post.relevance} < 55 or ${post.postedAt} is null then 0
-    else ${post.relevance} * greatest(0,
-      1 - (extract(epoch from (now() - ${post.postedAt})) / (14 * 86400.0)))
+    -- least(1, ...) matters: providers do hand back timestamps in the future
+    -- (timezone skew, scheduled posts), and without the upper bound the decay
+    -- factor exceeds 1, so a relevance-60 post dated three days ahead would
+    -- score 73 and sort above a genuine 90 from yesterday.
+    else ${post.relevance} * greatest(0, least(1,
+      1 - (extract(epoch from (now() - ${post.postedAt})) / (14 * 86400.0))))
   end`;
 
 export async function judgeStats(orgId: string) {

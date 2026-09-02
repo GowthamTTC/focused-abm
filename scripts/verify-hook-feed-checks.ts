@@ -19,13 +19,13 @@
  * lunch is not a suite.
  */
 import "./require-local-db";
-import { and, eq, gte, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import { db, connection, channelAccount, job, org, post, service } from "../src/db";
 import { buildFixture } from "./verify-hook-feed";
 import {
-  deepLinkFor, feedStatus, frontierWithHookCount, hookFeed,
-  hooksElsewhere, pickHookFrontier, pickScanTargets, pipelineCounts, rowState,
-  scanCoverage, waitingToRead, type RowState,
+  bandFor, deepLinkFor, feedStatus, frontierWithHookCount, hookFeed, hooksElsewhere,
+  liveJob, pickHookFrontier, pickScanTargets, pipelineCounts, pipelineWithHooks,
+  planRead, planScan, rowState, scanCoverage, waitingToRead, type RowState,
 } from "../src/modules/posts/feed";
 import { getDailyScanUsage } from "../src/modules/posts/usage";
 import { judgeStats } from "../src/modules/posts/judge";
@@ -49,7 +49,23 @@ function eqCheck(label: string, actual: unknown, expected: unknown) {
 
 const utcMidnight = () => { const d = new Date(); d.setUTCHours(0, 0, 0, 0); return d; };
 
+/** Every row NOT belonging to the fixture, counted. The last check compares
+ *  this before and after, so "touches no other workspace" is a measurement
+ *  rather than a claim. */
+async function foreignCensus() {
+  const [row] = await db.select({
+    orgs: sql<number>`(select count(*) from org where id not like 'l4org%')::int`,
+    connections: sql<number>`(select count(*) from connection where org_id not like 'l4org%')::int`,
+    posts: sql<number>`(select count(*) from post where org_id not like 'l4org%')::int`,
+    jobs: sql<number>`(select count(*) from job where org_id not like 'l4org%')::int`,
+    seats: sql<number>`(select count(*) from channel_account where org_id not like 'l4org%')::int`,
+    services: sql<number>`(select count(*) from service where org_id not like 'l4org%')::int`,
+  }).from(org).limit(1);
+  return row!;
+}
+
 async function main() {
+  const before = await foreignCensus();
   const fx = await buildFixture();
   const { orgA, orgB, batchA, batchA2, batchB, people, posts } = fx;
   const names = (rows: { firstName: string }[]) => rows.map((r) => r.firstName);
@@ -59,7 +75,7 @@ async function main() {
   const rows = feed.rows;
   eqCheck("feed returns one row per actionable person", rows.length, 3);
   eqCheck("feed order is decayed relevance, not rank", names(rows), ["Asha", "Manoj", "Rahul"]);
-  eqCheck("hook scores in feed order", rows.map((r) => r.hookScore), [78, 68, 65]);
+  eqCheck("hook scores in feed order", rows.map((r) => r.hookScore), [75, 68, 65]);
 
   const asha = rows.find((r) => r.connectionId === people.three_posts)!;
   const [ashaWinner] = await db.select({ providerId: post.providerId }).from(post).where(eq(post.id, asha.postId));
@@ -75,12 +91,26 @@ async function main() {
     && rows.indexOf(manoj) < rows.indexOf(rahul), `manoj rank ${manoj.rank} at ${rows.indexOf(manoj)}, rahul rank ${rahul.rank} at ${rows.indexOf(rahul)}`);
   check("hookScore is a JS number, not pg numeric-as-string",
     rows.every((r) => typeof r.hookScore === "number"), JSON.stringify(rows.map((r) => typeof r.hookScore)));
-  check("ageDays reconciles with the printed arithmetic",
-    asha.ageDays === 1 && rows.every((r) => Math.abs(Math.round(r.relevance! * (1 - r.ageDays / 14)) - r.hookScore) <= 1),
-    `asha.ageDays=${asha.ageDays}, ${rows.map((r) => `${r.relevance}×(1-${r.ageDays}/14)≈${r.hookScore}`).join(" ")}`);
+  // The disclosure prints this multiplication, so it has to be EXACT, not
+  // close: a floored age made it disagree by up to relevance/14.
+  check("the printed arithmetic is the arithmetic that ran",
+    asha.ageDays === 1.5
+    && rows.every((r) => Math.round(r.relevance! * (1 - r.ageDays / 14)) === r.hookScore),
+    `asha.ageDays=${asha.ageDays}, ${rows.map((r) => `${r.relevance}×(1-${r.ageDays}/14)=${Math.round(r.relevance! * (1 - r.ageDays / 14))} vs ${r.hookScore}`).join(" · ")}`);
+  check("a fractional age survives to the screen",
+    rows.some((r) => !Number.isInteger(r.ageDays)), rows.map((r) => r.ageDays).join(","));
   check("postedAt / judgedAt / lastScanAt come back as Dates",
     rows.every((r) => r.postedAt instanceof Date && r.judgedAt instanceof Date && r.lastScanAt instanceof Date));
-  check("postExcerpt is bounded at 400 chars", rows.every((r) => (r.postExcerpt ?? "").length <= 400));
+  const [ashaFull] = await db.select({ text: post.text }).from(post).where(eq(post.id, asha.postId));
+  check("the excerpt is a word-boundary cut of the real post, marked as cut",
+    ashaFull!.text.length > 500
+    && asha.postExcerpt.length <= 241
+    && asha.postExcerpt.endsWith("…")
+    && ashaFull!.text.startsWith(asha.postExcerpt.slice(0, -1))
+    && !asha.postExcerpt.slice(0, -1).endsWith(" "),
+    `full=${ashaFull!.text.length} excerpt=${asha.postExcerpt.length} tail=${JSON.stringify(asha.postExcerpt.slice(-24))}`);
+  check("a short post is not touched",
+    rows.every((r) => r.postExcerpt.endsWith("…") || r.postExcerpt.length < 240));
   check("every row carries a hook", rows.every((r) => Boolean(r.hook && r.hook.trim())));
 
   // ── B · negative checks ──
@@ -98,7 +128,40 @@ async function main() {
     .from(post).where(eq(post.id, posts.stale_hook));
   check("a 40-day-old hook has decayed to nothing", !ids.includes(people.stale) && Number(staleScore?.s) === 0,
     `score ${staleScore?.s}`);
+  // Sneha also has a 20-day hook: inside a 28-day window, outside a 14-day one.
+  // If HOOK_DECAY_DAYS ever drifts away from the 14 in HOOK_SCORE_SQL, this is
+  // the row that notices.
+  const [edge] = await db.select({ id: post.id }).from(post).where(eq(post.id, posts.decay_edge));
+  check("the decay window is 14 days, not merely 'some window'",
+    Boolean(edge) && !ids.includes(people.stale) && st.hooksFresh === 5 && st.hooksEver === 7,
+    `hooksFresh=${st.hooksFresh} hooksEver=${st.hooksEver}`);
   check("someone already messaged is not a reason to message", !ids.includes(people.sent) && st.sentWithHook === 1);
+
+  // Providers really do hand back timestamps in the future — timezone skew, or
+  // a scheduled post. Without the least(1, …) clamp the decay factor exceeds 1
+  // and a mediocre post outranks a strong one from yesterday. Inserted here
+  // rather than in the fixture so no other expectation has to move.
+  const [futurePost] = await db.insert(post).values({
+    orgId: orgA, connectionId: people.weak, providerId: "fixture:from_the_future",
+    text: "Dated three days ahead of now.", url: "https://example.invalid/future",
+    postedAt: new Date(Date.now() + 3 * 86400_000),
+    relevance: 60, category: "substantive", hook: "A post dated in the future.",
+    judgedAt: new Date(),
+  }).returning({ id: post.id });
+  const [futureScore] = await db.select({
+    s: sql<number>`round(case
+      when relevance is null or relevance < 55 or posted_at is null then 0
+      else relevance * greatest(0, least(1, 1 - (extract(epoch from (now() - posted_at)) / (14 * 86400.0)))) end)::int`,
+  }).from(post).where(eq(post.id, futurePost!.id));
+  const futureFeed = await hookFeed(orgA, { batchId: batchA, limit: 12 });
+  const futureRow = futureFeed.rows.find((r) => r.connectionId === people.weak);
+  check("a future-dated post cannot score above its own relevance",
+    futureScore!.s === 60 && futureRow?.hookScore === 60 && futureRow?.ageDays === 0,
+    `raw=${futureScore!.s} feed=${futureRow?.hookScore} age=${futureRow?.ageDays}`);
+  check("and it does not jump the queue",
+    futureFeed.rows[0]?.connectionId === people.three_posts,
+    `head=${futureFeed.rows[0]?.firstName}`);
+  await db.delete(post).where(eq(post.id, futurePost!.id));
   const cov = await scanCoverage(orgA, batchA);
   check("someone never scanned is absent and counted", !ids.includes(people.never_scanned) && cov.neverScanned === 1);
   check("the strongest hook in the workspace stays in its own campaign", !ids.includes(people.other_batch));
@@ -153,33 +216,38 @@ async function main() {
     notSubstantive: st.notSubstantive, adjacent: st.adjacent, hooksEver: st.hooksEver,
     hooksFresh: st.hooksFresh, feedPeople: st.feedPeople, sentWithHook: st.sentWithHook,
     droppedWithHook: st.droppedWithHook,
+    scoredNoHook: st.scoredNoHook,
   }, {
-    stored: 10, read: 8, waiting: 2, waitingPeople: 1, notSubstantive: 1, adjacent: 1,
-    hooksEver: 6, hooksFresh: 5, feedPeople: 3, sentWithHook: 1, droppedWithHook: 0,
+    stored: 11, read: 9, waiting: 2, waitingPeople: 1, notSubstantive: 1, adjacent: 1,
+    hooksEver: 7, hooksFresh: 5, feedPeople: 3, sentWithHook: 1, droppedWithHook: 0,
+    scoredNoHook: 0,
   });
   eqCheck("the header count cannot disagree with the list", st.feedPeople, rows.length);
   const js = await judgeStats(orgA);
   check("the pitchable join is present: feedStatus is stricter than the org-wide helper",
     st.hooksEver < (js?.withHook ?? 0), `feedStatus.hooksEver=${st.hooksEver} judgeStats.withHook=${js?.withHook}`);
   const wait = await waitingToRead(orgA);
-  const [mirror] = await db.select({ n: sql<number>`count(*)::int` }).from(post)
-    .innerJoin(connection, eq(connection.id, post.connectionId))
-    .where(and(eq(post.orgId, orgA), isNull(post.judgedAt), eq(connection.bucket, "pitchable")));
+  // Hardcoded, not mirrored: the fixture holds five unjudged posts in total —
+  // two on a pitchable person, one on a peer, one off-target, one in the other
+  // workspace. Only the first two are work a press can do, so dropping either
+  // the org filter or the pitchable join moves this number.
+  const [allUnjudged] = await db.select({ n: sql<number>`count(*)::int` }).from(post)
+    .where(isNull(post.judgedAt));
   check("the Read button's number is one a press can drive to zero",
-    wait.posts === 2 && wait.people === 1 && wait.posts === mirror!.n,
-    `posts=${wait.posts} people=${wait.people} mirror=${mirror!.n}`);
+    wait.posts === 2 && wait.people === 1 && allUnjudged!.n === 5,
+    `posts=${wait.posts} people=${wait.people} unjudged rows in db=${allUnjudged!.n}`);
 
-  // Who counts as "scanned today" moves with the clock, so derive it.
-  const [expScannable] = await db.select({ n: sql<number>`count(*)::int` }).from(connection)
-    .where(and(eq(connection.orgId, orgA), eq(connection.batchId, batchA), eq(connection.bucket, "pitchable"),
-      sql`(member_id is not null or public_identifier is not null or linkedin_url is not null)`,
-      sql`(last_scan_at is null or last_scan_at < ${utcMidnight()})`));
+  // Every number pinned, because the fixture's scan stamps are anchored to UTC
+  // midnight rather than to "hours ago" — so these hold at any hour, and
+  // swapping the scannable boundary for the 14-day one breaks them.
   eqCheck("scanCoverage", {
     pitchable: cov.pitchable, scannedEver: cov.scannedEver, neverScanned: cov.neverScanned,
+    scannedFresh: cov.scannedFresh, scannedStale: cov.scannedStale,
     scannable: cov.scannable, unreachable: cov.unreachable, newestIsDate: cov.newestScanAt instanceof Date,
   }, {
-    pitchable: 8, scannedEver: 7, neverScanned: 1,
-    scannable: expScannable!.n, unreachable: 0, newestIsDate: true,
+    pitchable: 9, scannedEver: 8, neverScanned: 1,
+    scannedFresh: 7, scannedStale: 1,
+    scannable: 3, unreachable: 0, newestIsDate: true,
   });
   check("the recency buckets partition the campaign exactly",
     cov.scannedEver + cov.neverScanned === cov.pitchable
@@ -197,10 +265,29 @@ async function main() {
     imported: pipe.imported, matched: pipe.matched, researched: pipe.researched,
     messaged: pipe.messaged, ready: pipe.ready, decisions: pipe.decisions,
     failed: pipe.failed, touched: pipe.touched, t1Remaining: pipe.t1Remaining, frontier: pipe.frontier,
+    peers: pipe.peers, offIcp: pipe.offIcp, excluded: pipe.excluded, unclassified: pipe.unclassified,
   }, {
-    imported: 10, matched: 8, researched: 3, messaged: 1, ready: 1, decisions: 1,
-    failed: 0, touched: 3, t1Remaining: 2, frontier: 5,
+    imported: 11, matched: 9, researched: 3, messaged: 1, ready: 1, decisions: 1,
+    failed: 0, touched: 3, t1Remaining: 2, frontier: 6,
+    peers: 1, offIcp: 1, excluded: 0, unclassified: 0,
   });
+
+  // `ready` must exclude a row whose flag was cleared while its verdict stayed
+  // 'dropped' — the state a re-enrich can leave behind.
+  await db.update(connection).set({ flag: null, flagVerdict: "dropped" }).where(eq(connection.id, people.drafted));
+  const pipeDropped = await pipelineCounts(orgA, batchA);
+  check("a cleared flag with a standing 'dropped' verdict is not ready to send",
+    pipeDropped.ready === 0, `ready=${pipeDropped.ready}`);
+  await db.update(connection).set({ flag: null, flagVerdict: null }).where(eq(connection.id, people.drafted));
+
+  const withHooks = await pipelineWithHooks(orgA, batchA);
+  eqCheck("the pipeline sub-lines count people with a live reason",
+    { readyWithHook: withHooks.readyWithHook, decisionsWithHook: withHooks.decisionsWithHook },
+    { readyWithHook: 1, decisionsWithHook: 1 });
+
+  eqCheck("the relevance bands are the ones the prompt defines",
+    [bandFor(100)?.band, bandFor(80)?.band, bandFor(79)?.band, bandFor(55)?.band, bandFor(54), bandFor(null)],
+    ["80–100", "80–100", "55–79", "55–79", null, null]);
 
   // The old page tallied these in JavaScript over every researched row.
   const enriched = await db.select().from(connection)
@@ -245,9 +332,14 @@ async function main() {
     `utc=${afterProbe.used} ist-boundary=${istCount!.n} baseline=${expUsed!.n}`);
   await db.delete(connection).where(eq(connection.id, tzProbe!.id));
 
-  const fwh = await frontierWithHookCount(orgA, batchA);
-  check("the picker's new option counts the reason-bearing frontier",
-    fwh === 1 && pipe.frontier === 5, `withHook=${fwh} frontier=${pipe.frontier}`);
+  const [fwh, fwhIndia, fwhFrance] = await Promise.all([
+    frontierWithHookCount(orgA, batchA),
+    frontierWithHookCount(orgA, batchA, "India"),
+    frontierWithHookCount(orgA, batchA, "France"),
+  ]);
+  check("the picker's number counts the frontier the button will select",
+    fwh === 1 && pipe.frontier === 6 && fwhIndia === 1 && fwhFrance === 0,
+    `withHook=${fwh} india=${fwhIndia} france=${fwhFrance} frontier=${pipe.frontier}`);
 
   // ── D · row states: nobody vanishes ──
   eqCheck("row states on the three feed rows",
@@ -268,7 +360,7 @@ async function main() {
     }
   }
   check("rowState is exhaustive — no row can fall through and vanish",
-    combos === 96 && covered === 96, `${covered}/${combos}`);
+    covered === combos && combos > 0, `${covered} of ${combos} combinations returned a known state`);
 
   for (const [label, id, field, value, want] of [
     ["a failed research run stays visible", people.three_posts, "enrichStatus", "failed", "researchFailed"],
@@ -303,6 +395,24 @@ async function main() {
     targetIds.includes(people.stale) && !targetIds.includes(people.three_posts)
     && !targetIds.includes(people.peer) && !targetIds.includes(people.other_batch),
     targetIds.join(","));
+  eqCheck("scan targets are exactly the reachable not-today set, oldest first",
+    targetIds, [people.never_scanned, people.stale, people.scanned_3d]);
+  // A LinkedIn URL the runner cannot pull an "/in/" slug out of is not
+  // reachable: it resolves nothing, stores nothing, and still burns a cap slot.
+  await db.update(connection).set({
+    memberId: null, publicIdentifier: null,
+    linkedinUrl: "https://www.linkedin.com/company/acme",
+  }).where(eq(connection.id, people.scanned_3d));
+  const [oddUrl, covOdd] = await Promise.all([
+    pickScanTargets(orgA, batchA, 40), scanCoverage(orgA, batchA),
+  ]);
+  check("a LinkedIn URL with no /in/ slug counts as unreachable, not as a target",
+    !oddUrl.some((t) => t.id === people.scanned_3d) && covOdd.unreachable === 1 && covOdd.scannable === 2,
+    `unreachable=${covOdd.unreachable} scannable=${covOdd.scannable}`);
+  await db.update(connection).set({
+    memberId: "mock:scanned_3d", publicIdentifier: "scanned_3d",
+    linkedinUrl: "https://www.linkedin.com/in/scanned_3d",
+  }).where(eq(connection.id, people.scanned_3d));
 
   await db.update(connection).set({ memberId: null, publicIdentifier: null, linkedinUrl: null })
     .where(eq(connection.id, people.never_scanned));
@@ -362,7 +472,16 @@ async function main() {
     `mock:three_posts=${mockNone.length} mock-4=${mockSome.length}`);
 
   await db.delete(job).where(inArray(job.orgId, [orgA, orgB]));
-  await db.delete(job);   // the worker takes the oldest queued job in the whole DB
+  // processNext() takes the oldest queued job in the WHOLE database, so this
+  // suite would execute a stranger's job. Refuse rather than delete it: an
+  // unqualified `delete from job` destroyed other workspaces' queues while the
+  // final check claimed to have touched nobody else.
+  const [foreign] = await db.select({ id: job.id, orgId: job.orgId }).from(job)
+    .where(and(notInArray(job.orgId, [orgA, orgB]), inArray(job.status, ["queued", "running", "stopping"])))
+    .limit(1);
+  if (foreign) {
+    throw new Error(`Workspace ${foreign.orgId} has a live job (${foreign.id}) and this suite runs the worker, so it would execute it. Let that queue drain first.`);
+  }
   const [seat] = await db.insert(channelAccount).values({
     orgId: orgA, unipileAccountId: `mock-seat-${Date.now()}`,
     displayName: "Mock seat (verification)", status: "operational",
@@ -405,7 +524,7 @@ async function main() {
     judgedAt: new Date(),
   }).where(eq(post.id, stored[0]!.id));
   await db.update(connection).set({ lastScanAt: null }).where(eq(connection.id, scanTarget!.id));
-  await db.delete(job);
+  await db.delete(job).where(inArray(job.orgId, [orgA, orgB]));
   const scanJob2 = await enqueue(orgA, "activity_scan", { connectionIds: [scanTarget!.id] });
   await processNext();
   const stored2 = await db.select().from(post).where(eq(post.connectionId, scanTarget!.id));
@@ -423,28 +542,76 @@ async function main() {
     JSON.stringify(chained));
   void scanJob2;
 
-  // Guards. Each must refuse to insert anything.
+  // ── The real guard chains. planScan/planRead are what the two server actions
+  //    call; the actions are three lines of redirect around them. Asserting a
+  //    re-implementation of the guards inside the test would prove nothing, so
+  //    these call the shipped code. ──
+  // The scan section above leaves the auto-chained post_judge queued, which is
+  // correct behaviour and would make every plan below say "busy". Its stored
+  // posts have served their purpose too, and leaving them would change the
+  // read plan's count from the fixture's known 2 to whatever the mock returned.
+  await db.delete(job).where(inArray(job.orgId, [orgA, orgB]));
+  await db.delete(post).where(eq(post.connectionId, scanTarget!.id));
   const jobsBefore = await db.select({ n: sql<number>`count(*)::int` }).from(job);
+
+  const busyJob = await enqueue(orgA, "activity_scan", { connectionIds: [] });
+  const [busyScan, busyRead] = await Promise.all([planScan(orgA, batchA, 40), planRead(orgA)]);
+  check("a run in flight refuses both presses",
+    busyScan.ok === false && busyScan.reason === "busy"
+    && busyRead.ok === false && busyRead.reason === "busy",
+    `${JSON.stringify(busyScan)} ${JSON.stringify(busyRead)}`);
+
+  // Stopped before it started: the worker only picks up 'queued', so nothing
+  // will ever acknowledge this row and it must not block the screen for good.
+  await db.update(job).set({ status: "stopping", updatedAt: new Date(Date.now() - 60 * 60_000) })
+    .where(eq(job.id, busyJob!.id));
+  const staleScan = await planScan(orgA, batchA, 40);
+  check("a stale 'stopping' job does not block the screen forever",
+    staleScan.ok === true, JSON.stringify(staleScan).slice(0, 120));
+  await db.delete(job).where(eq(job.id, busyJob!.id));
+
+  const freeScan = await planScan(orgA, batchA, 40);
+  const wouldPick = await pickScanTargets(orgA, batchA, 40);
+  check("with nothing running, the plan is exactly the targets that were picked",
+    freeScan.ok === true && JSON.stringify(freeScan.ids) === JSON.stringify(wouldPick.map((t) => t.id)),
+    JSON.stringify(freeScan).slice(0, 140));
+  const askedTooMuch = await planScan(orgA, batchA, 5000);
+  check("the plan clamps what was asked for", askedTooMuch.ok === true && askedTooMuch.ids.length <= 80);
+
+  await updateOrgSettings(orgA, { postScanDailyCap: 1 });
+  const cappedPlan = await planScan(orgA, batchA, 40);
+  check("the cap refuses the press rather than letting the worker die at 0/0",
+    cappedPlan.ok === false && cappedPlan.reason === "cap", JSON.stringify(cappedPlan));
+  await updateOrgSettings(orgA, { postScanDailyCap: 100 });
+
+  await db.update(channelAccount).set({ status: "needs_reauth" }).where(eq(channelAccount.id, seat!.id));
+  const noSeatPlan = await planScan(orgA, batchA, 40);
+  check("no operational seat refuses the press before anything is queued",
+    noSeatPlan.ok === false && noSeatPlan.reason === "noseat", JSON.stringify(noSeatPlan));
+  await db.update(channelAccount).set({ status: "operational" }).where(eq(channelAccount.id, seat!.id));
+
   const [offer] = await db.select({ id: service.id }).from(service)
     .where(and(eq(service.orgId, orgA), eq(service.status, "active"))).limit(1);
   await db.update(service).set({ status: "archived" }).where(eq(service.orgId, orgA));
-  const [activeOffer] = await db.select({ id: service.id }).from(service)
-    .where(and(eq(service.orgId, orgA), eq(service.status, "active"))).limit(1);
+  const noOffersPlan = await planRead(orgA);
   check("with no active ICP there is nothing to judge against, so no run is offered",
-    !activeOffer, "an active offer survived archiving");
+    noOffersPlan.ok === false && noOffersPlan.reason === "nooffers", JSON.stringify(noOffersPlan));
   await db.update(service).set({ status: "active" }).where(eq(service.id, offer!.id));
 
-  await db.update(channelAccount).set({ status: "needs_reauth" }).where(eq(channelAccount.id, seat!.id));
-  const [opSeat] = await db.select({ id: channelAccount.id }).from(channelAccount)
-    .where(and(eq(channelAccount.orgId, orgA), eq(channelAccount.status, "operational"))).limit(1);
-  check("with no operational seat the collection guard trips before any enqueue", !opSeat);
-  await db.update(channelAccount).set({ status: "operational" }).where(eq(channelAccount.id, seat!.id));
+  const readPlan = await planRead(orgA);
+  check("the read plan promises exactly the posts one press can read",
+    readPlan.ok === true && readPlan.posts === 2, JSON.stringify(readPlan));
+  await db.update(post).set({ judgedAt: new Date(), relevance: 0, category: "personal" })
+    .where(and(eq(post.orgId, orgA), isNull(post.judgedAt)));
+  const nothingToRead = await planRead(orgA);
+  check("nothing left to read refuses the press instead of queuing a no-op",
+    nothingToRead.ok === false && nothingToRead.reason === "none", JSON.stringify(nothingToRead));
 
-  const [running] = await db.select({ id: job.id }).from(job)
-    .where(and(eq(job.orgId, orgA), inArray(job.status, ["queued", "running", "stopping"]))).limit(1);
+  check("liveJob is org-scoped", (await liveJob(orgB)) === null);
+
   const jobsAfter = await db.select({ n: sql<number>`count(*)::int` }).from(job);
-  check("a run already in flight blocks a second one, and the guards inserted nothing",
-    Boolean(running) && jobsAfter[0]!.n === jobsBefore[0]!.n,
+  check("not one of those refusals inserted a job",
+    jobsAfter[0]!.n === jobsBefore[0]!.n,
     `before=${jobsBefore[0]!.n} after=${jobsAfter[0]!.n}`);
 
   // ── G · cleanup ──
@@ -455,10 +622,10 @@ async function main() {
   await buildFixture();
   const [leftover] = await db.select({ n: sql<number>`count(*)::int` }).from(channelAccount)
     .where(eq(channelAccount.orgId, orgA));
-  const [orgs] = await db.select({ n: sql<number>`count(*)::int` }).from(org)
-    .where(sql`id not like 'l4org%'`);
-  check("the run leaves nothing of its own behind, and touches no other workspace",
-    leftover!.n === 0 && orgs!.n >= 1, `seats=${leftover!.n} other orgs=${orgs!.n}`);
+  const after = await foreignCensus();
+  check("the run leaves nothing of its own behind, and no other workspace's rows moved",
+    leftover!.n === 0 && JSON.stringify(after) === JSON.stringify(before),
+    `seats=${leftover!.n} · before ${JSON.stringify(before)} · after ${JSON.stringify(after)}`);
 
   console.log("");
   if (failures.length) {

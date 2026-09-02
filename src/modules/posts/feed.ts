@@ -25,9 +25,10 @@
  *     15,000 posts: bitmap index scan on (org_id, posted_at) → window filter →
  *     419 primary-key lookups → top-N heapsort, 3.5 ms.
  */
-import { and, asc, desc, eq, gte, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
-import { db, connection, connectionBatch, post } from "@/db";
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
+import { db, channelAccount, connection, connectionBatch, job, post, service } from "@/db";
 import { HOOK_SCORE_SQL } from "@/modules/posts/judge";
+import { getDailyScanUsage } from "@/modules/posts/usage";
 
 /** Below this the judge writes no hook at all (prompts/post-relevance/v1.md). */
 export const HOOK_MIN_RELEVANCE = 55;
@@ -40,6 +41,26 @@ export const FEED_MAX_ROWS = 40;
 
 /** No parameter: a bound number beside `||` makes the operator ambiguous. */
 const FRESH = sql`now() - ${sql.raw(String(HOOK_DECAY_DAYS))} * interval '1 day'`;
+
+/** One human's identity. linkedin_url has no unique constraint and CSV import
+ *  does no dedupe, so the same person in one file is several connection rows.
+ *  Every count that says "people" has to count THIS, or the screen claims more
+ *  people than exist. */
+const HUMAN = sql`coalesce(lower(${connection.linkedinUrl}), ${connection.id})`;
+
+/** What the runner can actually turn into a posts request: a member id, a
+ *  public identifier, or a URL it can pull an "/in/" slug out of. A row whose
+ *  only identifier is some other LinkedIn URL is not scannable — the runner
+ *  resolves nothing, stores nothing, and still stamps last_scan_at, so
+ *  counting it as reachable spends a cap slot on a guaranteed no-op.
+ *
+ *  The coalesce is load-bearing: a bare LIKE against a null url yields NULL,
+ *  which makes the whole OR null for a row with no identifiers at all — and
+ *  `not REACHABLE` then drops that row out of the very count that exists to
+ *  find it. Postgres three-valued logic, caught by the harness. */
+const REACHABLE = sql`(${connection.memberId} is not null
+  or ${connection.publicIdentifier} is not null
+  or coalesce(${connection.linkedinUrl}, '') like '%/in/%')`;
 
 /** The bands the judge was told to use, quoted so the screen explains a score
  *  in the same words that produced it. */
@@ -72,8 +93,14 @@ export async function hookFeed(orgId: string, opts: { batchId: string; limit?: n
   const best = db.select({
     postId: post.id,
     connectionId: post.connectionId,
-    // post.text is unbounded in the DB; only the model's input was capped.
-    postExcerpt: sql<string>`left(${post.text}, 400)`.as("post_excerpt"),
+    // post.text is unbounded in the DB; only the model's input was capped. Two
+    // clamped lines is the design, but on a wide screen 400 characters fit, so
+    // THIS is the cut the reader sees — trim it back to a word boundary and say
+    // it was cut, rather than ending someone's sentence mid-word inside quotes.
+    postExcerpt: sql<string>`case
+      when length(${post.text}) <= 240 then ${post.text}
+      else regexp_replace(left(${post.text}, 240), '\\s\\S*$', '') || '…'
+    end`.as("post_excerpt"),
     postUrl: post.url,
     postedAt: post.postedAt,
     relevance: post.relevance,
@@ -83,8 +110,12 @@ export async function hookFeed(orgId: string, opts: { batchId: string; limit?: n
     // round(...)::int is load-bearing: the bare expression is numeric, and pg
     // hands numeric back as a JavaScript string whatever the TS annotation says.
     hookScore: sql<number>`round(${HOOK_SCORE_SQL})::int`.as("hook_score"),
-    // Same clock the sort used, so the printed arithmetic reconciles exactly.
-    ageDays: sql<number>`floor(extract(epoch from (now() - ${post.postedAt})) / 86400.0)::int`.as("age_days"),
+    // The same clock AND the same precision the score used. Flooring it here
+    // was wrong: the score decays on the exact fractional age, so a floored age
+    // made the disclosure print "84 × (1 − 1 of 14 days) = 75" — an equation
+    // whose two sides disagree by up to relevance/14. greatest(0, …) mirrors
+    // the score's own clamp for a future-dated post.
+    ageDays: sql<number>`greatest(0, round(extract(epoch from (now() - ${post.postedAt})) / 86400.0, 1))::float8`.as("age_days"),
     hooksForPerson: sql<number>`count(*) over (partition by ${post.connectionId})::int`.as("hooks_for_person"),
     rn: sql<number>`row_number() over (
       partition by ${post.connectionId}
@@ -99,8 +130,11 @@ export async function hookFeed(orgId: string, opts: { batchId: string; limit?: n
     .as("best");
 
   // Pass 2 — attach the person. rn is per-connection, so connection-side
-  // filters can never change WHICH post won.
-  const raw = await db.select({
+  // filters can never change WHICH post won. Deliberately NOT partitioned by
+  // human here: the winner would then be picked before the batch, sent and
+  // dropped filters run, so a person whose best post belongs to another batch
+  // or a sent row would drop out of the feed entirely.
+  const fetch = (take: number) => db.select({
     postId: best.postId, postExcerpt: best.postExcerpt, postUrl: best.postUrl,
     postedAt: best.postedAt, relevance: best.relevance, category: best.category,
     hook: best.hook, judgedAt: best.judgedAt, hookScore: best.hookScore,
@@ -129,20 +163,34 @@ export async function hookFeed(orgId: string, opts: { batchId: string; limit?: n
       or(isNull(connection.flagVerdict), ne(connection.flagVerdict, "dropped")),
     ))
     .orderBy(desc(best.hookScore), desc(best.postedAt))
-    .limit(want * 2 + 8);                     // overfetch for the collapse below
+    .limit(take);
 
   // One human, one row. connection.linkedin_url has no unique constraint and
   // createBatchFromCsv does no dedupe, so the same person twice in one CSV is
   // two connection rows in one batch, each scanned separately (post's unique
   // key is (connection_id, provider_id)). radar/query.ts collapses the same way.
-  const seen = new Set<string>();
-  const rows: typeof raw = [];
+  //
+  // Widen and retry rather than guess one overfetch margin: a fixed window of
+  // want*2+8 returns a short page as soon as the top scorers repeat three or
+  // more times, and "showing 9" when 21 people qualify is a worse answer than
+  // one more indexed query. Bounded at three passes so a pathological import
+  // cannot turn one screen into an unbounded scan.
+  let rows: Awaited<ReturnType<typeof fetch>> = [];
   let collapsed = 0;
-  for (const r of raw) {
-    const key = (r.linkedinUrl || r.connectionId).toLowerCase();
-    if (seen.has(key)) { collapsed += 1; continue; }
-    seen.add(key);
-    if (rows.length < want) rows.push(r);
+  let take = want * 2 + 8;
+  for (let pass = 0; pass < 3; pass += 1) {
+    const raw = await fetch(take);
+    const seen = new Set<string>();
+    rows = []; collapsed = 0;
+    for (const r of raw) {
+      const key = (r.linkedinUrl || r.connectionId).toLowerCase();
+      if (seen.has(key)) { collapsed += 1; continue; }
+      seen.add(key);
+      if (rows.length < want) rows.push(r);
+    }
+    // Short only because the window ran out, not because the pool did.
+    if (rows.length >= want || raw.length < take) break;
+    take *= 4;
   }
   return { rows, collapsed };
 }
@@ -204,13 +252,17 @@ export async function feedStatus(orgId: string, batchId: string) {
     hooksFresh:     sql<number>`count(*) filter (where ${fresh})::int`,
     // EXACTLY the feed's own connection-side predicate, so the header count can
     // never disagree with the list beneath it.
-    feedPeople:     sql<number>`count(distinct ${post.connectionId}) filter (
+    feedPeople:     sql<number>`count(distinct ${HUMAN}) filter (
                       where ${fresh} and ${connection.sentAt} is null
                         and (${connection.flagVerdict} is null or ${connection.flagVerdict} <> 'dropped'))::int`,
-    sentWithHook:   sql<number>`count(distinct ${post.connectionId}) filter (
+    sentWithHook:   sql<number>`count(distinct ${HUMAN}) filter (
                       where ${fresh} and ${connection.sentAt} is not null)::int`,
-    droppedWithHook: sql<number>`count(distinct ${post.connectionId}) filter (
+    droppedWithHook: sql<number>`count(distinct ${HUMAN}) filter (
                       where ${fresh} and ${connection.flagVerdict} = 'dropped')::int`,
+    /** Scored high enough for an opener but the judge returned none, so the
+     *  "nothing cleared the bar" sentence must not claim they scored under 55. */
+    scoredNoHook:   sql<number>`count(*) filter (where ${post.judgedAt} is not null
+                      and ${post.hook} is null and ${post.relevance} >= ${HOOK_MIN_RELEVANCE})::int`,
     // sql<Date> over a raw aggregate would be a lie: drizzle's node-postgres
     // session replaces the TIMESTAMPTZ type parser with the identity function,
     // and only real column mappers convert afterwards. Take the string, build
@@ -265,7 +317,7 @@ export async function waitingToRead(orgId: string) {
  */
 export async function scanCoverage(orgId: string, batchId: string) {
   const pitch = sql`${connection.bucket} = 'pitchable'`;
-  const ident = sql`(${connection.memberId} is not null or ${connection.publicIdentifier} is not null or ${connection.linkedinUrl} is not null)`;
+  const ident = REACHABLE;
   const utcMidnight = new Date(); utcMidnight.setUTCHours(0, 0, 0, 0);
   const [row] = await db.select({
     pitchable:    sql<number>`count(*) filter (where ${pitch})::int`,
@@ -278,8 +330,11 @@ export async function scanCoverage(orgId: string, batchId: string) {
     scannable:    sql<number>`count(*) filter (where ${pitch} and ${ident}
                     and (${connection.lastScanAt} is null or ${connection.lastScanAt} < ${utcMidnight}))::int`,
     unreachable:  sql<number>`count(*) filter (where ${pitch} and not ${ident})::int`,
-    newestScan:   sql<string | null>`max(${connection.lastScanAt})`,
-    oldestScan:   sql<string | null>`min(${connection.lastScanAt}) filter (where ${connection.lastScanAt} is not null)`,
+    // Filtered to pitchable like every other column here: the sentence these
+    // appear in is about matched people, so a peer's timestamp has no business
+    // being the "newest scan" it quotes.
+    newestScan:   sql<string | null>`max(${connection.lastScanAt}) filter (where ${pitch})`,
+    oldestScan:   sql<string | null>`min(${connection.lastScanAt}) filter (where ${pitch} and ${connection.lastScanAt} is not null)`,
   }).from(connection)
     .where(and(eq(connection.orgId, orgId), eq(connection.batchId, batchId)));
   return {
@@ -306,9 +361,15 @@ export async function pipelineCounts(orgId: string, batchId: string) {
     touched:      sql<number>`count(*) filter (where ${connection.enrichStatus} <> 'pending')::int`,
     failed:       sql<number>`count(*) filter (where ${connection.enrichStatus} = 'failed')::int`,
     messaged:     sql<number>`count(*) filter (where ${connection.sentAt} is not null)::int`,
+    // The sidebar badge's expression PLUS the verdict guard it was missing: a
+    // re-enrich can clear `flag` while flag_verdict stays 'dropped' or
+    // 'verify', and such a row is not ready to send — the feed hides it, Review
+    // omits it, and rowState() calls it parked. shell.tsx carries the same
+    // guard so the page and the nav still cannot disagree.
     ready:        sql<number>`count(*) filter (where ${connection.enrichStatus} = 'done'
                     and ${connection.outreachMessage} is not null and ${connection.sentAt} is null
-                    and (${connection.flag} is null or ${connection.flagVerdict} = 'variant'))::int`,
+                    and (${connection.flag} is null or ${connection.flagVerdict} = 'variant')
+                    and coalesce(${connection.flagVerdict}, '') not in ('dropped', 'verify'))::int`,
     decisions:    sql<number>`count(*) filter (where ${connection.flag} is not null
                     and ${connection.flagVerdict} is null and ${connection.enrichStatus} = 'done')::int`,
     t1Remaining:  sql<number>`count(*) filter (where ${connection.tier} = 1 and ${connection.enrichStatus} <> 'done')::int`,
@@ -345,13 +406,17 @@ export async function hooksElsewhere(orgId: string, batchId: string) {
   const [row] = await db.select({
     batchId: connection.batchId,
     label:   connectionBatch.label,
-    people:  sql<number>`count(distinct ${post.connectionId})::int`,
+    people:  sql<number>`count(distinct ${HUMAN})::int`,
   }).from(post)
     .innerJoin(connection, eq(connection.id, post.connectionId))
     .innerJoin(connectionBatch, eq(connectionBatch.id, connection.batchId))
     .where(and(
-      eq(post.orgId, orgId), isNotNull(post.hook), gte(post.postedAt, FRESH),
+      eq(post.orgId, orgId), isNotNull(post.hook),
+      gte(post.relevance, HOOK_MIN_RELEVANCE), gte(post.postedAt, FRESH),
       eq(connection.bucket, "pitchable"), isNull(connection.sentAt),
+      // Same exclusion the feed applies, or this nudge sends someone to a
+      // campaign that will not show them what it promised.
+      or(isNull(connection.flagVerdict), ne(connection.flagVerdict, "dropped")),
       ne(connection.batchId, batchId),
     ))
     .groupBy(connection.batchId, connectionBatch.label)
@@ -362,15 +427,19 @@ export async function hooksElsewhere(orgId: string, batchId: string) {
 
 /** How many of the unresearched frontier have a live reason — the number in the
  *  research picker's new option, and the population that option selects. */
-export async function frontierWithHookCount(orgId: string, batchId: string) {
-  const [row] = await db.select({ n: sql<number>`count(distinct ${post.connectionId})::int` })
+export async function frontierWithHookCount(orgId: string, batchId: string, country = "") {
+  const conds = [
+    eq(post.orgId, orgId), isNotNull(post.hook),
+    gte(post.relevance, HOOK_MIN_RELEVANCE), gte(post.postedAt, FRESH),
+    eq(connection.batchId, batchId), eq(connection.bucket, "pitchable"),
+    eq(connection.enrichStatus, "pending"),
+  ];
+  // The country the picker currently shows, because the number sits inside an
+  // option beside that select and pickHookFrontier applies it.
+  if (country) conds.push(eq(connection.country, country));
+  const [row] = await db.select({ n: sql<number>`count(distinct ${HUMAN})::int` })
     .from(post).innerJoin(connection, eq(connection.id, post.connectionId))
-    .where(and(
-      eq(post.orgId, orgId), isNotNull(post.hook),
-      gte(post.relevance, HOOK_MIN_RELEVANCE), gte(post.postedAt, FRESH),
-      eq(connection.batchId, batchId), eq(connection.bucket, "pitchable"),
-      eq(connection.enrichStatus, "pending"),
-    ));
+    .where(and(...conds));
   return row?.n ?? 0;
 }
 
@@ -393,7 +462,7 @@ export async function pickScanTargets(orgId: string, batchId: string, n: number)
     .where(and(
       eq(connection.orgId, orgId), eq(connection.batchId, batchId),
       eq(connection.bucket, "pitchable"),
-      or(isNotNull(connection.memberId), isNotNull(connection.publicIdentifier), isNotNull(connection.linkedinUrl)),
+      REACHABLE,
       or(isNull(connection.lastScanAt), lt(connection.lastScanAt, utcMidnight)),
     ))
     .orderBy(sql`${connection.lastScanAt} asc nulls first`, asc(connection.rank))
@@ -422,4 +491,71 @@ export async function pickHookFrontier(orgId: string, batchId: string, n: number
     .where(and(...conds))
     .orderBy(desc(freshHook.hookScore), asc(connection.rank))
     .limit(n);
+}
+
+// ── What a press will do, decided where it can be tested ─────────────
+/** The guard chain behind "Scan more people's posts".
+ *
+ *  It lives here rather than inside the server action because an action calls
+ *  requireUser() and redirect(), neither of which exists outside a request — so
+ *  a guard chain written in the action can only be verified by re-implementing
+ *  it in the test, which proves nothing. The action is a thin wrapper: call
+ *  this, then redirect on the reason it returns.
+ */
+export type ScanPlan =
+  | { ok: true; ids: string[] }
+  | { ok: false; reason: "noseat" | "busy" | "cap" | "none" };
+
+export async function planScan(orgId: string, batchId: string, want: number): Promise<ScanPlan> {
+  const [seat] = await db.select({ id: channelAccount.id }).from(channelAccount)
+    .where(and(eq(channelAccount.orgId, orgId), eq(channelAccount.status, "operational")))
+    .limit(1);
+  if (!seat) return { ok: false, reason: "noseat" };
+  if (await liveJob(orgId)) return { ok: false, reason: "busy" };
+
+  const { remaining } = await getDailyScanUsage(orgId);
+  if (remaining === 0) return { ok: false, reason: "cap" };
+
+  const bounded = Math.min(Math.max(want, 1), 80, remaining);
+  const targets = await pickScanTargets(orgId, batchId, bounded);
+  if (targets.length === 0) return { ok: false, reason: "none" };
+  return { ok: true, ids: targets.map((t) => t.id) };
+}
+
+/** The guard chain behind "Read N unread posts", same reasoning. */
+export type ReadPlan =
+  | { ok: true; posts: number }
+  | { ok: false; reason: "nooffers" | "busy" | "none" };
+
+export async function planRead(orgId: string): Promise<ReadPlan> {
+  const [offer] = await db.select({ id: service.id }).from(service)
+    .where(and(eq(service.orgId, orgId), eq(service.status, "active"))).limit(1);
+  if (!offer) return { ok: false, reason: "nooffers" };
+  if (await liveJob(orgId)) return { ok: false, reason: "busy" };
+  const { posts } = await waitingToRead(orgId);
+  if (posts === 0) return { ok: false, reason: "none" };
+  return { ok: true, posts };
+}
+
+/** Any run at all, not just a competing one.
+ *
+ *  enqueue() is a bare INSERT with no dedupe, the worker runs ONE job at a time
+ *  FIFO with no org filter, and the shell banner shows only the newest job and
+ *  binds its Stop button to that — so a second enqueue does not merely wait, it
+ *  hijacks the banner and re-points Stop at the wrong run.
+ *
+ *  'stopping' rows are ignored once stale: the worker only ever picks up
+ *  'queued', so a job stopped before it started could sit in 'stopping'
+ *  forever, and the only reaper needs the global queue empty before it runs. */
+export async function liveJob(orgId: string) {
+  const stale = new Date(Date.now() - 30 * 60_000);
+  const [row] = await db.select({ id: job.id, kind: job.kind, status: job.status })
+    .from(job)
+    .where(and(
+      eq(job.orgId, orgId),
+      inArray(job.status, ["queued", "running", "stopping"]),
+      or(ne(job.status, "stopping"), gte(job.updatedAt, stale)),
+    ))
+    .limit(1);
+  return row ?? null;
 }

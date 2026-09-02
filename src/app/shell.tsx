@@ -78,7 +78,11 @@ export async function Shell({ user, active, children }: {
     db.select().from(job).where(eq(job.orgId, user.orgId)).orderBy(desc(job.createdAt)).limit(1),
     db.select({
       decisions: sql<number>`count(*) filter (where flag is not null and flag_verdict is null and enrich_status = 'done')::int`,
-      ready: sql<number>`count(*) filter (where enrich_status = 'done' and outreach_message is not null and sent_at is null and (flag is null or flag_verdict = 'variant'))::int`,
+      // The verdict guard matters: a re-enrich can clear `flag` while
+      // flag_verdict stays 'dropped' or 'verify', and such a row is not ready
+      // to send. pipelineCounts.ready in modules/posts/feed.ts carries the
+      // identical expression so the badge and the page cannot disagree.
+      ready: sql<number>`count(*) filter (where enrich_status = 'done' and outreach_message is not null and sent_at is null and (flag is null or flag_verdict = 'variant') and coalesce(flag_verdict, '') not in ('dropped', 'verify'))::int`,
     }).from(connection).where(eq(connection.orgId, user.orgId)),
   ]);
   // Admin-only: how many workspaces have something unactionable sitting in them.
