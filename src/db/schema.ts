@@ -248,6 +248,45 @@ export const connection = pgTable("connection", {
   index("connection_metro_idx").on(t.orgId, t.metro),
 ]);
 
+// ── Posts (the reason to reach out today) ────────────────────────────
+/** One LinkedIn post by one connection.
+ *
+ *  Until now the only trace of someone's activity was last_post_at (a date) and
+ *  posts_summary (LLM prose about ALL their posts). Neither can answer "what did
+ *  they say, and where is it" — so nothing could open a message with their own
+ *  words. This stores the post itself.
+ *
+ *  The judgement columns are filled by a separate pass and stay null until it
+ *  runs. Uninteresting posts are categorised and scored 0, never deleted: the
+ *  filter has to be auditable and re-tunable without re-fetching from LinkedIn.
+ */
+export const post = pgTable("post", {
+  id: id(),
+  orgId: text("org_id").notNull().references(() => org.id),
+  connectionId: text("connection_id").notNull()
+    .references(() => connection.id, { onDelete: "cascade" }),
+  /** Provider's own post id — the dedupe key, so re-scanning is idempotent. */
+  providerId: text("provider_id").notNull(),
+  text: text("text").notNull(),
+  /** Unipile's share_url: the deep link to this specific post. */
+  url: text("url"),
+  postedAt: ts("posted_at"),
+
+  // ── Filled by the relevance pass ──
+  /** 0–100 against THIS workspace's offers. Only substantive posts score above 0. */
+  relevance: integer("relevance"),
+  category: text("category"),   // substantive | congrats | promo | reshare | personal
+  /** One line a human could actually open with, quoting their words. */
+  hook: text("hook"),
+  judgedAt: ts("judged_at"),
+
+  createdAt: ts("created_at").notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("post_connection_provider_uq").on(t.connectionId, t.providerId),
+  index("post_org_posted_idx").on(t.orgId, t.postedAt),
+  index("post_org_relevance_idx").on(t.orgId, t.relevance, t.postedAt),
+]);
+
 // ── DB-backed jobs (no Redis in the standalone) ──────────────────────
 export const job = pgTable("job", {
   id: id(),
