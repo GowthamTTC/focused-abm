@@ -819,6 +819,18 @@ async function main() {
     .where(and(eq(connection.orgId, orgA), sql`match_why like 'Posted about "%'`));
   check("nothing anywhere still carries the fabricated event verdict", fabricated!.n === 0);
 
+  // The company column, from both sources. The mock gives every other author a
+  // headline with no employer — the majority case on real LinkedIn — so one of
+  // these two is parsed from the headline and the other can only have come
+  // from a profile lookup.
+  const companies = evtRows.map((r) => r.companyRaw).sort();
+  const headlineCompanies = evtRows.filter((r) => splitHeadline(r.headlineRaw).company).length;
+  check("an author whose headline names no employer still gets one, from their profile",
+    evtRows.length === 2
+    && companies.every((c) => Boolean(c && c.trim()))
+    && headlineCompanies === 1,
+    `companies=${JSON.stringify(companies)} from-headline=${headlineCompanies}`);
+
   const [strangersPitchable] = await db.select({ n: sql<number>`count(*)::int` }).from(connection)
     .where(and(eq(connection.orgId, orgA), inArray(connection.networkDistance, ["2", "3"]),
       eq(connection.bucket, "pitchable")));

@@ -111,7 +111,9 @@ export default async function RadarPage({ searchParams }: {
             the event name. 2nd + 3rd searches LinkedIn posts for it and imports
             up to 100 authors, grades each against your ICPs, and keeps every one
             of them out of the outreach pool — you are not connected to them, so
-            nothing here is scanned, researched, drafted or exported.
+            nothing here is scanned, researched, drafted or exported. Most headlines
+            name no employer, so it looks each of those up on the person&apos;s profile;
+            that is one extra LinkedIn call each and adds a few minutes.
           </p>
         </div>
         <form action={startEventScan} className="flex flex-wrap items-center gap-2 text-[13px]">
@@ -175,7 +177,7 @@ export default async function RadarPage({ searchParams }: {
         <p className="radar-banner mt-3 text-sm text-[#067647]">
           <span className="radar-banner-text">
             {pool === "extended"
-              ? "Working — searching posts, importing the authors, then grading each against your ICPs. They stay out of the outreach pool."
+              ? "Working — searching posts, importing the authors, looking up an employer for the ones whose headline does not name it, then grading each against your ICPs. They stay out of the outreach pool."
               : "Working — scanning your own matched connections for the event name (max 100, stops at the daily post-scan cap)."}
           </span>
           <span className="radar-dots" aria-hidden><span /><span /><span /></span>

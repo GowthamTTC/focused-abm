@@ -150,7 +150,11 @@ export class MockChannelProvider implements ChannelProvider {
         memberId: `mock-ext:${i}`,
         firstName: r.firstName,
         lastName: r.lastName,
-        headline: r.headline,
+        // Every other hit headlines itself with no employer — "Chief Marketing
+        // Officer" rather than "Chief Marketing Officer at Lumen Data Systems".
+        // That is the majority case on real LinkedIn (about 60% of authors) and
+        // the only way the profile-lookup path gets exercised at all.
+        headline: i % 2 === 1 ? (r.headline ?? "").split(/\s+at\s+/i)[0]! : r.headline,
         location: ["San Francisco, California, United States", "Oakland, California, United States"][i % 2],
         profileUrl: `https://www.linkedin.com/in/evt-${r.publicIdentifier}`,
         networkDistance: i % 3 === 0 ? "3" : "2",
