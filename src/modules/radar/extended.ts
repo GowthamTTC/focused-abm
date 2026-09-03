@@ -13,7 +13,7 @@ import { splitHeadline } from "@/modules/connections/import-csv";
 import { stampMetro } from "@/modules/geo/metros";
 import { countryBySlug } from "@/modules/geo/countries";
 import { mentionForEvent } from "@/modules/radar/mentions";
-import { runEventScan, withBackoff } from "@/modules/radar/scan";
+import { runEventScan } from "@/modules/radar/scan";
 import { storePosts } from "@/modules/posts/store";
 import { classifyBatch } from "@/modules/matching/service-fit";
 import { rankBatch } from "@/modules/scoring/rank";
@@ -83,8 +83,6 @@ export async function runEventExtended(
     firstName: string; lastName: string; headline: string | null; location: string | null;
     profileUrl: string | null; publicIdentifier: string | null; memberId: string | null;
     networkDistance: "2" | "3"; snippet: string; postedAt: Date | null;
-    /** Employer from a profile lookup, for the authors whose headline had none. */
-    resolvedCompany?: string | null;
     /** The post that named the event: its full text and deep link, kept so the
      *  export can carry what the person actually said rather than a 180-char
      *  snippet with no way back to the source. */
@@ -162,49 +160,6 @@ export async function runEventExtended(
   } while (cursor);
 
   const rows = [...authors.values()];
-
-  // Fill the employer for the people whose headline never named one.
-  //
-  // LinkedIn's post search does not carry a company: a live author object is
-  // exactly id, public_identifier, name, is_company, headline and a picture.
-  // So the headline is the only free source, and on real searches it yields a
-  // company for about 40% of authors — the rest headline themselves with
-  // skills or a tagline. This buys the other 60% with one profile fetch each.
-  //
-  // It runs BEFORE the insert on purpose: company_raw is not only an export
-  // column, it is what the peer-company signals match against, so a company
-  // discovered here also makes the classification that follows more accurate.
-  //
-  // Cost is real and bounded: only people missing a company, at most one call
-  // each, four at a time with rate-limit backoff, and a failure leaves that one
-  // person's company empty rather than failing the search. These are profile
-  // reads and stamp no last_scan_at, so they do not touch the daily post-scan
-  // budget that Today's scanning lives on.
-  const needCompany = rows.filter((h) =>
-    !splitHeadline(h.headline).company && (h.publicIdentifier || h.memberId));
-  if (needCompany.length > 0) {
-    if (onProgress) await onProgress(0, needCompany.length);
-    let looked = 0, next2 = 0;
-    await Promise.all(Array.from({ length: Math.min(4, needCompany.length) }, async () => {
-      for (;;) {
-        if (shouldStop && await shouldStop()) return;
-        const i = next2; next2 += 1;
-        if (i >= needCompany.length) return;
-        const h = needCompany[i]!;
-        try {
-          const profile = await withBackoff(() => provider.fetchProfile({
-            accountId: seat.unipileAccountId,
-            identifier: (h.publicIdentifier ?? h.memberId)!,
-          }));
-          if (profile?.company) h.resolvedCompany = profile.company.trim() || null;
-        } catch { /* one lookup must not end the search */ }
-        looked += 1;
-        if (onProgress) await onProgress(looked, needCompany.length);
-        await sleep(250);
-      }
-    }));
-  }
-
   const [batch] = await db.insert(connectionBatch).values({
     orgId,
     source: "event_search",
@@ -237,7 +192,7 @@ export async function runEventExtended(
         batchId: batch.id,
         firstName: h.firstName,
         lastName: h.lastName,
-        companyRaw: company ?? h.resolvedCompany ?? null,
+        companyRaw: company,
         positionRaw: position,
         headlineRaw: h.headline,
         linkedinUrl: h.profileUrl,

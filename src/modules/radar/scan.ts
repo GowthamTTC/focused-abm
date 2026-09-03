@@ -86,10 +86,7 @@ function isRateLimit(e: unknown): boolean {
   return /429|rate.?limit|too many requests/i.test(msg);
 }
 
-/** Retries a LinkedIn call through a rate limit, twice, with jitter. Exported
- *  because the event search needs the same protection and a second copy is how
- *  splitHeadline ended up with two behaviours. */
-export async function withBackoff<T>(fn: () => Promise<T>): Promise<T> {
+async function withBackoff<T>(fn: () => Promise<T>): Promise<T> {
   let wait = 800;
   for (let attempt = 0; ; attempt += 1) {
     try {
