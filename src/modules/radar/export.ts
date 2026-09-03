@@ -5,7 +5,7 @@
  * reach them, then the evidence:
  *
  *   Search query · Name · Title · Company · Location · LinkedIn profile ·
- *   Post link · Post text
+ *   Posted date · Post link · Post text
  *
  * The post columns are the reason this exists, and they are the ones with a
  * story. A person's row carries only mention_snippet — 180 characters, no link
@@ -31,6 +31,10 @@ export const RADAR_CSV_HEADER = [
   "Company",
   "Location",
   "LinkedIn profile",
+  // Before the link, so the three post columns sit together and the long text
+  // stays last. ISO yyyy-mm-dd: it sorts correctly as a string in every
+  // spreadsheet, which a localised date does not.
+  "Posted date",
   "LinkedIn post link",
   "LinkedIn post text",
 ] as const;
@@ -54,8 +58,15 @@ export function toCsv(rows: readonly (readonly (string | null)[])[]): string {
 function bestPost(
   person: RadarPerson,
   posts: { text: string; url: string | null; postedAt: Date | null }[],
-): { text: string; url: string | null } {
-  const fallback = { text: person.mentionSnippet ?? "", url: null as string | null };
+): { text: string; url: string | null; postedAt: Date | null } {
+  // mention_at is the date of the post that matched, so it stands in when the
+  // post itself was never stored — which is every row imported before the
+  // search path started keeping them.
+  const fallback = {
+    text: person.mentionSnippet ?? "",
+    url: null as string | null,
+    postedAt: person.mentionAt ?? null,
+  };
   if (posts.length === 0) return fallback;
 
   const snippet = (person.mentionSnippet ?? "").replace(/\s+/g, " ").trim();
@@ -63,17 +74,17 @@ function bestPost(
 
   if (snippet) {
     const byText = posts.find((p) => norm(p.text).startsWith(snippet.slice(0, 60)));
-    if (byText) return { text: byText.text, url: byText.url };
+    if (byText) return { text: byText.text, url: byText.url, postedAt: byText.postedAt };
   }
   if (person.mentionAt) {
     const day = person.mentionAt.toISOString().slice(0, 10);
     const sameDay = posts.find((p) => p.postedAt?.toISOString().slice(0, 10) === day);
-    if (sameDay) return { text: sameDay.text, url: sameDay.url };
+    if (sameDay) return { text: sameDay.text, url: sameDay.url, postedAt: sameDay.postedAt };
   }
   const newest = [...posts].sort(
     (a, b) => (b.postedAt?.getTime() ?? 0) - (a.postedAt?.getTime() ?? 0),
   )[0]!;
-  return { text: newest.text, url: newest.url };
+  return { text: newest.text, url: newest.url, postedAt: newest.postedAt };
 }
 
 export interface RadarCsv { csv: string; rows: number }
@@ -110,7 +121,7 @@ export async function buildRadarCsv(
   }
 
   const body = people.map((p) => {
-    const { text, url } = bestPost(p, byPerson.get(p.id) ?? []);
+    const { text, url, postedAt } = bestPost(p, byPerson.get(p.id) ?? []);
     return [
       // What was searched for, per row: a person can be found by more than one
       // event across exports, and without this the merged file cannot say which.
@@ -122,6 +133,7 @@ export async function buildRadarCsv(
       // most specific place known, not two columns of mostly-empty.
       p.location ?? p.country ?? "",
       p.linkedinUrl ?? "",
+      postedAt ? postedAt.toISOString().slice(0, 10) : "",
       url ?? "",
       text,
     ];
