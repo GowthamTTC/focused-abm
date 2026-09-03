@@ -6,6 +6,10 @@ import { db, channelAccount, connection, connectionBatch, service } from "@/db";
 import { env } from "@/lib/env";
 import { getChannelProvider } from "@/providers/channel";
 import { toCountry } from "@/modules/connections/country";
+// The shared parser, not a local copy: this file had its own that split on
+// " at " alone, so an author headlined "Account Executive @ Wise" imported
+// with no company at all.
+import { splitHeadline } from "@/modules/connections/import-csv";
 import { stampMetro } from "@/modules/geo/metros";
 import { countryBySlug } from "@/modules/geo/countries";
 import { mentionForEvent } from "@/modules/radar/mentions";
@@ -15,15 +19,6 @@ import { classifyBatch } from "@/modules/matching/service-fit";
 import { rankBatch } from "@/modules/scoring/rank";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-function splitHeadline(headline: string | null): { position: string | null; company: string | null } {
-  if (!headline) return { position: null, company: null };
-  const parts = headline.split(/\s+at\s+/i);
-  if (parts.length >= 2) {
-    return { position: parts[0].trim() || null, company: parts.slice(1).join(" at ").trim() || null };
-  }
-  return { position: headline, company: null };
-}
 
 function datePosted(days?: number): "past_day" | "past_week" | "past_month" {
   const d = days ?? 7;

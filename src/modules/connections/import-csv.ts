@@ -94,9 +94,20 @@ export function parseConnectionsCsv(text: string): ParsedConnectionsCsv {
 }
 
 /** "VP Marketing at Cobalt Fintech" → { position, company } — for synced relations. */
+/** Everything after the company name on a LinkedIn headline: awards, taglines,
+ *  hiring notices, emoji. "CEO @ Mediaplus North America | 2026 AdWeek 50 |
+ *  2026 AdAge Best Places to Work" is one company and two accolades, and
+ *  keeping all three made company_raw useless for reading, grouping or matching
+ *  a competitor name against. Cut at the first separator. */
+const HEADLINE_TAIL = /\s*[|·•‧∙►▪]\s*.*$|\s+[—–]\s+.*$/u;
+
 export function splitHeadline(headline: string | null): { position: string | null; company: string | null } {
   if (!headline) return { position: null, company: null };
+  // "at" and "@" both, and "@" is the common one in the wild — Radar's own copy
+  // of this function handled only "at" and found a company for 30% of an event
+  // search's authors where this finds one for most of them.
   const m = headline.match(/^(.*?)\s+(?:at|@)\s+(.+)$/i);
-  if (m) return { position: m[1].trim() || null, company: m[2].trim() || null };
-  return { position: headline.trim() || null, company: null };
+  if (!m) return { position: headline.trim() || null, company: null };
+  const company = m[2].replace(HEADLINE_TAIL, "").trim();
+  return { position: m[1].trim() || null, company: company || null };
 }

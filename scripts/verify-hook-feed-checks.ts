@@ -51,6 +51,7 @@ import { classifyBatch } from "../src/modules/matching/service-fit";
 import { runEventExtended } from "../src/modules/radar/extended";
 import { runEventScan } from "../src/modules/radar/scan";
 import { buildRadarCsv } from "../src/modules/radar/export";
+import { splitHeadline } from "../src/modules/connections/import-csv";
 import { loadRadar } from "../src/modules/radar/query";
 import { resolveBatch } from "../src/components/dash-bits";
 import { runTool } from "../src/modules/agent/tools";
@@ -973,6 +974,27 @@ async function main() {
     && cells[8]!.startsWith("https://www.linkedin.com/feed/update/")
     && cells[9]!.length > 0,
     cells.map((c, i) => `${i}:${c.slice(0, 26)}`).join(" | "));
+
+  // Headline parsing, on the shapes real LinkedIn headlines actually take.
+  // Radar used to carry its own copy of this that split on " at " alone, so
+  // "Account Executive @ Wise" imported with no company; measured on 288 real
+  // event-search authors, sharing the parser and trimming the tail took the
+  // company column from 30% filled to 43%.
+  for (const [headline, wantPosition, wantCompany] of [
+    ["Account Executive @ Wise", "Account Executive", "Wise"],
+    ["VP Marketing at Meridian SaaS Labs", "VP Marketing", "Meridian SaaS Labs"],
+    ["CEO @ Mediaplus North America | 2026 AdWeek 50 | Best Places to Work", "CEO", "Mediaplus North America"],
+    ["Sr. Enterprise BDR @ Impartner | Partner Ecosystems | PRM", "Sr. Enterprise BDR", "Impartner"],
+    ["Senior Director @ HubSpot — MBA, Customer Success", "Senior Director", "HubSpot"],
+    // No employer stated: the company must stay EMPTY rather than absorb the
+    // skills list, which is the honest answer for most of the remaining 57%.
+    ["HubSpot AI Consultant | Revenue Hub | CRM Automation", "HubSpot AI Consultant | Revenue Hub | CRM Automation", null],
+    ["", null, null],
+  ] as const) {
+    const got = splitHeadline(headline || null);
+    eqCheck(`headline "${headline.slice(0, 34) || "(empty)"}"`,
+      [got.position, got.company], [wantPosition, wantCompany]);
+  }
 
   // The 1st-degree pool: network_distance is NULL for everyone who came from a
   // CSV or a sync, and that must read "1st" rather than blank or "null".
