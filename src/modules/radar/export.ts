@@ -4,8 +4,8 @@
  * Seven columns, in the order a person reads them — the human, then how to
  * reach them, then the evidence:
  *
- *   Search query · Name · Title · Company · Location · LinkedIn profile ·
- *   Posted date · Post link · Post text
+ *   Search query · Name · Connection · Title · Company · Location ·
+ *   LinkedIn profile · Posted date · Post link · Post text
  *
  * The post columns are the reason this exists, and they are the ones with a
  * story. A person's row carries only mention_snippet — 180 characters, no link
@@ -27,6 +27,10 @@ export const RADAR_CSV_HEADER = [
   // characters.
   "Search query",
   "Name",
+  // Beside the name, because it is a fact about the person and it is the one
+  // that decides whether you can message them at all. NULL means 1st: CSV and
+  // sync never write the column, so only Radar's own search ever sets it.
+  "Connection",
   "Title",
   "Company",
   "Location",
@@ -87,6 +91,15 @@ function bestPost(
   return { text: newest.text, url: newest.url, postedAt: newest.postedAt };
 }
 
+/** "1st" · "2nd" · "3rd". The column is written out rather than left as a bare
+ *  2 or 3, because a spreadsheet reader should not have to know the encoding —
+ *  and a bare number risks being read as a count. */
+function degreeLabel(d: string | null): string {
+  if (d === "2") return "2nd";
+  if (d === "3") return "3rd";
+  return "1st";
+}
+
 export interface RadarCsv { csv: string; rows: number }
 
 /** Exactly the people the screen is showing, in the same order.
@@ -127,6 +140,7 @@ export async function buildRadarCsv(
       // event across exports, and without this the merged file cannot say which.
       p.eventQuery ?? "",
       `${p.firstName} ${p.lastName}`.trim(),
+      degreeLabel(p.networkDistance),
       p.positionRaw ?? "",
       p.companyRaw ?? "",
       // City where we have one, country otherwise: "country or city" means the

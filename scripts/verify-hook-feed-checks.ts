@@ -956,7 +956,7 @@ async function main() {
   const csvLines = csvOut.csv.trimEnd().split("\r\n");
   eqCheck("the CSV header is the eight columns asked for, query first",
     csvLines[0],
-    '"Search query","Name","Title","Company","Location","LinkedIn profile","Posted date","LinkedIn post link","LinkedIn post text"');
+    '"Search query","Name","Connection","Title","Company","Location","LinkedIn profile","Posted date","LinkedIn post link","LinkedIn post text"');
   check("one row per person on screen, and the count is reported",
     csvOut.rows === 2 && csvLines.length === 3, `rows=${csvOut.rows} lines=${csvLines.length}`);
 
@@ -964,14 +964,27 @@ async function main() {
   // this feature exists to avoid, and the searched post is what fills them.
   const cells = csvLines[1]!.match(/"(?:[^"]|"")*"/g)!.map((c) => c.slice(1, -1).replace(/""/g, '"'));
   check("every column carries real data, including the query, post link and text",
-    cells.length === 9
+    cells.length === 10
     && cells[0] === "Fixture Summit"
     && cells[1]!.trim().length > 0
-    && cells[5]!.startsWith("https://www.linkedin.com/in/")
-    && /^\d{4}-\d{2}-\d{2}$/.test(cells[6]!)
-    && cells[7]!.startsWith("https://www.linkedin.com/feed/update/")
-    && cells[8]!.length > 0,
+    && ["2nd", "3rd"].includes(cells[2]!)
+    && cells[6]!.startsWith("https://www.linkedin.com/in/")
+    && /^\d{4}-\d{2}-\d{2}$/.test(cells[7]!)
+    && cells[8]!.startsWith("https://www.linkedin.com/feed/update/")
+    && cells[9]!.length > 0,
     cells.map((c, i) => `${i}:${c.slice(0, 26)}`).join(" | "));
+
+  // The 1st-degree pool: network_distance is NULL for everyone who came from a
+  // CSV or a sync, and that must read "1st" rather than blank or "null".
+  const firstCsv = await buildRadarCsv(orgA, {
+    metro: "sf-bay-area", days: 7, pool: "first", country: "united-states",
+  });
+  const firstRows = firstCsv.csv.trimEnd().split("\r\n").slice(1);
+  const firstDegrees = firstRows.map((r) =>
+    (r.match(/"(?:[^"]|"")*"/g) ?? [])[2]?.slice(1, -1));
+  check("a connection with no stored degree exports as 1st",
+    firstCsv.rows > 0 && firstDegrees.every((d) => d === "1st"),
+    `rows=${firstCsv.rows} degrees=${[...new Set(firstDegrees)].join(",")}`);
 
   // The legacy shape: rows imported before the search path stored posts. The
   // link is genuinely unknown and must stay blank rather than be faked, but
@@ -988,10 +1001,10 @@ async function main() {
     .map((c) => c.slice(1, -1).replace(/""/g, '"'));
   check("with no stored post the date still comes from the mention, and the link stays blank",
     legacy.rows === 2
-    && /^\d{4}-\d{2}-\d{2}$/.test(legacyCells[6]!)
-    && legacyCells[7] === ""
-    && legacyCells[8]!.length > 0,
-    `date=${legacyCells[6]} link=${JSON.stringify(legacyCells[7])} text=${(legacyCells[8] ?? "").slice(0, 24)}`);
+    && /^\d{4}-\d{2}-\d{2}$/.test(legacyCells[7]!)
+    && legacyCells[8] === ""
+    && legacyCells[9]!.length > 0,
+    `date=${legacyCells[7]} link=${JSON.stringify(legacyCells[8])} text=${(legacyCells[9] ?? "").slice(0, 24)}`);
   for (const row of keptPosts) {
     await db.insert(post).values(row).onConflictDoNothing();
   }
@@ -1021,8 +1034,8 @@ async function main() {
   check("quotes, commas and newlines in a post survive intact and break no rows",
     parsed.length === 3
     && nastyCsv.csv.includes('""we\'re done""')
-    && nastyCells[8] === nastyText,
-    `records=${parsed.length} roundtrip=${JSON.stringify(nastyCells[8] ?? "").slice(0, 60)}`);
+    && nastyCells[9] === nastyText,
+    `records=${parsed.length} roundtrip=${JSON.stringify(nastyCells[9] ?? "").slice(0, 60)}`);
 
   // No ICP means classifyBatch would throw AFTER importing 100 people. Refuse
   // before the first search request instead.
