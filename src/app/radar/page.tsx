@@ -129,13 +129,17 @@ export default async function RadarPage({ searchParams }: {
           </select>
           <input name="event" defaultValue={eventName} placeholder="Event name (required)"
             className="w-44 rounded-[8px] border border-[#DDE2EE] bg-white px-2 py-1.5" />
-          <button disabled={firstDegreeBlocked}
+          {/* NOT disabled on the cap. The pool select is a field in this same
+              form, so switching it to "2nd + 3rd" does not re-render — a button
+              disabled from the server-rendered pool stays dead after the user
+              has chosen the pool the cap does not even apply to, which locks
+              them out of the one search that still works. The warning above
+              informs; startEventScan refuses and says so. */}
+          <button
             title={firstDegreeBlocked
-              ? `Today's post-scan budget is spent — ${scan.used} of ${scan.cap} people. Resets in ${resetsIn(scan.resetsAt)}. The 2nd + 3rd search does not use it.`
+              ? `1st degree cannot run — today's post-scan budget is spent (${scan.used} of ${scan.cap}), resets in ${resetsIn(scan.resetsAt)}. Switch the first dropdown to 2nd + 3rd, which does not use it.`
               : undefined}
-            className={firstDegreeBlocked
-              ? "cursor-not-allowed rounded-[8px] bg-[#F4F6FB] px-3 py-1.5 font-medium text-[#98A2B3]"
-              : `rounded-[8px] bg-[#263BAA] px-3 py-1.5 font-medium text-white hover:bg-[#1D2E86] ${activeJob ? "radar-banner-text" : ""}`}>
+            className={`rounded-[8px] bg-[#263BAA] px-3 py-1.5 font-medium text-white hover:bg-[#1D2E86] ${activeJob ? "radar-banner-text" : ""}`}>
             {activeJob ? "Scanning" : "Scan"}
           </button>
         </form>
@@ -157,8 +161,9 @@ export default async function RadarPage({ searchParams }: {
         <p className="tnum mt-3 text-sm text-[#B54708]">
           Today&apos;s post-scan budget is spent — {scan.used} of {scan.cap} people looked at across this
           workspace, resets in {resetsIn(scan.resetsAt)}. A 1st-degree scan reads each person&apos;s recent
-          posts, so it cannot run. <span className="font-medium">2nd + 3rd — event search still works</span>:
-          it searches posts rather than people and spends none of this budget.
+          posts, so it cannot run.{" "}
+          <span className="font-medium">Switch the first dropdown to “2nd + 3rd — event search” and press
+          Scan</span>: it searches posts rather than people and spends none of this budget.
         </p>
       ) : pool === "first" ? (
         <p className="tnum mt-3 text-[12px] text-[#98A2B3]">
