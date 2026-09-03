@@ -3,6 +3,8 @@ import { Shell, requirePage } from "@/app/shell";
 import { ActivityBadge, ago } from "@/components/dash-bits";
 import { RADAR_COUNTRIES, countryBySlug } from "@/modules/geo/countries";
 import { loadRadar, type RadarPerson } from "@/modules/radar/query";
+import { getDailyScanUsage } from "@/modules/posts/usage";
+import { resetsIn } from "@/modules/enrich/usage";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db, job } from "@/db";
 import { startEventScan, markFloor, clearFloor } from "./actions";
@@ -54,6 +56,13 @@ export default async function RadarPage({ searchParams }: {
   // The last finished search, only so the page can say whether the daily
   // post-scan cap cut it short. runEventScan stops rather than throwing, so
   // without this the run reads as a complete pass over a smaller world.
+  // Only the 1st-degree pool spends this: it fetches each person's posts and
+  // stamps last_scan_at, which is what getDailyScanUsage counts. The 2nd + 3rd
+  // pool is a post SEARCH — it stores what it finds without touching anyone's
+  // scan stamp, so it stays available when the budget is gone.
+  const scan = await getDailyScanUsage(user.orgId);
+  const firstDegreeBlocked = pool === "first" && scan.remaining === 0;
+
   const [lastSearch] = await db.select({ payloadJson: job.payloadJson }).from(job)
     .where(and(eq(job.orgId, user.orgId), eq(job.kind, "event_extended"), eq(job.status, "done")))
     .orderBy(desc(job.createdAt)).limit(1);
@@ -120,7 +129,13 @@ export default async function RadarPage({ searchParams }: {
           </select>
           <input name="event" defaultValue={eventName} placeholder="Event name (required)"
             className="w-44 rounded-[8px] border border-[#DDE2EE] bg-white px-2 py-1.5" />
-          <button className={`rounded-[8px] bg-[#263BAA] px-3 py-1.5 font-medium text-white hover:bg-[#1D2E86] ${activeJob ? "radar-banner-text" : ""}`}>
+          <button disabled={firstDegreeBlocked}
+            title={firstDegreeBlocked
+              ? `Today's post-scan budget is spent — ${scan.used} of ${scan.cap} people. Resets in ${resetsIn(scan.resetsAt)}. The 2nd + 3rd search does not use it.`
+              : undefined}
+            className={firstDegreeBlocked
+              ? "cursor-not-allowed rounded-[8px] bg-[#F4F6FB] px-3 py-1.5 font-medium text-[#98A2B3]"
+              : `rounded-[8px] bg-[#263BAA] px-3 py-1.5 font-medium text-white hover:bg-[#1D2E86] ${activeJob ? "radar-banner-text" : ""}`}>
             {activeJob ? "Scanning" : "Scan"}
           </button>
         </form>
@@ -129,6 +144,28 @@ export default async function RadarPage({ searchParams }: {
       {sp.err === "event" && (
         <p className="mt-3 text-sm text-[#B42318]">Event name is required.</p>
       )}
+      {sp.err === "cap" && (
+        <p className="tnum mt-3 text-sm text-[#B54708]">
+          Not started — today&apos;s post-scan budget is spent ({scan.used} of {scan.cap}), resets in{" "}
+          {resetsIn(scan.resetsAt)}. Nothing was queued.
+        </p>
+      )}
+      {/* Said before the press, not after it. Pressing Scan with the budget
+          gone used to return "scanned 0" with no explanation anywhere — four
+          silent no-ops in a row, on a screen that looked like it was working. */}
+      {firstDegreeBlocked ? (
+        <p className="tnum mt-3 text-sm text-[#B54708]">
+          Today&apos;s post-scan budget is spent — {scan.used} of {scan.cap} people looked at across this
+          workspace, resets in {resetsIn(scan.resetsAt)}. A 1st-degree scan reads each person&apos;s recent
+          posts, so it cannot run. <span className="font-medium">2nd + 3rd — event search still works</span>:
+          it searches posts rather than people and spends none of this budget.
+        </p>
+      ) : pool === "first" ? (
+        <p className="tnum mt-3 text-[12px] text-[#98A2B3]">
+          {scan.used}/{scan.cap} people scanned today across this workspace, any scan including Today&apos;s —
+          a 1st-degree run reads up to {Math.min(100, scan.remaining)} more, then stops at the cap.
+        </p>
+      ) : null}
       {activeJob && (
         <p className="radar-banner mt-3 text-sm text-[#067647]">
           <span className="radar-banner-text">

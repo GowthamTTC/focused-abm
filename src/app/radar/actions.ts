@@ -23,6 +23,16 @@ export async function startEventScan(formData: FormData) {
   if (!eventName) {
     redirect(qs(days, { pool, country, err: "event" }));
   }
+  // The disabled button is the courtesy; this is the protection. A 1st-degree
+  // run reads each person's posts, so it stops dead at the daily cap — and
+  // queueing it anyway produced a job that reported "scanned 0" with the reason
+  // recorded nowhere a user could see. The 2nd + 3rd search is a post SEARCH
+  // and spends none of this budget, so it is never refused here.
+  if (pool === "first") {
+    const { getDailyScanUsage } = await import("@/modules/posts/usage");
+    const { remaining } = await getDailyScanUsage(user.orgId);
+    if (remaining === 0) redirect(qs(days, { pool, country, err: "cap" }));
+  }
   await enqueue(user.orgId, "event_extended", {
     country,
     days: Math.min(30, Math.max(1, days)),
