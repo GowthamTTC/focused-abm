@@ -108,3 +108,40 @@ export function mentionForEvent(
   }
   return best;
 }
+
+
+/** Companies to leave out of an event scan — normally the event's host.
+ *
+ *  A Dreamforce search is mostly Salesforce staff and an Unbound search mostly
+ *  HubSpot's; they are the loudest posters about their own event and the least
+ *  useful result, because they are not attendees you can sell to.
+ *
+ *  Matches an EMPLOYMENT CLAIM, never a mention. "Product Marketer at
+ *  Salesforce" and "Senior Director @ Salesforce" are excluded; "Salesforce
+ *  MVP", "HubSpot AI Consultant" and "Salesforce consultant at Acme" are kept,
+ *  because those people work somewhere else and are exactly who the search is
+ *  for. Getting this backwards would drop most of an event's real audience.
+ */
+export function parseExcludedCompanies(raw: string | null | undefined): string[] {
+  return (raw ?? "")
+    .split(",")
+    .map((t) => t.trim().toLowerCase())
+    .filter((t) => t.length >= 2);
+}
+
+export function isExcludedCompany(
+  terms: string[],
+  company: string | null | undefined,
+  headline: string | null | undefined,
+): boolean {
+  if (terms.length === 0) return false;
+  const co = (company ?? "").toLowerCase();
+  const head = (headline ?? "").toLowerCase();
+  return terms.some((t) => {
+    if (co.includes(t)) return true;
+    // The parser only splits on the FIRST " at "/"@", so an employment claim
+    // can still be sitting further along a crowded headline.
+    const escaped = t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`(?:\\bat|@)\\s+${escaped}\\b`, "i").test(head);
+  });
+}

@@ -9,7 +9,8 @@ import { env } from "@/lib/env";
 import { getChannelProvider } from "@/providers/channel";
 import { toCountry } from "@/modules/connections/country";
 import { metroBySlug, stampMetro } from "@/modules/geo/metros";
-import { mentionForEvent, mentionForSlug } from "@/modules/radar/mentions";
+import { mentionForEvent, mentionForSlug, parseExcludedCompanies, isExcludedCompany } from "@/modules/radar/mentions";
+import { splitHeadline } from "@/modules/connections/import-csv";
 import { countryBySlug } from "@/modules/geo/countries";
 import { storePosts } from "@/modules/posts/store";
 import { getDailyScanUsage } from "@/modules/posts/usage";
@@ -28,6 +29,8 @@ export interface EventScanPayload {
   limit?: number;
   /** Restrict to 1st-degree (null or "1") network distance. */
   firstDegreeOnly?: boolean;
+  /** Comma-separated companies to leave out — normally the event's host. */
+  excludeCompanies?: string;
 }
 
 export interface EventScanResult {
@@ -164,8 +167,14 @@ export async function runEventScan(
   }
   const pool = await poolQuery;
 
-  const todo = pool.filter((c) => !c.lastScanAt || c.lastScanAt < skipAfter);
-  result.skippedFresh = pool.length - todo.length;
+  // Excluded before the freshness filter and before any request: skipping the
+  // host's own staff is the point, and it also spends none of the daily cap on
+  // them.
+  const excludedTerms = parseExcludedCompanies(payload.excludeCompanies);
+  const eligible = excludedTerms.length === 0 ? pool : pool.filter((c) =>
+    !isExcludedCompany(excludedTerms, splitHeadline(c.headlineRaw).company, c.headlineRaw));
+  const todo = eligible.filter((c) => !c.lastScanAt || c.lastScanAt < skipAfter);
+  result.skippedFresh = eligible.length - todo.length;
 
   // Someone skipped for freshness still has their posts on file — layer 02
   // stores every post these scans fetch. So a NEW event name can be answered
@@ -181,7 +190,7 @@ export async function runEventScan(
   //
   // Sets only on a match. A skipped person was never looked at, so this must
   // not clear the evidence an earlier event left on them.
-  const skipped = pool.filter((c) => c.lastScanAt && c.lastScanAt >= skipAfter);
+  const skipped = eligible.filter((c) => c.lastScanAt && c.lastScanAt >= skipAfter);
   if (skipped.length > 0 && (eventName || metro)) {
     const stored = await db.select({
       connectionId: post.connectionId, text: post.text, postedAt: post.postedAt,

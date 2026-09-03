@@ -33,7 +33,7 @@ function opener(p: RadarPerson): string {
 }
 
 export default async function RadarPage({ searchParams }: {
-  searchParams: Promise<{ metro?: string; days?: string; p?: string; tab?: string; scanning?: string; pool?: string; err?: string; country?: string; q?: string; page?: string; size?: string; event?: string; company?: string }>;
+  searchParams: Promise<{ metro?: string; days?: string; p?: string; tab?: string; scanning?: string; pool?: string; err?: string; country?: string; q?: string; page?: string; size?: string; event?: string; company?: string; exclude?: string }>;
 }) {
   const user = await requirePage();
   const sp = await searchParams;
@@ -41,6 +41,7 @@ export default async function RadarPage({ searchParams }: {
   const days = [3, 7, 14].includes(Number(sp.days)) ? Number(sp.days) : 7;
   const pool = sp.pool === "extended" ? "extended" : "first";
   const country = countryBySlug(sp.country)?.slug ?? "united-states";
+  const excludeCompanies = (sp.exclude ?? "").slice(0, 200);
   const query = (sp.q ?? "").trim();
   const eventName = (sp.event ?? query).trim();
   const size = [10, 25].includes(Number(sp.size)) ? Number(sp.size) : 10;
@@ -66,7 +67,12 @@ export default async function RadarPage({ searchParams }: {
   const [lastSearch] = await db.select({ payloadJson: job.payloadJson }).from(job)
     .where(and(eq(job.orgId, user.orgId), eq(job.kind, "event_extended"), eq(job.status, "done")))
     .orderBy(desc(job.createdAt)).limit(1);
-  const searchCapped = Boolean((lastSearch?.payloadJson as { result?: { capped?: boolean } } | null)?.result?.capped);
+  const lastResult = (lastSearch?.payloadJson as {
+    result?: { capped?: boolean; skippedHost?: number };
+    excludeCompanies?: string;
+  } | null);
+  const searchCapped = Boolean(lastResult?.result?.capped);
+  const searchSkippedHost = lastResult?.result?.skippedHost ?? 0;
   const scanning = Boolean(activeJob) || (sp.scanning === "1" && Boolean(activeJob));
 
   const lists = {
@@ -129,6 +135,10 @@ export default async function RadarPage({ searchParams }: {
           </select>
           <input name="event" defaultValue={eventName} placeholder="Event name (required)"
             className="w-44 rounded-[8px] border border-[#DDE2EE] bg-white px-2 py-1.5" />
+          <input name="exclude" defaultValue={excludeCompanies}
+            placeholder="Exclude companies (e.g. Salesforce)"
+            title="Comma separated. Leaves out anyone whose headline says they WORK there — the event host, usually. Someone who merely mentions the company, or consults on it from another firm, is kept."
+            className="w-56 rounded-[8px] border border-[#DDE2EE] bg-white px-2 py-1.5" />
           {/* NOT disabled on the cap. The pool select is a field in this same
               form, so switching it to "2nd + 3rd" does not re-render — a button
               disabled from the server-rendered pool stays dead after the user
@@ -186,6 +196,7 @@ export default async function RadarPage({ searchParams }: {
           Scan finished. Open <span className="font-medium">Named the event</span>.
           Empty means none of the scanned people posted that name in the window — try a shorter token (e.g. Dreamforce).
           {searchCapped && " Stopped at today's post-scan cap — the rest were not looked at."}
+          {searchSkippedHost > 0 && ` ${searchSkippedHost} ${searchSkippedHost === 1 ? "author was" : "authors were"} left out as ${lastResult?.excludeCompanies ?? "an excluded company"} — the cap was filled with other people instead.`}
         </p>
       )}
 

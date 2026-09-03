@@ -52,6 +52,7 @@ import { runEventExtended } from "../src/modules/radar/extended";
 import { runEventScan } from "../src/modules/radar/scan";
 import { buildRadarCsv } from "../src/modules/radar/export";
 import { splitHeadline } from "../src/modules/connections/import-csv";
+import { parseExcludedCompanies, isExcludedCompany } from "../src/modules/radar/mentions";
 import { loadRadar } from "../src/modules/radar/query";
 import { resolveBatch } from "../src/components/dash-bits";
 import { runTool } from "../src/modules/agent/tools";
@@ -974,6 +975,30 @@ async function main() {
     && cells[8]!.startsWith("https://www.linkedin.com/feed/update/")
     && cells[9]!.length > 0,
     cells.map((c, i) => `${i}:${c.slice(0, 26)}`).join(" | "));
+
+  // Excluding the event host. Matches an employment CLAIM, never a mention:
+  // dropping everyone who says "Salesforce" anywhere would drop most of a
+  // Dreamforce audience, which is the opposite of what this is for.
+  const excl = parseExcludedCompanies("Salesforce, HubSpot");
+  eqCheck("the exclude box parses into terms", excl, ["salesforce", "hubspot"]);
+  eqCheck("blank and one-character entries are ignored",
+    parseExcludedCompanies(" , a ,  , Salesforce "), ["salesforce"]);
+  for (const [headline, company, want] of [
+    ["Product Marketer at Salesforce", "Salesforce", true],
+    ["Senior Director @ HubSpot | MBA, Customer Success", "HubSpot", true],
+    // The claim can sit past the first separator, where splitHeadline stops.
+    ["AI Strategist | Growth Partner | Founder @ Salesforce Ventures", "AI Strategist", true],
+    // Mentions and partners are the audience, and must survive.
+    ["Salesforce MVP and certified architect", null, false],
+    ["HubSpot AI Consultant | Revenue Hub | CRM Automation", null, false],
+    ["Salesforce consultant at Acme Digital", "Acme Digital", false],
+    ["Chief Growth Officer at Cloud Giants | Salesforce Leader", "Cloud Giants", false],
+  ] as const) {
+    check(`${want ? "exclude" : "keep   "} "${headline.slice(0, 44)}"`,
+      isExcludedCompany(excl, company, headline) === want);
+  }
+  check("no terms means nothing is excluded",
+    !isExcludedCompany([], "Salesforce", "Product Marketer at Salesforce"));
 
   // Headline parsing, on the shapes real LinkedIn headlines actually take.
   // Radar used to carry its own copy of this that split on " at " alone, so

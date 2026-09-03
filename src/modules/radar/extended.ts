@@ -12,7 +12,7 @@ import { toCountry } from "@/modules/connections/country";
 import { splitHeadline } from "@/modules/connections/import-csv";
 import { stampMetro } from "@/modules/geo/metros";
 import { countryBySlug } from "@/modules/geo/countries";
-import { mentionForEvent } from "@/modules/radar/mentions";
+import { mentionForEvent, parseExcludedCompanies, isExcludedCompany } from "@/modules/radar/mentions";
 import { runEventScan } from "@/modules/radar/scan";
 import { storePosts } from "@/modules/posts/store";
 import { classifyBatch } from "@/modules/matching/service-fit";
@@ -29,10 +29,15 @@ function datePosted(days?: number): "past_day" | "past_week" | "past_month" {
 
 export async function runEventExtended(
   orgId: string,
-  payload: { country: string; eventName: string; days?: number; metro?: string; degree?: "first" | "extended" },
+  payload: {
+    country: string; eventName: string; days?: number; metro?: string;
+    degree?: "first" | "extended";
+    /** Comma-separated companies to leave out — normally the event's host. */
+    excludeCompanies?: string;
+  },
   onProgress?: (done: number, total: number) => Promise<void>,
   shouldStop?: () => Promise<boolean>,
-): Promise<{ found: number; scanned: number; batchId: string; capped?: boolean }> {
+): Promise<{ found: number; scanned: number; batchId: string; capped?: boolean; skippedHost?: number }> {
   const eventName = payload.eventName.trim();
   if (!eventName) throw new Error("Event name is required for 2nd + 3rd degree search.");
   const scope = countryBySlug(payload.country);
@@ -63,6 +68,7 @@ export async function runEventExtended(
         metro: "sf-bay-area",
         country: scope.slug,
         eventName,
+        excludeCompanies: payload.excludeCompanies,
         // No `force`. force sets skipAfter to new Date(0), which discards
         // EVENT_SCAN_SKIP_HOURS entirely: someone scanned ten minutes ago is
         // re-fetched at full price, and the daily cap counts distinct PEOPLE,
@@ -79,6 +85,8 @@ export async function runEventExtended(
   }
 
   const provider = getChannelProvider();
+  const excluded = parseExcludedCompanies(payload.excludeCompanies);
+  let skippedHost = 0;
   const authors = new Map<string, {
     firstName: string; lastName: string; headline: string | null; location: string | null;
     profileUrl: string | null; publicIdentifier: string | null; memberId: string | null;
@@ -130,6 +138,13 @@ export async function runEventExtended(
         || eventName;
       const locCountry = toCountry(post.author.location);
       if (locCountry && locCountry !== scope.country) continue;
+      // Dropped BEFORE the cap counts them, so excluding the host does not cost
+      // you results — the search keeps paging until it has `cap` people you
+      // actually want, rather than 100 minus however many worked for the host.
+      if (isExcludedCompany(excluded, splitHeadline(post.author.headline).company, post.author.headline)) {
+        skippedHost += 1;
+        continue;
+      }
       const key = (post.author.publicIdentifier || post.author.profileUrl || post.author.memberId
         || `${post.author.firstName}-${post.author.lastName}`).toLowerCase();
       const rawWhen = hit?.postedAt ?? (post.postedAt ? new Date(post.postedAt) : null);
@@ -245,5 +260,5 @@ export async function runEventExtended(
     await rankBatch(orgId, batch.id);
   }
   if (onProgress) await onProgress(rows.length, Math.max(rows.length, 1));
-  return { found: rows.length, scanned: rows.length, batchId: batch.id };
+  return { found: rows.length, scanned: rows.length, batchId: batch.id, skippedHost };
 }

@@ -17,6 +17,10 @@ export async function startEventScan(formData: FormData) {
   const days = Number(formData.get("days") ?? 7) || 7;
   const eventName = String(formData.get("event") ?? "").trim();
   const pool = String(formData.get("pool") ?? "first") === "extended" ? "extended" : "first";
+  // Normally the event's host: a Dreamforce search is mostly Salesforce staff,
+  // and they are the least useful result because they are not attendees you can
+  // sell to. Kept in the URL so the box still holds it after the redirect.
+  const exclude = String(formData.get("exclude") ?? "").trim().slice(0, 200);
   if (!countryBySlug(country)) {
     redirect(qs(7, { pool, country: "united-states", err: "country" }));
   }
@@ -38,8 +42,10 @@ export async function startEventScan(formData: FormData) {
     days: Math.min(30, Math.max(1, days)),
     eventName,
     degree: pool === "extended" ? "extended" : "first",
+    excludeCompanies: exclude || undefined,
   });
-  redirect(qs(days, { pool, country, scanning: "1", event: eventName, q: eventName }));
+  redirect(qs(days, { pool, country, scanning: "1", event: eventName, q: eventName,
+    ...(exclude ? { exclude } : {}) }));
 }
 
 export async function markFloor(id: string, status: "met" | "skipped", metro: string, days: number, pool = "first", country = "united-states") {

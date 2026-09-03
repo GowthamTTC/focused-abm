@@ -273,13 +273,14 @@ export async function processNext(): Promise<boolean> {
         throw new Error(`All ${r.failed} model calls failed — posts stay unjudged, press again to retry.`);
       }
     } else if (next.kind === "event_extended") {
-      const payload = next.payloadJson as { country?: string; metro?: string; eventName?: string; days?: number; degree?: "first" | "extended" };
+      const payload = next.payloadJson as { country?: string; metro?: string; eventName?: string; days?: number; degree?: "first" | "extended"; excludeCompanies?: string };
       if (!payload.country) throw new Error("Event search needs a country.");
       if (!payload.eventName) throw new Error("Event search needs an event name.");
       const stoppedEarly = { v: false };
       const result = await runEventExtended(
         next.orgId,
-        { country: payload.country, eventName: payload.eventName, days: payload.days, degree: payload.degree },
+        { country: payload.country, eventName: payload.eventName, days: payload.days,
+          degree: payload.degree, excludeCompanies: payload.excludeCompanies },
         (done, total) => setProgress(next.id, done, total),
         async () => {
           const stop = await stopRequested(next.id);
