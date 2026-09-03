@@ -1,8 +1,8 @@
 /**
  * 2nd + 3rd: search LinkedIn posts for the event name, then keep authors.
  */
-import { and, eq, isNull, or } from "drizzle-orm";
-import { db, channelAccount, connection, connectionBatch } from "@/db";
+import { and, eq } from "drizzle-orm";
+import { db, channelAccount, connection, connectionBatch, service } from "@/db";
 import { env } from "@/lib/env";
 import { getChannelProvider } from "@/providers/channel";
 import { toCountry } from "@/modules/connections/country";
@@ -36,7 +36,7 @@ export async function runEventExtended(
   payload: { country: string; eventName: string; days?: number; metro?: string; degree?: "first" | "extended" },
   onProgress?: (done: number, total: number) => Promise<void>,
   shouldStop?: () => Promise<boolean>,
-): Promise<{ found: number; scanned: number; batchId: string }> {
+): Promise<{ found: number; scanned: number; batchId: string; capped?: boolean }> {
   const eventName = payload.eventName.trim();
   if (!eventName) throw new Error("Event name is required for 2nd + 3rd degree search.");
   const scope = countryBySlug(payload.country);
@@ -45,6 +45,15 @@ export async function runEventExtended(
   const [seat] = await db.select().from(channelAccount)
     .where(and(eq(channelAccount.orgId, orgId), eq(channelAccount.status, "operational")));
   if (!seat) throw new Error("Connect a LinkedIn account in Settings first.");
+
+  // classifyBatch throws when a workspace has no active service. Today that
+  // throw is unreachable because the pre-stamped bucket left it nothing to
+  // classify; now that classification is real, a workspace with no ICP would
+  // import 100 people and THEN fail, leaving an orphan batch of unclassified
+  // rows and a failed job. Refuse before the first search request.
+  const [offer] = await db.select({ id: service.id }).from(service)
+    .where(and(eq(service.orgId, orgId), eq(service.status, "active"))).limit(1);
+  if (!offer) throw new Error("No active ICP to match against — add one in Offers, then search.");
 
   const cap = env.EVENT_EXTENDED_CAP;
 
@@ -58,7 +67,11 @@ export async function runEventExtended(
         metro: "sf-bay-area",
         country: scope.slug,
         eventName,
-        force: true,
+        // No `force`. force sets skipAfter to new Date(0), which discards
+        // EVENT_SCAN_SKIP_HOURS entirely: someone scanned ten minutes ago is
+        // re-fetched at full price, and the daily cap counts distinct PEOPLE,
+        // not requests, so the re-fetch was free against the brake and not free
+        // against LinkedIn. skippedFresh already reports what the window held.
         limit: cap,
         firstDegreeOnly: true,
       },
@@ -66,7 +79,7 @@ export async function runEventExtended(
       shouldStop,
     );
     if (onProgress) await onProgress(scan.scanned, Math.max(scan.scanned, 1));
-    return { found: scan.mentioned, scanned: scan.scanned, batchId: "" };
+    return { found: scan.mentioned, scanned: scan.scanned, batchId: "", capped: scan.cappedAt != null };
   }
 
   const provider = getChannelProvider();
@@ -155,6 +168,21 @@ export async function runEventExtended(
     await db.insert(connection).values(rows.slice(i, i + CHUNK).map((h) => {
       const locCountry = toCountry(h.location) ?? scope.country;
       const { position, company } = splitHeadline(h.headline);
+      // Deliberately NOT bucketed and NOT scan-stamped here.
+      //
+      // bucket / match_why / match_method / match_confidence are classifyBatch's
+      // to write, and classifyBatch selects on `bucket is null` — stamping them
+      // here made the call twenty lines below a guaranteed no-op and shipped a
+      // fabricated "rule · 60%" ICP verdict into /people, the enrichment
+      // pickers, the ranked pool and the client workbook, for a person whose
+      // only qualification is that they typed the event name.
+      //
+      // last_scan_at stays NULL because no post scan happened. getDailyScanUsage
+      // counts rows stamped since UTC midnight, so writing it here spent the
+      // whole workspace's daily post-scan budget on zero LinkedIn calls.
+      //
+      // The search evidence is not lost: mention_snippet, mention_kind and
+      // event_query carry it, and that is what /radar renders.
       return {
         orgId,
         batchId: batch.id,
@@ -171,16 +199,11 @@ export async function runEventExtended(
         ...stampMetro({ location: h.location, headline: h.headline, country: locCountry }),
         networkDistance: h.networkDistance,
         lastPostAt: h.postedAt,
-        lastScanAt: new Date(),
         mentionMetro: scope.slug,
         mentionAt: h.postedAt,
         mentionSnippet: h.snippet,
         mentionKind: "event",
         eventQuery: eventName,
-        bucket: "pitchable",
-        matchWhy: `Posted about "${eventName}": ${h.snippet}`,
-        matchMethod: "rule",
-        matchConfidence: 60,
       };
     }));
   }

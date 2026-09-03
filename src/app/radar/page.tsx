@@ -3,7 +3,7 @@ import { Shell, requirePage } from "@/app/shell";
 import { ActivityBadge, ago } from "@/components/dash-bits";
 import { RADAR_COUNTRIES, countryBySlug } from "@/modules/geo/countries";
 import { loadRadar, type RadarPerson } from "@/modules/radar/query";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { db, job } from "@/db";
 import { startEventScan, markFloor, clearFloor } from "./actions";
 import { CompanyPie } from "@/components/company-pie";
@@ -11,7 +11,11 @@ import { companyKey } from "@/modules/radar/score";
 
 function evidenceLabel(p: RadarPerson): string {
   if (p.presence === "mentioned_active") {
-    if (p.mentionKind === "event") return "Named the event in a recent post — not confirmed based here";
+    if (p.mentionKind === "event") {
+      return p.networkDistance
+        ? "Named the event in a recent post — you are not connected to them"
+        : "Named the event in a recent post — not confirmed based here";
+    }
     if (p.mentionKind === "travel") return "Travel language in a recent post — may be in town";
     return "Mentioned this metro in a post — weaker than a profile city";
   }
@@ -39,14 +43,21 @@ export default async function RadarPage({ searchParams }: {
   const eventName = (sp.event ?? query).trim();
   const size = [10, 25].includes(Number(sp.size)) ? Number(sp.size) : 10;
   const page = Math.max(1, Number(sp.page) || 1);
-  const tab = (["active", "mentioned", "based", "met"].includes(sp.tab ?? "")
+  const tab = (["mentioned", "met"].includes(sp.tab ?? "")
     ? sp.tab
-    : "mentioned") as "active" | "mentioned" | "based" | "met";
+    : "mentioned") as "mentioned" | "met";
   const view = await loadRadar(user.orgId, metro, days, pool, country, query || undefined);
   const [activeJob] = await db.select({ id: job.id, status: job.status }).from(job).where(and(
     eq(job.orgId, user.orgId),
     inArray(job.status, ["queued", "running", "stopping"]),
   )).limit(1);
+  // The last finished search, only so the page can say whether the daily
+  // post-scan cap cut it short. runEventScan stops rather than throwing, so
+  // without this the run reads as a complete pass over a smaller world.
+  const [lastSearch] = await db.select({ payloadJson: job.payloadJson }).from(job)
+    .where(and(eq(job.orgId, user.orgId), eq(job.kind, "event_extended"), eq(job.status, "done")))
+    .orderBy(desc(job.createdAt)).limit(1);
+  const searchCapped = Boolean((lastSearch?.payloadJson as { result?: { capped?: boolean } } | null)?.result?.capped);
   const scanning = Boolean(activeJob) || (sp.scanning === "1" && Boolean(activeJob));
 
   const lists = {
@@ -87,8 +98,11 @@ export default async function RadarPage({ searchParams }: {
         <div>
           <h1 className="text-xl font-semibold">Event radar</h1>
           <p className="mt-1 max-w-xl text-sm text-[#475467]">
-            Both pools search posts by country (US or India), cap 100, then keep
-            only ICP-pitchable people — Stage A classify, no deep enrich.
+            1st degree scans the recent posts of your own matched connections for
+            the event name. 2nd + 3rd searches LinkedIn posts for it and imports
+            up to 100 authors, grades each against your ICPs, and keeps every one
+            of them out of the outreach pool — you are not connected to them, so
+            nothing here is scanned, researched, drafted or exported.
           </p>
         </div>
         <form action={startEventScan} className="flex flex-wrap items-center gap-2 text-[13px]">
@@ -119,8 +133,8 @@ export default async function RadarPage({ searchParams }: {
         <p className="radar-banner mt-3 text-sm text-[#067647]">
           <span className="radar-banner-text">
             {pool === "extended"
-              ? "Working — searching posts, then ICP-matching 2nd/3rd authors who named the event."
-              : "Working — scanning your 1st-degree pitchable network for the event name (max 100)."}
+              ? "Working — searching posts, importing the authors, then grading each against your ICPs. They stay out of the outreach pool."
+              : "Working — scanning your own matched connections for the event name (max 100, stops at the daily post-scan cap)."}
           </span>
           <span className="radar-dots" aria-hidden><span /><span /><span /></span>
         </p>
@@ -129,6 +143,7 @@ export default async function RadarPage({ searchParams }: {
         <p className="mt-3 text-sm text-[#475467]">
           Scan finished. Open <span className="font-medium">Named the event</span>.
           Empty means none of the scanned people posted that name in the window — try a shorter token (e.g. Dreamforce).
+          {searchCapped && " Stopped at today's post-scan cap — the rest were not looked at."}
         </p>
       )}
 
@@ -165,9 +180,12 @@ export default async function RadarPage({ searchParams }: {
 
       <section className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {([
-          ["active", "Based + active", view?.basedActive.length ?? 0],
+          // "Based + active" and "Searched" are gone: loadRadar's `place`
+          // clause requires mention_kind = 'event', so basedActive and
+          // basedQuiet are structurally always empty. The "Searched" tile in
+          // particular showed 0 for every import Radar has ever made, above a
+          // tab reading "Nothing in this list yet."
           ["mentioned", "Named the event", view?.mentioned.length ?? 0],
-          ["based", pool === "extended" ? "Searched" : "Based, quiet", view?.basedQuiet.length ?? 0],
           ["met", "Met on the floor", view?.met.length ?? 0],
         ] as const).map(([t, label, n]) => (
           <Link key={t} href={`${base}&tab=${t}`}
@@ -207,10 +225,8 @@ export default async function RadarPage({ searchParams }: {
           {paged.length === 0 && list.length === 0 ? (
             <p className="p-8 text-sm text-[#98A2B3]">
               {tab === "mentioned"
-                ? "Nobody pitchable in this scan posted the event name. Try a shorter query or a wider day window."
-                : tab === "active"
-                ? "Nobody based here with a post in this window."
-                : "Nothing in this list yet."}
+                ? "Nobody in this scan posted the event name. Try a shorter query or a wider day window."
+                : "Nobody marked as met on the floor yet."}
             </p>
           ) : (
             <ul className="divide-y divide-[#EEF1F8]">
@@ -223,6 +239,11 @@ export default async function RadarPage({ searchParams }: {
                         {p.firstName} {p.lastName}
                         {p.eventQuery && (
                           <span className="ml-2 rounded-full bg-[#EEF1FC] px-2 py-[1px] text-[10px] font-medium text-[#263BAA]">{p.eventQuery}</span>
+                        )}
+                        {p.networkDistance && (
+                          <span className="ml-2 rounded-full bg-[#FEF0C7] px-2 py-[1px] text-[10px] font-medium text-[#B54708]">
+                            {p.networkDistance === "3" ? "3rd" : "2nd"} · not connected
+                          </span>
                         )}
                       </span>
                       <span className="tnum text-[11px] text-[#98A2B3]">{p.radarScore}</span>
@@ -263,6 +284,11 @@ export default async function RadarPage({ searchParams }: {
                 {person.firstName} {person.lastName}
                 {person.eventQuery && (
                   <span className="ml-2 align-middle text-[12px] font-medium text-[#263BAA]">· {person.eventQuery}</span>
+                )}
+                {person.networkDistance && (
+                  <span className="ml-2 rounded-full bg-[#FEF0C7] px-2 py-[1px] align-middle text-[10px] font-medium text-[#B54708]">
+                    {person.networkDistance === "3" ? "3rd" : "2nd"} · not connected
+                  </span>
                 )}
               </h2>
               <p className="text-sm text-[#475467]">

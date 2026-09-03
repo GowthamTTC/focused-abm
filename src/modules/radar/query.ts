@@ -17,6 +17,9 @@ export interface RadarPerson {
   metroEvidence: string | null;
   mentionSnippet: string | null;
   mentionKind: string | null;
+  /** "2" / "3" for people the event search imported; null for your own
+   *  connections, because CSV and sync never write the column. */
+  networkDistance: string | null;
   eventQuery: string | null;
   mentionAt: Date | null;
   lastPostAt: Date | null;
@@ -136,6 +139,7 @@ export async function loadRadar(
       metroEvidence: r.metroEvidence,
       mentionSnippet: r.mentionSnippet,
       mentionKind: r.mentionKind,
+      networkDistance: r.networkDistance,
       eventQuery: eventQueryOf(r),
       mentionAt: r.mentionAt,
       lastPostAt: r.lastPostAt,
@@ -182,6 +186,11 @@ export async function loadRadar(
   const queries = [...new Set(scored.map((p) => p.eventQuery).filter((q): q is string => Boolean(q)))].sort();
   const wanted = queryFilter?.trim();
   const visible = wanted ? scored.filter((p) => (p.eventQuery ?? "").toLowerCase() === wanted.toLowerCase()) : scored;
+  // basedActive and basedQuiet are structurally always empty: the `place`
+  // clause above requires mention_kind = 'event', so `named` is always true and
+  // every non-'met' row lands in `mentioned`. The page no longer renders tiles
+  // for them. Left here rather than deleted so the presence model stays intact
+  // for whoever fixes `place`.
   const basedActive = visible.filter((p) => p.presence === "based_active");
   const mentioned = visible.filter((p) => p.presence === "mentioned_active");
   const basedQuiet = visible.filter((p) => p.presence === "based_quiet");

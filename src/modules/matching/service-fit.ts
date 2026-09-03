@@ -71,6 +71,8 @@ export async function classifyBatch(
   const conditions = [eq(connection.batchId, batchId), eq(connection.orgId, orgId)];
   if (!opts.reclassifyAll) conditions.push(isNull(connection.bucket));
   const rows = await db.select().from(connection).where(and(...conditions));
+  // Already the whole row, so the degree is in hand without another query.
+  const distanceById = new Map(rows.map((r) => [r.id, r.networkDistance]));
 
   let done = 0; let ruleHits = 0; let llmCalls = 0;
   const needLlm: typeof rows = [];
@@ -115,7 +117,7 @@ export async function classifyBatch(
     }
     needLlm.push(c);
   }
-  await bulkSetFit(ruleVerdicts);
+  await bulkSetFit(demoteStrangers(ruleVerdicts, distanceById));
   if (onProgress) await onProgress(done, rows.length);
 
   // Pass 2 — LLM in batches of 25, capped by the matching guardrail,
@@ -185,7 +187,7 @@ export async function classifyBatch(
         });
       }
     }
-    await bulkSetFit(verdicts);
+    await bulkSetFit(demoteStrangers(verdicts, distanceById));
     done += slice.length;
     if (onProgress) await onProgress(done, rows.length);
   };
@@ -221,6 +223,44 @@ async function setFit(id: string, fit: {
 }
 
 interface Verdict { id: string; bucket: string; slug: string | null; conf: number; why: string; method: "rule" | "llm" }
+
+/** A person you are not connected to can be a good ICP read and still not be a
+ *  target.
+ *
+ *  `bucket = 'pitchable'` is the single predicate every money path reads —
+ *  Today's two enrichment pickers, accounts/shortlist's two org-wide ones,
+ *  pickScanTargets, pickHookFrontier, judgePosts — and it is what the client
+ *  workbook means by "Target Pool (ranked): all N pitchable targets". Every one
+ *  of them means "someone in this seat's own network worth messaging". Radar's
+ *  post search imports 2nd/3rd-degree authors; letting one of them be pitchable
+ *  would mean teaching that distance rule to some twenty-five separate queries
+ *  and losing real money at the first one that forgot it. So the ICP verdict is
+ *  recorded honestly and the bucket is demoted here, in the one place that
+ *  writes it.
+ *
+ *  NULL and "1" are 1st-degree. create-batch.ts (CSV and sync) never writes the
+ *  column, so a bare `= '1'` would empty the entire product. */
+const NOT_CONNECTED = new Set(["2", "3"]);
+const degreeWord = (d: string) => (d === "3" ? "3rd" : "2nd");
+
+function demoteStrangers(
+  verdicts: Verdict[],
+  distanceById: Map<string, string | null>,
+): Verdict[] {
+  return verdicts.map((v) => {
+    const d = distanceById.get(v.id);
+    if (!d || !NOT_CONNECTED.has(d) || v.bucket !== "pitchable") return v;
+    return {
+      ...v,
+      bucket: "excluded",
+      // service_slug is read bucket-blind in two places (offers/[slug] and
+      // Nova's "who is tagged <service>"), so leaving it set would leak a
+      // stranger back into a screen this demotion exists to keep them out of.
+      slug: null,
+      why: `Not a 1st-degree connection (${degreeWord(d)}) — outside the outreach pool. ICP read: ${v.why}`,
+    };
+  });
+}
 
 /** v10: verdicts land in chunked bulk updates — one statement per 500 rows
  *  instead of one round-trip per person. */

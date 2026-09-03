@@ -24,6 +24,14 @@
  *
  *   UNIPILE_API_KEY= UNIPILE_DSN= npx tsx scripts/verify-hook-feed-checks.ts
  *
+ * The invariant is READ AND THROW, NEVER ASSIGN. This file must not write
+ * process.env: src/lib/env.ts parses and freezes its view at import time, so an
+ * assignment here would be both too late and a lie to the next reader. Its
+ * position in the import list is not what makes it safe — the fact that it only
+ * reads is. Note also that its `key && dsn` predicate duplicates env.ts's
+ * `unipileConfigured` rather than importing it (importing would parse env and
+ * defeat the point), so a change to one must be mirrored in the other.
+ *
  * Assigning process.env from inside a module cannot work here and has already
  * fooled someone once. ES imports are hoisted, so src/lib/env.ts has parsed
  * and frozen its view of the environment before any statement in the importing

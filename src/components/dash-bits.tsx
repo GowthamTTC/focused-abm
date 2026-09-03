@@ -31,7 +31,18 @@ export const Soon = ({ children, tip }: { children: React.ReactNode; tip?: strin
 export async function resolveBatch(orgId: string, c?: string) {
   const batches = await db.select().from(connectionBatch)
     .where(eq(connectionBatch.orgId, orgId)).orderBy(desc(connectionBatch.createdAt));
-  const batch = batches.find((b) => b.id === c) ?? batches[0];
+  // The DEFAULT campaign is the newest one the user IMPORTED. An event_search
+  // batch is created by a Radar search — nobody pressed "import" — and after
+  // the classifier's distance rule it holds no pitchable rows at all, so
+  // defaulting to it points Today's whole eleven-rung ladder, and both of its
+  // spend buttons, at an empty campaign. Still listed in the switcher; its
+  // label already reads "Event posts · …", so it identifies itself.
+  //
+  // The final fallback is load-bearing: a workspace whose ONLY batch is an
+  // event search must still resolve to something NoCampaign can render.
+  const batch = batches.find((b) => b.id === c)
+    ?? batches.find((b) => b.source !== "event_search")
+    ?? batches[0];
   return { batch, batches };
 }
 

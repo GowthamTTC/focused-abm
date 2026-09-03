@@ -12,6 +12,7 @@ import { metroBySlug, stampMetro } from "@/modules/geo/metros";
 import { mentionForEvent, mentionForSlug } from "@/modules/radar/mentions";
 import { countryBySlug } from "@/modules/geo/countries";
 import { storePosts } from "@/modules/posts/store";
+import { getDailyScanUsage } from "@/modules/posts/usage";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -35,6 +36,9 @@ export interface EventScanResult {
   scanned: number;
   mentioned: number;
   skippedFresh: number;
+  /** How many had been scanned when the daily post-scan cap stopped the run,
+   *  or null if it never bit. */
+  cappedAt: number | null;
 }
 
 async function restampOrg(orgId: string, batchId?: string): Promise<number> {
@@ -117,7 +121,7 @@ export async function runEventScan(
 
   const restamped = await restampOrg(orgId, payload.batchId);
   const result: EventScanResult = {
-    restamped, backfilled: 0, scanned: 0, mentioned: 0, skippedFresh: 0,
+    restamped, backfilled: 0, scanned: 0, mentioned: 0, skippedFresh: 0, cappedAt: null,
   };
   if (shouldStop && await shouldStop()) return result;
 
@@ -234,6 +238,20 @@ export async function runEventScan(
       const i = next;
       next += 1;
       if (i >= todo.length) return;
+      // The same brake activity_scan takes, in the one function both Radar
+      // paths reach. runner.ts checks postScanDailyCap only in its
+      // activity_scan branch, so a Radar run used to fetch up to 100 people at
+      // concurrency 8 against a budget it never read — and getDailyScanUsage
+      // then counted every stamp it left, killing Today's Scan button for the
+      // rest of the day.
+      //
+      // It STOPS rather than throwing: the people already scanned are real work
+      // done, and activity_scan's "remaining rows stay queued" message would be
+      // false here because nothing is queued.
+      if ((await getDailyScanUsage(orgId)).remaining === 0) {
+        result.cappedAt = done;
+        return;
+      }
       try {
         await withDeadline(scanOne(todo[i]), 35_000, `scan ${todo[i].id}`);
       } catch { /* one person must not kill the run */ }

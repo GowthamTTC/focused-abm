@@ -2,8 +2,14 @@
  * The checks. Builds the labelled fixture, then holds every helper the Today
  * screen depends on to the answers the fixture already knows.
  *
- *   UNIPILE_API_KEY= UNIPILE_DSN= ACTIVITY_SCAN_MIN_GAP_SECONDS=1 \
- *     npx tsx scripts/verify-hook-feed-checks.ts
+ *   EVENT_EXTENDED_CAP=2 UNIPILE_API_KEY= UNIPILE_DSN= \
+ *     ACTIVITY_SCAN_MIN_GAP_SECONDS=1 npx tsx scripts/verify-hook-feed-checks.ts
+ *
+ * EVENT_EXTENDED_CAP=2 is pinned because the Radar section drives the real
+ * search against the mock, whose post search yields 80 hits; the first two are
+ * one 2nd-degree and one 3rd-degree person, which is exactly what those checks
+ * need and all they should pay for. env.ts reads it at import time, so it has
+ * to be in the environment.
  *
  * Blanking the Unipile pair is not optional on a machine that has real keys
  * in .env: this suite runs jobs, and the provider is chosen from those two
@@ -26,7 +32,7 @@
 import "./require-local-db";
 import "./require-mock-provider";
 import { and, eq, gte, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
-import { db, connection, channelAccount, job, org, post, service } from "../src/db";
+import { db, connection, channelAccount, connectionBatch, job, org, post, service } from "../src/db";
 import { buildFixture } from "./verify-hook-feed";
 import {
   bandFor, deepLinkFor, feedStatus, frontierWithHookCount, hookFeed, hooksElsewhere,
@@ -40,6 +46,10 @@ import { getChannelProvider } from "../src/providers/channel";
 import { processNext, enqueue } from "../src/jobs/runner";
 import { updateOrgSettings } from "../src/modules/settings/org-settings";
 import { classifyIntent } from "../src/modules/agent/intent";
+import { classifyBatch } from "../src/modules/matching/service-fit";
+import { runEventExtended } from "../src/modules/radar/extended";
+import { loadRadar } from "../src/modules/radar/query";
+import { resolveBatch } from "../src/components/dash-bits";
 import { runTool } from "../src/modules/agent/tools";
 
 let passed = 0;
@@ -761,6 +771,151 @@ async function main() {
   await db.delete(connection).where(eq(connection.id, scanTarget!.id));
   await db.delete(job).where(eq(job.orgId, orgA));
   await db.delete(channelAccount).where(eq(channelAccount.id, seat!.id));
+  await buildFixture();
+
+  // ── H · Radar's event search ──────────────────────────────────────
+  //
+  //  Driven, not hand-written. A hand-written event row would only prove the
+  //  fixture author's beliefs, and the whole point of this section is that the
+  //  INSERT PATH was lying: it stamped bucket='pitchable', match_method='rule',
+  //  match_confidence=60 on people it had never graded, which made the
+  //  classifyBatch call twenty lines below it select zero rows.
+  //
+  //  The mock's post search is deterministic. searchPosts delegates to
+  //  searchPeople, which yields hits from i=200 over relationAt(i % 120):
+  //    i=200 -> "VP Marketing at Meridian SaaS Labs",          distance "2"
+  //    i=201 -> "Chief Marketing Officer at Lumen Data Systems", distance "3"
+  //  Both rule-classify to pitchable against this fixture's ICP (title_include
+  //  ["marketing","growth"], seniority ["cxo","vp"]) in classifyBatch pass 1 —
+  //  zero model calls — and both are then demoted by the distance rule. That
+  //  pairing is why the run command pins EVENT_EXTENDED_CAP=2: one 2nd-degree
+  //  and one 3rd-degree person, for free.
+  const [radarSeat] = await db.insert(channelAccount).values({
+    orgId: orgA, unipileAccountId: `mock-seat-radar-${orgA}`,
+    displayName: "Mock seat (radar)", status: "operational",
+  }).returning({ id: channelAccount.id });
+
+  const usageBeforeSearch = await getDailyScanUsage(orgA);
+  const batchesBefore = await db.select({ id: connectionBatch.id }).from(connectionBatch)
+    .where(eq(connectionBatch.orgId, orgA));
+
+  const search = await runEventExtended(orgA, {
+    country: "united-states", eventName: "Fixture Summit", days: 7, degree: "extended",
+  });
+  const evtBatchId = search.batchId;
+  const evtRows = await db.select().from(connection).where(eq(connection.batchId, evtBatchId));
+
+  check("the event search imports the authors and grades them for real",
+    evtRows.length === 2
+    && evtRows.every((r) => r.matchMethod === "rule")
+    && evtRows.every((r) => (r.matchWhy ?? "").includes("Title matched pattern")),
+    `${evtRows.length} rows · methods ${evtRows.map((r) => r.matchMethod).join(",")} · why ${evtRows.map((r) => (r.matchWhy ?? "").slice(0, 40)).join(" | ")}`);
+
+  const [fabricated] = await db.select({ n: sql<number>`count(*)::int` }).from(connection)
+    .where(and(eq(connection.orgId, orgA), sql`match_why like 'Posted about "%'`));
+  check("nothing anywhere still carries the fabricated event verdict", fabricated!.n === 0);
+
+  const [strangersPitchable] = await db.select({ n: sql<number>`count(*)::int` }).from(connection)
+    .where(and(eq(connection.orgId, orgA), inArray(connection.networkDistance, ["2", "3"]),
+      eq(connection.bucket, "pitchable")));
+  check("a person you are not connected to is never pitchable",
+    strangersPitchable!.n === 0
+    && evtRows.every((r) => r.bucket === "excluded" && r.serviceSlug === null)
+    && evtRows.every((r) => (r.matchWhy ?? "").startsWith("Not a 1st-degree connection (")),
+    `pitchable strangers=${strangersPitchable!.n} · buckets ${evtRows.map((r) => r.bucket).join(",")}`);
+
+  // The check that fails a `network_distance = '1'` implementation — which
+  // would empty every CSV and sync workspace in production, because
+  // create-batch.ts never writes the column.
+  const [probeBatch] = await db.insert(connectionBatch).values({
+    orgId: orgA, source: "csv", label: "Degree probe", statsJson: {},
+  }).returning({ id: connectionBatch.id });
+  for (const [key, distance] of [["null", null], ["first", "1"], ["third", "3"]] as const) {
+    await db.insert(connection).values({
+      orgId: orgA, batchId: probeBatch!.id, firstName: "Probe", lastName: key,
+      headlineRaw: "VP Marketing at Meridian SaaS Labs",
+      positionRaw: "VP Marketing", companyRaw: "Meridian SaaS Labs",
+      publicIdentifier: `probe-${key}`, networkDistance: distance,
+    });
+  }
+  await classifyBatch(orgA, probeBatch!.id, {});
+  const probes = await db.select({
+    lastName: connection.lastName, bucket: connection.bucket, serviceSlug: connection.serviceSlug,
+  }).from(connection).where(eq(connection.batchId, probeBatch!.id));
+  const probeOf = (k: string) => probes.find((r) => r.lastName === k)!;
+  check("NULL and '1' are 1st degree; only '2'/'3' are demoted",
+    probeOf("null").bucket === "pitchable" && probeOf("null").serviceSlug === "demand-gen"
+    && probeOf("first").bucket === "pitchable" && probeOf("first").serviceSlug === "demand-gen"
+    && probeOf("third").bucket === "excluded" && probeOf("third").serviceSlug === null,
+    probes.map((r) => `${r.lastName}=${r.bucket}/${r.serviceSlug}`).join(" "));
+  await db.delete(connection).where(eq(connection.batchId, probeBatch!.id));
+  await db.delete(connectionBatch).where(eq(connectionBatch.id, probeBatch!.id));
+
+  const usageAfterSearch = await getDailyScanUsage(orgA);
+  check("importing strangers spends none of the daily post-scan budget",
+    usageAfterSearch.used === usageBeforeSearch.used
+    && evtRows.every((r) => r.lastScanAt === null),
+    `used ${usageBeforeSearch.used} -> ${usageAfterSearch.used} · stamped ${evtRows.filter((r) => r.lastScanAt !== null).length}`);
+
+  const resolved = await resolveBatch(orgA);
+  check("an event search is not a campaign, but is still switchable to",
+    resolved.batch?.id !== evtBatchId
+    && resolved.batches.some((b) => b.id === evtBatchId)
+    && resolved.batches.length === batchesBefore.length + 1,
+    `default=${resolved.batch?.id} event=${evtBatchId} listed=${resolved.batches.some((b) => b.id === evtBatchId)}`);
+
+  const [evtScan, evtHook, evtPipe, evtCov] = await Promise.all([
+    pickScanTargets(orgA, evtBatchId, 40),
+    pickHookFrontier(orgA, evtBatchId, 10, ""),
+    pipelineCounts(orgA, evtBatchId),
+    scanCoverage(orgA, evtBatchId),
+  ]);
+  check("the event batch offers nothing to spend money on",
+    evtScan.length === 0 && evtHook.length === 0
+    && evtPipe.matched === 0 && evtPipe.excluded === 2 && evtPipe.unclassified === 0
+    && evtCov.pitchable === 0,
+    `scan=${evtScan.length} hook=${evtHook.length} matched=${evtPipe.matched} excluded=${evtPipe.excluded} covPitchable=${evtCov.pitchable}`);
+
+  // The exact predicate buildWorkbook uses for "Target Pool (ranked): all N
+  // pitchable targets" — asserted here rather than importing exceljs.
+  const [inDeliverable] = await db.select({ n: sql<number>`count(*)::int` }).from(connection)
+    .where(and(eq(connection.batchId, evtBatchId), eq(connection.bucket, "pitchable")));
+  check("the client workbook's Target Pool carries none of them", inDeliverable!.n === 0);
+
+  // Radar must still find its own people WHILE they are excluded. This is the
+  // check that stops a future "let's filter /radar by pitchable" from making
+  // the whole feature vanish.
+  const radarView = await loadRadar(orgA, "sf-bay-area", 7, "extended", "united-states");
+  check("Radar returns a view at all for the event pool", radarView !== null);
+  const mentioned = radarView?.mentioned ?? [];
+  const radarIds = new Set(mentioned.map((p) => p.id));
+  check("Radar still finds its own people while their bucket is excluded",
+    evtRows.every((r) => radarIds.has(r.id)),
+    `mentioned=${mentioned.length} of ${evtRows.length} imported`);
+  check("and the degree reaches the screen",
+    mentioned.filter((p) => p.networkDistance === "2").length === 1
+    && mentioned.filter((p) => p.networkDistance === "3").length === 1,
+    mentioned.map((p) => `${p.firstName}=${p.networkDistance}`).join(" "));
+
+  // No ICP means classifyBatch would throw AFTER importing 100 people. Refuse
+  // before the first search request instead.
+  const [activeOffer] = await db.select({ id: service.id }).from(service)
+    .where(and(eq(service.orgId, orgA), eq(service.status, "active"))).limit(1);
+  await db.update(service).set({ status: "archived" }).where(eq(service.orgId, orgA));
+  const batchCountBefore = (await db.select({ id: connectionBatch.id }).from(connectionBatch)
+    .where(eq(connectionBatch.orgId, orgA))).length;
+  let refused = false;
+  try {
+    await runEventExtended(orgA, { country: "united-states", eventName: "Fixture Summit", days: 7, degree: "extended" });
+  } catch { refused = true; }
+  const batchCountAfter = (await db.select({ id: connectionBatch.id }).from(connectionBatch)
+    .where(eq(connectionBatch.orgId, orgA))).length;
+  check("with no active ICP the search refuses before importing anyone",
+    refused && batchCountAfter === batchCountBefore,
+    `refused=${refused} batches ${batchCountBefore} -> ${batchCountAfter}`);
+  await db.update(service).set({ status: "active" }).where(eq(service.id, activeOffer!.id));
+
+  await db.delete(channelAccount).where(eq(channelAccount.id, radarSeat!.id));
   await buildFixture();
   const [leftover] = await db.select({ n: sql<number>`count(*)::int` }).from(channelAccount)
     .where(eq(channelAccount.orgId, orgA));

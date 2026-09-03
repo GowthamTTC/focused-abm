@@ -18,6 +18,7 @@
  * Writes rows, so it refuses to run against anything but a local database.
  */
 import "./require-local-db";
+import "./require-mock-provider";
 import { eq, inArray, sql } from "drizzle-orm";
 import {
   db, org, accountShortlist, activityLog, appUser, channelAccount, connectionBatch,
