@@ -954,21 +954,22 @@ async function main() {
     metro: "sf-bay-area", days: 7, pool: "extended", country: "united-states",
   });
   const csvLines = csvOut.csv.trimEnd().split("\r\n");
-  eqCheck("the CSV header is the seven columns asked for",
+  eqCheck("the CSV header is the eight columns asked for, query first",
     csvLines[0],
-    '"Name","Title","Company","Location","LinkedIn profile","LinkedIn post link","LinkedIn post text"');
+    '"Search query","Name","Title","Company","Location","LinkedIn profile","LinkedIn post link","LinkedIn post text"');
   check("one row per person on screen, and the count is reported",
     csvOut.rows === 2 && csvLines.length === 3, `rows=${csvOut.rows} lines=${csvLines.length}`);
 
   // Every column populated: a CSV whose post columns are blank is the failure
   // this feature exists to avoid, and the searched post is what fills them.
   const cells = csvLines[1]!.match(/"(?:[^"]|"")*"/g)!.map((c) => c.slice(1, -1).replace(/""/g, '"'));
-  check("every column carries real data, including the post link and its text",
-    cells.length === 7
-    && cells[0]!.trim().length > 0
-    && cells[4]!.startsWith("https://www.linkedin.com/in/")
-    && cells[5]!.startsWith("https://www.linkedin.com/feed/update/")
-    && cells[6]!.length > 0,
+  check("every column carries real data, including the query, post link and text",
+    cells.length === 8
+    && cells[0] === "Fixture Summit"
+    && cells[1]!.trim().length > 0
+    && cells[5]!.startsWith("https://www.linkedin.com/in/")
+    && cells[6]!.startsWith("https://www.linkedin.com/feed/update/")
+    && cells[7]!.length > 0,
     cells.map((c, i) => `${i}:${c.slice(0, 26)}`).join(" | "));
 
   // A post is someone's prose: commas, quotes and newlines are the norm, so
@@ -996,8 +997,8 @@ async function main() {
   check("quotes, commas and newlines in a post survive intact and break no rows",
     parsed.length === 3
     && nastyCsv.csv.includes('""we\'re done""')
-    && nastyCells[6] === nastyText,
-    `records=${parsed.length} roundtrip=${JSON.stringify(nastyCells[6] ?? "").slice(0, 60)}`);
+    && nastyCells[7] === nastyText,
+    `records=${parsed.length} roundtrip=${JSON.stringify(nastyCells[7] ?? "").slice(0, 60)}`);
 
   // No ICP means classifyBatch would throw AFTER importing 100 people. Refuse
   // before the first search request instead.

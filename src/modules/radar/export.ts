@@ -4,7 +4,8 @@
  * Seven columns, in the order a person reads them — the human, then how to
  * reach them, then the evidence:
  *
- *   Name · Title · Company · Location · LinkedIn profile · Post link · Post text
+ *   Search query · Name · Title · Company · Location · LinkedIn profile ·
+ *   Post link · Post text
  *
  * The post columns are the reason this exists, and they are the ones with a
  * story. A person's row carries only mention_snippet — 180 characters, no link
@@ -20,6 +21,11 @@ import { db, connection, post } from "@/db";
 import { loadRadar, type RadarPerson } from "@/modules/radar/query";
 
 export const RADAR_CSV_HEADER = [
+  // First, not last, and deliberately: it is the grouping key — the column you
+  // sort by when several exports are pasted together — and anything placed
+  // after the post text is buried behind a field that runs to thousands of
+  // characters.
+  "Search query",
   "Name",
   "Title",
   "Company",
@@ -106,6 +112,9 @@ export async function buildRadarCsv(
   const body = people.map((p) => {
     const { text, url } = bestPost(p, byPerson.get(p.id) ?? []);
     return [
+      // What was searched for, per row: a person can be found by more than one
+      // event across exports, and without this the merged file cannot say which.
+      p.eventQuery ?? "",
       `${p.firstName} ${p.lastName}`.trim(),
       p.positionRaw ?? "",
       p.companyRaw ?? "",
