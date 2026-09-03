@@ -990,6 +990,12 @@ async function main() {
     // skills list, which is the honest answer for most of the remaining 57%.
     ["HubSpot AI Consultant | Revenue Hub | CRM Automation", "HubSpot AI Consultant | Revenue Hub | CRM Automation", null],
     ["", null, null],
+    // The run-on: an employer followed straight by a pitch, with no separator
+    // to cut at. Real names are short, so past 45 characters the first
+    // comma-separated part is the name and the rest is prose.
+    ["Founder @ SHRARA, GroPlus, AGM Infra Solutions enabling Digital, Sustainable & Scalable Business Models", "Founder", "SHRARA"],
+    // Comfortably under the bar, so its comma is left alone.
+    ["Partner at Booz Allen Hamilton, Inc.", "Partner", "Booz Allen Hamilton, Inc."],
   ] as const) {
     const got = splitHeadline(headline || null);
     eqCheck(`headline "${headline.slice(0, 34) || "(empty)"}"`,

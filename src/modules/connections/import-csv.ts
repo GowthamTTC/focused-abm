@@ -108,6 +108,16 @@ export function splitHeadline(headline: string | null): { position: string | nul
   // search's authors where this finds one for most of them.
   const m = headline.match(/^(.*?)\s+(?:at|@)\s+(.+)$/i);
   if (!m) return { position: headline.trim() || null, company: null };
-  const company = m[2].replace(HEADLINE_TAIL, "").trim();
+  let company = m[2].replace(HEADLINE_TAIL, "").trim();
+  // A company name is short; a sentence is not. Some headlines run the employer
+  // straight into a pitch — "Founder @ SHRARA, GroPlus, AGM Infra Solutions
+  // enabling Digital, Sustainable & Scalable Business Models for Fortune
+  // Companies across the World!" — and storing that whole run makes the column
+  // unreadable and unmatchable. Past a length no real name reaches, keep the
+  // first comma-separated part. "Booz Allen Hamilton, Inc." is well under the
+  // bar and survives whole.
+  if (company.length > 45 && company.includes(",")) {
+    company = company.slice(0, company.indexOf(",")).trim();
+  }
   return { position: m[1].trim() || null, company: company || null };
 }
