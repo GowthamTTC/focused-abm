@@ -2,7 +2,12 @@
  * The checks. Builds the labelled fixture, then holds every helper the Today
  * screen depends on to the answers the fixture already knows.
  *
- *   ACTIVITY_SCAN_MIN_GAP_SECONDS=1 npx tsx scripts/verify-hook-feed-checks.ts
+ *   UNIPILE_API_KEY= UNIPILE_DSN= ACTIVITY_SCAN_MIN_GAP_SECONDS=1 \
+ *     npx tsx scripts/verify-hook-feed-checks.ts
+ *
+ * Blanking the Unipile pair is not optional on a machine that has real keys
+ * in .env: this suite runs jobs, and the provider is chosen from those two
+ * variables. require-mock-provider refuses to start otherwise. Node 22.
  *
  * Two facts this script encodes rather than assumes:
  *
@@ -19,6 +24,7 @@
  * lunch is not a suite.
  */
 import "./require-local-db";
+import "./require-mock-provider";
 import { and, eq, gte, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
 import { db, connection, channelAccount, job, org, post, service } from "../src/db";
 import { buildFixture } from "./verify-hook-feed";
