@@ -242,8 +242,12 @@ export async function processNext(): Promise<boolean> {
       // Scanning without judging leaves posts invisible to the dashboard, so
       // the scan queues its own follow-up rather than relying on the user
       // knowing there are two steps.
-      const { unjudgedCount } = await import("@/modules/posts/store");
-      if ((await unjudgedCount(next.orgId)) > 0) {
+      // Scoped to what judgePosts will actually read. unjudgedCount is
+      // bucket-blind, and Radar now stores the posts of 2nd/3rd-degree authors
+      // who are deliberately excluded — so the blind count would chain a
+      // post_judge after every scan that then judges nothing and reports 0/0.
+      const { waitingToRead } = await import("@/modules/posts/feed");
+      if ((await waitingToRead(next.orgId)).posts > 0) {
         await enqueue(next.orgId, "post_judge", {});
       }
     } else if (next.kind === "post_judge") {

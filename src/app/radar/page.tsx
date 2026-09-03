@@ -178,6 +178,20 @@ export default async function RadarPage({ searchParams }: {
         </form>
       </div>
 
+      {(view?.mentioned.length ?? 0) + (view?.met.length ?? 0) > 0 && (
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <a
+            href={`/api/radar-export?pool=${pool}&country=${country}&days=${days}&tab=${tab}${query ? `&query=${encodeURIComponent(query)}` : ""}`}
+            className="rounded-[8px] border border-[#DDE2EE] px-3 py-1.5 text-[12px] text-[#475467] hover:bg-[#F4F6FB]">
+            Export CSV
+          </a>
+          <span className="tnum text-[11px] text-[#98A2B3]">
+            name, title, company, location, profile link, post link and the post itself —
+            exactly the {tab === "met" ? view?.met.length ?? 0 : view?.mentioned.length ?? 0} people in this list
+          </span>
+        </div>
+      )}
+
       <section className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {([
           // "Based + active" and "Searched" are gone: loadRadar's `place`

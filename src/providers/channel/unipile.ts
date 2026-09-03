@@ -259,9 +259,19 @@ export class UnipileChannelProvider implements ChannelProvider {
       const fromParts = author.first_name || author.last_name
         ? { first: author.first_name || "(unknown)", last: author.last_name || "" }
         : splitName(author.name);
+      // The deep link, read defensively like every other field here: the search
+      // response is parsed as z.any(), so this was simply never picked up even
+      // though fetchRecentPosts relies on the same share_url. Falling back to
+      // the feed-update form built from the post id keeps the column useful
+      // when only an id comes back.
+      const postId = r.id ?? r.social_id ?? r.share_urn ?? r.urn ?? null;
+      const postUrl = r.share_url ?? r.url ?? r.post_url ?? r.permalink
+        ?? (postId ? `https://www.linkedin.com/feed/update/${postId}` : null);
       items.push({
         text: String(r.text ?? r.commentary ?? r.content ?? r.share_commentary ?? r.commentary_text ?? ""),
         postedAt: r.parsed_datetime ?? r.date ?? null,
+        id: postId ? String(postId) : null,
+        url: postUrl ? String(postUrl) : null,
         isCompany,
         author: {
           publicIdentifier: publicId,

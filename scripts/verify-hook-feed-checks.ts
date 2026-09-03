@@ -50,6 +50,7 @@ import { classifyIntent } from "../src/modules/agent/intent";
 import { classifyBatch } from "../src/modules/matching/service-fit";
 import { runEventExtended } from "../src/modules/radar/extended";
 import { runEventScan } from "../src/modules/radar/scan";
+import { buildRadarCsv } from "../src/modules/radar/export";
 import { loadRadar } from "../src/modules/radar/query";
 import { resolveBatch } from "../src/components/dash-bits";
 import { runTool } from "../src/modules/agent/tools";
@@ -947,6 +948,56 @@ async function main() {
   check("and answering from storage spends no post-scan budget",
     usageAfterFirstDegree.used === (await getDailyScanUsage(orgA)).used,
     "meter is stable across the stored-post pass");
+
+  // ── The Radar CSV export ──
+  const csvOut = await buildRadarCsv(orgA, {
+    metro: "sf-bay-area", days: 7, pool: "extended", country: "united-states",
+  });
+  const csvLines = csvOut.csv.trimEnd().split("\r\n");
+  eqCheck("the CSV header is the seven columns asked for",
+    csvLines[0],
+    '"Name","Title","Company","Location","LinkedIn profile","LinkedIn post link","LinkedIn post text"');
+  check("one row per person on screen, and the count is reported",
+    csvOut.rows === 2 && csvLines.length === 3, `rows=${csvOut.rows} lines=${csvLines.length}`);
+
+  // Every column populated: a CSV whose post columns are blank is the failure
+  // this feature exists to avoid, and the searched post is what fills them.
+  const cells = csvLines[1]!.match(/"(?:[^"]|"")*"/g)!.map((c) => c.slice(1, -1).replace(/""/g, '"'));
+  check("every column carries real data, including the post link and its text",
+    cells.length === 7
+    && cells[0]!.trim().length > 0
+    && cells[4]!.startsWith("https://www.linkedin.com/in/")
+    && cells[5]!.startsWith("https://www.linkedin.com/feed/update/")
+    && cells[6]!.length > 0,
+    cells.map((c, i) => `${i}:${c.slice(0, 26)}`).join(" | "));
+
+  // A post is someone's prose: commas, quotes and newlines are the norm, so
+  // the escaping is what stops one person's text becoming three broken rows.
+  const nastyText = 'He said "we\'re done", then\nnewlined, and, comma\'d.';
+  // Must be one of the SEARCHED people: the 1st-degree scans above also stamp
+  // mention_kind='event' on fixture connections, and those never appear in an
+  // extended export, so picking one would silently test nothing.
+  const [csvVictim] = await db.select({ id: connection.id }).from(connection)
+    .where(and(eq(connection.orgId, orgA), eq(connection.mentionKind, "event"),
+      inArray(connection.networkDistance, ["2", "3"]))).limit(1);
+  await db.update(post).set({ text: nastyText })
+    .where(eq(post.connectionId, csvVictim!.id));
+  const nastyCsv = await buildRadarCsv(orgA, {
+    metro: "sf-bay-area", days: 7, pool: "extended", country: "united-states",
+  });
+  const parsed = nastyCsv.csv.trimEnd().split("\r\n");
+  // Splitting on the record separator must still yield header + 2 rows: the
+  // embedded newline lives inside a quoted field and must not become a record.
+  // And the text has to survive the round trip byte for byte, or the client
+  // gets a spreadsheet that misquotes somebody.
+  const nastyRecord = parsed.find((r) => r.includes('""we\'re done""')) ?? "";
+  const nastyCells = (nastyRecord.match(/"(?:[^"]|"")*"/g) ?? [])
+    .map((c) => c.slice(1, -1).replace(/""/g, '"'));
+  check("quotes, commas and newlines in a post survive intact and break no rows",
+    parsed.length === 3
+    && nastyCsv.csv.includes('""we\'re done""')
+    && nastyCells[6] === nastyText,
+    `records=${parsed.length} roundtrip=${JSON.stringify(nastyCells[6] ?? "").slice(0, 60)}`);
 
   // No ICP means classifyBatch would throw AFTER importing 100 people. Refuse
   // before the first search request instead.

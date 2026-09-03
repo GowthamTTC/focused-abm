@@ -10,6 +10,7 @@ import { stampMetro } from "@/modules/geo/metros";
 import { countryBySlug } from "@/modules/geo/countries";
 import { mentionForEvent } from "@/modules/radar/mentions";
 import { runEventScan } from "@/modules/radar/scan";
+import { storePosts } from "@/modules/posts/store";
 import { classifyBatch } from "@/modules/matching/service-fit";
 import { rankBatch } from "@/modules/scoring/rank";
 
@@ -87,6 +88,10 @@ export async function runEventExtended(
     firstName: string; lastName: string; headline: string | null; location: string | null;
     profileUrl: string | null; publicIdentifier: string | null; memberId: string | null;
     networkDistance: "2" | "3"; snippet: string; postedAt: Date | null;
+    /** The post that named the event: its full text and deep link, kept so the
+     *  export can carry what the person actually said rather than a 180-char
+     *  snippet with no way back to the source. */
+    postId: string | null; postUrl: string | null; postText: string;
   }>();
   let cursor: string | null = null;
   let pages = 0;
@@ -98,6 +103,7 @@ export async function runEventExtended(
     type SearchPage = {
       items: Array<{
         text: string; postedAt: string | Date | null; isCompany?: boolean;
+        id?: string | null; url?: string | null;
         author: {
           firstName: string; lastName: string; headline: string | null; location: string | null;
           profileUrl: string | null; publicIdentifier: string | null; memberId: string | null;
@@ -146,6 +152,9 @@ export async function runEventExtended(
         networkDistance: post.author.networkDistance,
         snippet,
         postedAt: when,
+        postId: post.id ?? null,
+        postUrl: post.url ?? null,
+        postText: post.text ?? "",
       });
       if (authors.size >= cap) break;
     }
@@ -206,6 +215,31 @@ export async function runEventExtended(
         eventQuery: eventName,
       };
     }));
+  }
+
+  // Keep the post that named the event. It is already in hand — no request —
+  // and it is the only place the full text and the deep link survive; the
+  // connection row holds a 180-char snippet and no link at all. The export
+  // reads these, and storePosts is idempotent on (connection_id, provider_id)
+  // so re-running a search updates rather than duplicating.
+  //
+  // These rows belong to people the classifier is about to mark `excluded`,
+  // and judgePosts only ever reads pitchable people — so they will sit unjudged
+  // for good. That is correct (nobody should pay to score a stranger's post)
+  // and it is why the runner's post_judge chain is scoped to pitchable too.
+  const inserted = await db.select({ id: connection.id, publicIdentifier: connection.publicIdentifier })
+    .from(connection).where(eq(connection.batchId, batch.id));
+  const idByPublic = new Map(inserted.map((r) => [r.publicIdentifier, r.id]));
+  for (const h of rows) {
+    if (!h.postId && !h.postUrl) continue;
+    const connId = idByPublic.get(h.publicIdentifier);
+    if (!connId) continue;
+    await storePosts(orgId, connId, [{
+      id: h.postId ?? `event:${eventName}:${h.publicIdentifier}`,
+      text: h.postText || h.snippet,
+      url: h.postUrl,
+      postedAt: h.postedAt ? h.postedAt.toISOString() : null,
+    }]);
   }
 
   if (onProgress) await onProgress(rows.length, Math.max(rows.length * 2, 1));

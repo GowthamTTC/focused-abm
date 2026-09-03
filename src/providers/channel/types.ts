@@ -35,6 +35,11 @@ export interface SearchPost {
   postedAt: string | null;
   author: SearchHit;
   isCompany: boolean;
+  /** Provider's own post id, and the deep link to the post itself. Both are
+   *  nullable because LinkedIn's post search does not always carry them, and a
+   *  missing link must read as missing rather than as a broken URL. */
+  id: string | null;
+  url: string | null;
 }
 
 export interface SearchHit {

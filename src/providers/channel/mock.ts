@@ -117,9 +117,11 @@ export class MockChannelProvider implements ChannelProvider {
       limit: input.limit,
     });
     return {
-      items: people.items.map((a) => ({
+      items: people.items.map((a, k) => ({
         text: `Heading to ${input.keywords} this week — see you on the floor.`,
         postedAt: new Date(Date.now() - 36e5).toISOString(),
+        id: `mock-search-post-${a.publicIdentifier ?? k}`,
+        url: `https://www.linkedin.com/feed/update/mock-search-${a.publicIdentifier ?? k}`,
         isCompany: false,
         author: a,
       })),
