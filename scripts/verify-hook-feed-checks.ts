@@ -3,7 +3,8 @@
  * screen depends on to the answers the fixture already knows.
  *
  *   EVENT_EXTENDED_CAP=2 UNIPILE_API_KEY= UNIPILE_DSN= \
- *     ACTIVITY_SCAN_MIN_GAP_SECONDS=1 npx tsx scripts/verify-hook-feed-checks.ts
+ *     ACTIVITY_SCAN_MIN_GAP_SECONDS=1 EVENT_SCAN_MIN_GAP_SECONDS=0 \
+ *     npx tsx scripts/verify-hook-feed-checks.ts
  *
  * EVENT_EXTENDED_CAP=2 is pinned because the Radar section drives the real
  * search against the mock, whose post search yields 80 hits; the first two are
@@ -48,6 +49,7 @@ import { updateOrgSettings } from "../src/modules/settings/org-settings";
 import { classifyIntent } from "../src/modules/agent/intent";
 import { classifyBatch } from "../src/modules/matching/service-fit";
 import { runEventExtended } from "../src/modules/radar/extended";
+import { runEventScan } from "../src/modules/radar/scan";
 import { loadRadar } from "../src/modules/radar/query";
 import { resolveBatch } from "../src/components/dash-bits";
 import { runTool } from "../src/modules/agent/tools";
@@ -896,6 +898,55 @@ async function main() {
     mentioned.filter((p) => p.networkDistance === "2").length === 1
     && mentioned.filter((p) => p.networkDistance === "3").length === 1,
     mentioned.map((p) => `${p.firstName}=${p.networkDistance}`).join(" "));
+
+  // ── The 1st-degree path: scan your own connections for the event name ──
+  //
+  // The mock answers only identifiers it can parse to a number. i=10 is
+  // "travelling", so its first post names SaaStr; every posting persona's
+  // second post mentions ABM. Two people are enough to prove both halves.
+  // By public_identifier, NOT by the `people` id map: check 109's cleanup
+  // rebuilt the fixture, which mints fresh row ids, so every id captured at the
+  // top of this run is stale from here on.
+  const [tenId] = await db.update(connection).set({ memberId: "mock-10", country: "United States" })
+    .where(and(eq(connection.orgId, orgA), eq(connection.publicIdentifier, "three_posts")))
+    .returning({ id: connection.id });
+  const [fourId] = await db.update(connection).set({ memberId: "mock-4", country: "United States" })
+    .where(and(eq(connection.orgId, orgA), eq(connection.publicIdentifier, "drafted")))
+    .returning({ id: connection.id });
+  check("the 1st-degree fixture targets resolve after the rebuild",
+    Boolean(tenId && fourId), `ten=${tenId?.id} four=${fourId?.id}`);
+
+  const firstScan = await runEventScan(orgA, {
+    metro: "sf-bay-area", country: "united-states", eventName: "SaaStr",
+    limit: 50, firstDegreeOnly: true,
+  });
+  const [saastr] = await db.select({ n: sql<number>`count(*)::int` }).from(connection)
+    .where(and(eq(connection.orgId, orgA), eq(connection.mentionKind, "event"),
+      eq(connection.eventQuery, "SaaStr")));
+  check("the 1st-degree scan finds the event in a connection's own posts",
+    firstScan.scanned > 0 && firstScan.mentioned === 1 && saastr!.n === 1,
+    `scanned=${firstScan.scanned} mentioned=${firstScan.mentioned} stamped=${saastr!.n}`);
+
+  // The regression this exists to prevent: with the freshness window in force,
+  // a second event minutes later used to skip everyone before consulting their
+  // posts and report nobody. Layer 02 stores those posts, so the answer is on
+  // file — no LinkedIn request, no cap slot.
+  const secondScan = await runEventScan(orgA, {
+    metro: "sf-bay-area", country: "united-states", eventName: "ABM",
+    limit: 50, firstDegreeOnly: true,
+  });
+  const [abm] = await db.select({ n: sql<number>`count(*)::int` }).from(connection)
+    .where(and(eq(connection.orgId, orgA), eq(connection.mentionKind, "event"),
+      eq(connection.eventQuery, "ABM")));
+  check("a second event minutes later is answered from stored posts, not LinkedIn",
+    secondScan.scanned === 0 && secondScan.skippedFresh > 0
+    && secondScan.fromStored === 2 && secondScan.mentioned === 2 && abm!.n === 2,
+    `scanned=${secondScan.scanned} skipped=${secondScan.skippedFresh} fromStored=${secondScan.fromStored} stamped=${abm!.n}`);
+
+  const usageAfterFirstDegree = await getDailyScanUsage(orgA);
+  check("and answering from storage spends no post-scan budget",
+    usageAfterFirstDegree.used === (await getDailyScanUsage(orgA)).used,
+    "meter is stable across the stored-post pass");
 
   // No ICP means classifyBatch would throw AFTER importing 100 people. Refuse
   // before the first search request instead.

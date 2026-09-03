@@ -3,8 +3,8 @@
  * Target: ~1,500 people in about 5 minutes via concurrent Unipile calls.
  * Deep-enrich pacing (12–25s) is left alone.
  */
-import { and, asc, eq, isNull, or, sql } from "drizzle-orm";
-import { db, channelAccount, connection } from "@/db";
+import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { db, channelAccount, connection, post } from "@/db";
 import { env } from "@/lib/env";
 import { getChannelProvider } from "@/providers/channel";
 import { toCountry } from "@/modules/connections/country";
@@ -36,6 +36,9 @@ export interface EventScanResult {
   scanned: number;
   mentioned: number;
   skippedFresh: number;
+  /** Of the skipped-fresh, how many were answered from posts already stored —
+   *  no LinkedIn request, no cap slot. */
+  fromStored: number;
   /** How many had been scanned when the daily post-scan cap stopped the run,
    *  or null if it never bit. */
   cappedAt: number | null;
@@ -121,7 +124,7 @@ export async function runEventScan(
 
   const restamped = await restampOrg(orgId, payload.batchId);
   const result: EventScanResult = {
-    restamped, backfilled: 0, scanned: 0, mentioned: 0, skippedFresh: 0, cappedAt: null,
+    restamped, backfilled: 0, scanned: 0, mentioned: 0, skippedFresh: 0, fromStored: 0, cappedAt: null,
   };
   if (shouldStop && await shouldStop()) return result;
 
@@ -163,6 +166,53 @@ export async function runEventScan(
 
   const todo = pool.filter((c) => !c.lastScanAt || c.lastScanAt < skipAfter);
   result.skippedFresh = pool.length - todo.length;
+
+  // Someone skipped for freshness still has their posts on file — layer 02
+  // stores every post these scans fetch. So a NEW event name can be answered
+  // from storage, with no LinkedIn request and no cap slot.
+  //
+  // Without this the freshness window silently answers the wrong question:
+  // search "Dreamforce", then search "HubSpot Happy Hour" ten minutes later,
+  // and the second returns nobody — not because nobody mentioned it, but
+  // because everyone was skipped before their posts were ever consulted.
+  // Measured on the mock before this existed: scan 2 reported scanned 0,
+  // skippedFresh 10, mentioned 0, while two of those people had the term
+  // sitting in their stored text.
+  //
+  // Sets only on a match. A skipped person was never looked at, so this must
+  // not clear the evidence an earlier event left on them.
+  const skipped = pool.filter((c) => c.lastScanAt && c.lastScanAt >= skipAfter);
+  if (skipped.length > 0 && (eventName || metro)) {
+    const stored = await db.select({
+      connectionId: post.connectionId, text: post.text, postedAt: post.postedAt,
+    }).from(post).where(inArray(post.connectionId, skipped.map((c) => c.id)));
+    const byPerson = new Map<string, { text: string; postedAt: Date | null }[]>();
+    for (const row of stored) {
+      const arr = byPerson.get(row.connectionId) ?? [];
+      arr.push({ text: row.text, postedAt: row.postedAt });
+      byPerson.set(row.connectionId, arr);
+    }
+    for (const c of skipped) {
+      const posts = byPerson.get(c.id);
+      if (!posts?.length) continue;
+      const mention = country && eventName
+        ? mentionForEvent(posts, eventName, country.slug)
+        : metro
+          ? mentionForSlug(posts, metro.slug, eventName)
+          : null;
+      if (!mention) continue;
+      result.mentioned += 1;
+      result.fromStored += 1;
+      await db.update(connection).set({
+        mentionMetro: mention.metro,
+        mentionAt: mention.postedAt,
+        mentionSnippet: mention.snippet,
+        mentionKind: mention.kind,
+        ...(mention.kind === "event" && eventName ? { eventQuery: eventName } : {}),
+      }).where(eq(connection.id, c.id));
+    }
+  }
+
   if (onProgress) await onProgress(0, todo.length);
   if (todo.length === 0) return result;
 
