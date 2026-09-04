@@ -35,6 +35,8 @@ import "./require-mock-provider";
 import { and, eq, gte, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
 import { db, connection, channelAccount, connectionBatch, job, org, post, service } from "../src/db";
 import { buildFixture } from "./verify-hook-feed";
+import { DEAD_AFTER_SECONDS, sweepDeadJobs } from "../src/jobs/reap";
+import { markStopped } from "../src/jobs/runner";
 import {
   bandFor, companyKey, deepLinkFor, feedStatus, frontierWithHookCount, hookFeed, hooksElsewhere,
   hooksForPeople, rereadTargets,
@@ -1184,6 +1186,72 @@ async function main() {
     refused && batchCountAfter === batchCountBefore,
     `refused=${refused} batches ${batchCountBefore} -> ${batchCountAfter}`);
   await db.update(service).set({ status: "active" }).where(eq(service.id, activeOffer!.id));
+
+  // ── The reaper: what a deploy leaves behind ──────────────────────────────
+  // Placed after the foreign-workspace guard on purpose — sweepDeadJobs is
+  // global by design, so it must not run while a stranger holds a live job.
+  //
+  // Ages are driven off DEAD_AFTER_SECONDS, never a literal, so nobody can
+  // widen the window and leave these checks silently testing nothing.
+  const dead = new Date(Date.now() - (DEAD_AFTER_SECONDS + 30) * 1000);
+  const mkJob = async (kind: string, status: string, updatedAt: Date, payload = {}) => {
+    const [row] = await db.insert(job).values({ orgId: orgA, kind, payloadJson: payload }).returning({ id: job.id });
+    await db.update(job).set({ status, updatedAt }).where(eq(job.id, row!.id));
+    return row!.id;
+  };
+
+  // THE ONE THAT MATTERS MOST: a queued job has no process attached, so age is
+  // meaningless for it. Sweeping it would delete work nobody had started.
+  await db.delete(job).where(inArray(job.orgId, [orgA, orgB]));
+  const qOld = await mkJob("post_judge", "queued", dead, {});
+  // Fresh rows are held by a LIVE process and must survive untouched.
+  const rFresh = await mkJob("activity_scan", "running", new Date());
+  const sFresh = await mkJob("activity_scan", "stopping", new Date());
+  // Terminal rows must be unreachable by construction, not by convention.
+  const doneOld = await mkJob("post_judge", "done", dead);
+  const [doneBefore] = await db.select().from(job).where(eq(job.id, doneOld));
+
+  const statusOf = async (id: string) => (await db.select({ s: job.status, e: job.error, u: job.updatedAt })
+    .from(job).where(eq(job.id, id)))[0]!;
+  const sweptNone = await sweepDeadJobs();
+  check("a live run is never swept while it is beating", sweptNone === 0, `swept=${sweptNone}`);
+  eqCheck("a QUEUED job survives any age — it has no process to lose",
+    (await statusOf(qOld)).s, "queued");
+  // and it must still RUN, not merely still be labelled queued
+  const ranIt = await processNext();
+  check("the surviving queued job actually executes",
+    ranIt === true && (await statusOf(qOld)).s !== "queued",
+    `ran=${ranIt} status=${(await statusOf(qOld)).s}`);
+  eqCheck("a fresh running row is untouched", (await statusOf(rFresh)).s, "running");
+  eqCheck("a fresh stopping row is untouched", (await statusOf(sFresh)).s, "stopping");
+  const doneAfter = await statusOf(doneOld);
+  check("a terminal row is byte-identical after a sweep, updated_at included",
+    doneAfter.s === "done" && doneAfter.u!.getTime() === doneBefore!.updatedAt!.getTime());
+
+  // Now age the two live rows past the window: their process has died.
+  await db.update(job).set({ updatedAt: dead }).where(inArray(job.id, [rFresh, sFresh]));
+  // A worker must never sweep the row IT is holding, however late its beat.
+  const sweptMine = await sweepDeadJobs(rFresh);
+  eqCheck("the row this process holds is spared even when overdue",
+    (await statusOf(rFresh)).s, "running");
+  check("…and the other dead row still goes", sweptMine === 1, `swept=${sweptMine}`);
+  eqCheck("a stop the worker died before acknowledging still reads as stopped",
+    (await statusOf(sFresh)).s, "stopped");
+  const swept2 = await sweepDeadJobs();
+  const abandoned = await statusOf(rFresh);
+  check("an interrupted run fails with an explanation, not silently",
+    swept2 === 1 && abandoned.s === "failed" && (abandoned.e ?? "").includes("restarted or was deployed"),
+    `swept=${swept2} status=${abandoned.s} err=${abandoned.e}`);
+  // A draining worker's late write must not clobber the sweep's account. This
+  // calls the REAL markStopped — re-implementing its guard here would test
+  // nothing, which is exactly how the first version of this check passed while
+  // the guard was deleted.
+  await markStopped(rFresh, 3, 40);
+  const late = await statusOf(rFresh);
+  check("a late markStopped cannot overwrite an abandoned run's explanation",
+    late.s === "failed" && (late.e ?? "").includes("restarted or was deployed"),
+    `status=${late.s} err=${late.e}`);
+  await db.delete(job).where(inArray(job.id, [qOld, rFresh, sFresh, doneOld]));
 
   await db.delete(channelAccount).where(eq(channelAccount.id, radarSeat!.id));
   await buildFixture();

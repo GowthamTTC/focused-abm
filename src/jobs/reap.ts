@@ -11,26 +11,64 @@
  *   1. a deep-enrich run releases its own leftovers when it ends, however it ends;
  *   2. the idle worker releases anything still holding a handle with no live job.
  */
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { db, connection, job } from "@/db";
 
-/** Jobs untouched for this long are dead, whatever the row says. Each person
- *  takes ~40s+, and setProgress stamps updatedAt per person, so a healthy run
- *  never goes quiet for anywhere near this long. */
-const STALE_JOB_MINUTES = 15;
+/** A live run stamps its own row every HEARTBEAT_MS (src/jobs/runner.ts), so a
+ *  row quiet for longer than this is held by a process that no longer exists.
+ *
+ *  This replaces a 15-minute staleness guess. The old number was a guess
+ *  because updated_at was only stamped per PERSON, and with a 25s inter-person
+ *  gap a healthy deep_enrich went quiet for ~50s at a time — so the window had
+ *  to be wide enough to never false-kill, which meant a user whose deploy
+ *  interrupted a run watched a dead banner spin for a quarter of an hour. The
+ *  heartbeat makes updated_at a real liveness signal, and the window can shrink
+ *  to something a person will wait through.
+ *
+ *  THE HEARTBEAT MUST LAND BEFORE THIS WINDOW SHRINKS. A short window shipped
+ *  against per-person stamping is a false-kill machine. */
+export const DEAD_AFTER_SECONDS = 60;
 
-/** Mark abandoned runs as failed so the live banner stops spinning and the
- *  activity feed tells the truth. */
-export async function sweepStaleJobs(): Promise<number> {
-  const rows = await db.update(job).set({
+/** Jobs whose owning process is gone.
+ *
+ *  'queued' IS NEVER SWEPT, and that is the one rule here worth stating twice.
+ *  A queued job has no process attached: it is what the web service inserts
+ *  while the worker is restarting, it is what activity_scan chains its own
+ *  post_judge into, and it is exactly what processNext claims. Sweeping it
+ *  would delete work nobody had started yet. The previous version of this
+ *  function did include 'queued', and got away with it only because its single
+ *  caller ran on the no-job-found path, having just proved no queued row
+ *  existed. This one runs from the heartbeat while a job is in flight, so it
+ *  has no such protection and must not rely on one.
+ *
+ *  Every write is a compare-and-swap on the status it expects, so a terminal
+ *  row is unreachable by construction rather than by convention, and a late
+ *  write from a draining process matches zero rows instead of clobbering.
+ *
+ *  `exceptJobId` is the row THIS process is holding: a momentarily late beat
+ *  must never let a worker sweep its own live job. */
+export async function sweepDeadJobs(exceptJobId?: string): Promise<number> {
+  const quiet = sql`${job.updatedAt} < now() - interval '${sql.raw(String(DEAD_AFTER_SECONDS))} seconds'`;
+  const notMine = exceptJobId ? ne(job.id, exceptJobId) : undefined;
+
+  // 'stopping' → 'stopped'. The user pressed Stop and the worker died before it
+  // could acknowledge; this is markStopped arriving late, from another process.
+  // Their intent is honoured rather than reported as a failure.
+  const stopped = await db.update(job).set({ status: "stopped", updatedAt: new Date() })
+    .where(and(eq(job.status, "stopping"), quiet, notMine))
+    .returning({ id: job.id });
+
+  // 'running' → 'failed'. Nobody chose this outcome, and 'failed' is the only
+  // status whose error string the product actually renders — so it is the only
+  // one that can explain itself to the person who pressed the button.
+  const failed = await db.update(job).set({
     status: "failed",
-    error: "Run abandoned — worker restarted or deployed mid-run; the people went back to the pool.",
+    error: "Run abandoned — the worker restarted or was deployed mid-run. Whatever it had already finished was kept.",
     updatedAt: new Date(),
-  }).where(and(
-    inArray(job.status, ["queued", "running", "stopping"]),
-    sql`${job.updatedAt} < now() - interval '${sql.raw(String(STALE_JOB_MINUTES))} minutes'`,
-  )).returning({ id: job.id });
-  return rows.length;
+  }).where(and(eq(job.status, "running"), quiet, notMine))
+    .returning({ id: job.id });
+
+  return stopped.length + failed.length;
 }
 
 /** Release every person holding a handle that no live job can honour. */
@@ -44,8 +82,16 @@ export async function releaseOrphans(): Promise<number> {
       select 1 from ${job} j
       where j.org_id = ${connection.orgId}
         and j.kind = 'deep_enrich'
-        and j.status in ('queued', 'running', 'stopping')
-        and j.updated_at > now() - interval '${sql.raw(String(STALE_JOB_MINUTES))} minutes'
+        and (
+          -- A queued deep_enrich is unconditionally live: it has no process to
+          -- go quiet. Applying the window to it stripped the handles off a run
+          -- that was about to start — and at boot, when the worker has just
+          -- been down, a legitimately queued job is almost certainly older than
+          -- any window, so this was worst exactly when it mattered most.
+          j.status = 'queued'
+          or (j.status in ('running', 'stopping')
+              and j.updated_at > now() - interval '${sql.raw(String(DEAD_AFTER_SECONDS))} seconds')
+        )
     )`,
   )).returning({ id: connection.id });
   return rows.length;
@@ -70,7 +116,9 @@ let lastSweep = 0;
 export async function idleSweep(everyMs = 30_000): Promise<void> {
   if (Date.now() - lastSweep < everyMs) return;
   lastSweep = Date.now();
-  const stale = await sweepStaleJobs();
+  // Order matters: the job rows die first, or the dead rows go on protecting
+  // the very handles they orphaned.
+  const stale = await sweepDeadJobs();
   const freed = await releaseOrphans();
   if (stale || freed) console.log(`[worker] released ${freed} people from ${stale} dead run(s)`);
 }

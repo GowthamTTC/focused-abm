@@ -2,7 +2,7 @@
  * DB-backed job runner — no Redis in the standalone. worker.ts polls for
  * queued jobs; the web app only INSERTS job rows and reads progress.
  */
-import { and, asc, eq, gte, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, sql } from "drizzle-orm";
 import { db, connection, job, channelAccount } from "@/db";
 import { getChannelProvider, type Relation } from "@/providers/channel";
 import { createBatchFromRelations } from "@/modules/connections/create-batch";
@@ -13,7 +13,7 @@ import { deepEnrichOne } from "@/modules/enrich/deep-dive";
 import { z } from "zod";
 import { complete } from "@/llm/client";
 import { getOrgSettings, updateOrgSettings } from "@/modules/settings/org-settings";
-import { idleSweep, releaseIds } from "@/jobs/reap";
+import { idleSweep, releaseIds, sweepDeadJobs } from "@/jobs/reap";
 import { runEventScan } from "@/modules/radar/scan";
 import { runEventExtended } from "@/modules/radar/extended";
 import { storePosts } from "@/modules/posts/store";
@@ -28,9 +28,52 @@ async function stopRequested(jobId: string): Promise<boolean> {
   const [row] = await db.select({ s: job.status }).from(job).where(eq(job.id, jobId));
   return row?.s === "stopping";
 }
-async function markStopped(jobId: string, progress: number, total: number) {
+/** Exported only so the harness can call it directly. A previous version of
+ *  that check re-implemented this guard inline and therefore passed while the
+ *  guard itself was deleted — testing the test, not the code. */
+export async function markStopped(jobId: string, progress: number, total: number) {
   await db.update(job).set({ status: "stopped", progress, total, updatedAt: new Date() })
-    .where(eq(job.id, jobId));
+    // Compare-and-swap, not a bare id match. A worker draining after a sweep has
+    // already declared its job abandoned would otherwise overwrite 'failed' and
+    // its explanation with a bare 'stopped', destroying the only account the
+    // user gets of what happened.
+    .where(and(eq(job.id, jobId), inArray(job.status, ["running", "stopping"])));
+}
+
+/** How often a running job stamps its own row.
+ *
+ *  updated_at is the ONLY liveness signal this queue has — there is no owner
+ *  column and no lease — and before this it was stamped once per PERSON. With a
+ *  25s inter-person gap a healthy run looked identical to a dead one for the
+ *  best part of a minute, which is why the reaper had to wait fifteen. Beating
+ *  every ten seconds against a sixty-second window leaves five missed beats of
+ *  margin before anything is declared dead. */
+const HEARTBEAT_MS = 10_000;
+
+/** Stamp this job while it runs, and sweep everyone else's corpses while we are
+ *  here — one timer, both duties.
+ *
+ *  Sweeping from the heartbeat rather than only from the idle path is the whole
+ *  point: the idle path runs when the queue is EMPTY, so a job orphaned behind
+ *  a busy queue used to wait for the queue to drain before anyone noticed it
+ *  was dead. Passing our own id keeps a late beat from letting us sweep the job
+ *  we are holding.
+ *
+ *  It swallows its own errors: a missed beat costs nothing because the next one
+ *  retries, whereas an unhandled rejection here would take down the worker and
+ *  turn a cleanup routine into an outage. */
+function startHeartbeat(jobId: string): () => void {
+  const beat = async () => {
+    try {
+      await db.update(job).set({ updatedAt: new Date() })
+        .where(and(eq(job.id, jobId), inArray(job.status, ["running", "stopping"])));
+      await sweepDeadJobs(jobId);
+    } catch { /* the next beat retries */ }
+  };
+  const timer = setInterval(() => { void beat(); }, HEARTBEAT_MS);
+  // Never hold the process open on this alone.
+  timer.unref?.();
+  return () => clearInterval(timer);
 }
 async function scannedToday(orgId: string): Promise<number> {
   const today = new Date(); today.setUTCHours(0, 0, 0, 0);
@@ -66,6 +109,7 @@ export async function processNext(): Promise<boolean> {
   if (!next) { await idleSweep(); return false; }
 
   await db.update(job).set({ status: "running", updatedAt: new Date() }).where(eq(job.id, next.id));
+  const stopHeartbeat = startHeartbeat(next.id);
   try {
     if (next.kind === "sync") {
       const accountId = String(next.payloadJson.accountId);
@@ -328,13 +372,22 @@ export async function processNext(): Promise<boolean> {
     } else {
       throw new Error(`Unknown job kind: ${next.kind}`);
     }
-    await db.update(job).set({ status: "done", updatedAt: new Date() }).where(eq(job.id, next.id));
+    await db.update(job).set({ status: "done", updatedAt: new Date() })
+      .where(and(eq(job.id, next.id), inArray(job.status, ["running", "stopping"])));
   } catch (e) {
     await db.update(job).set({
       status: "failed",
       error: e instanceof Error ? e.message.slice(0, 800) : "unknown",
       updatedAt: new Date(),
-    }).where(eq(job.id, next.id));
+    // Same compare-and-swap: a job already declared dead stays dead, with the
+    // sweep's explanation intact, rather than being re-failed with a message
+    // about a symptom of the death rather than its cause.
+    }).where(and(eq(job.id, next.id), inArray(job.status, ["running", "stopping"])));
+  } finally {
+    // Every exit runs through here, including the several `return true`s inside
+    // the try — a leaked interval would go on stamping a finished job forever
+    // and make it permanently unsweepable.
+    stopHeartbeat();
   }
   return true;
 }
