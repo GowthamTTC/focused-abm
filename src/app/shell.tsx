@@ -50,6 +50,7 @@ const NAV: { section: string; items: [key: string, href: string, label: string, 
   { section: "Work", items: [
     ["nova", "/nova", "Nova", "Ask Nova — counts, shortlist, enrich, Radar"],
     ["dashboard", "/dashboard", "Today", "Who to message today, and the post that gives you the opener"],
+    ["social", "/social", "Social", "Everything your connections posted — for liking and replying, not selling"],
     ["review", "/review", "Review", "Verdicts, ready-to-send drafts, and your sent log"],
     ["people", "/people", "People", "Every person in your network, searchable"],
   ]},

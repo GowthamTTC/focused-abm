@@ -736,3 +736,196 @@ export async function rereadTargets(orgId: string) {
     ));
   return rows.map((r) => r.id);
 }
+
+// ── The social feed ──────────────────────────────────────────────────────
+/*
+ * Everything below is APPEND-ONLY and touches nothing above it.
+ *
+ * Today answers "who is worth messaging". This answers a different question —
+ * "what did the people I know just say" — and the two must not share a query.
+ * Today's every gate (a hook, a relevance score, one row per person, one per
+ * employer, bucket = pitchable, campaign scoping) exists to keep a SALES list
+ * short. Applying any of them here would be a bug: a reshare with no hook, a
+ * congratulation scoring 0, three posts by one person in a week and a
+ * peer_competitor you have known for years are all things you might want to
+ * reply to, and Today structurally cannot show any of them.
+ *
+ * So the only filters here are: your 1st-degree connections, in this
+ * workspace, posted inside the chosen window.
+ */
+
+/** 1st degree, spelled the way this database actually stores it.
+ *
+ *  NULL means 1st. Neither the CSV import nor the LinkedIn sync ever writes
+ *  network_distance (create-batch.ts sets it from neither path) — only Radar's
+ *  own search stamps '2'/'3' on strangers it found. So a bare
+ *  eq(networkDistance, '1') returns ZERO rows on every real workspace. Copied
+ *  verbatim from radar/query.ts, which learned this the same way. */
+const FIRST_DEGREE = or(isNull(connection.networkDistance), eq(connection.networkDistance, "1"));
+
+export const SOCIAL_WINDOWS = [3, 7, 15] as const;
+export const SOCIAL_DEFAULT_DAYS = 7;
+export const SOCIAL_DEFAULT_ROWS = 40;
+export const SOCIAL_MAX_ROWS = 120;
+/** Materially below planScan's 80. The daily scan cap is ONE org-wide budget
+ *  shared with Today (getDailyScanUsage counts distinct people stamped since
+ *  UTC midnight, bucket-blind), so every social slot is a slot Today loses.
+ *  40 leaves most of a default day to the sales scan without needing a setting
+ *  or letting a social-only user deadlock. */
+export const SOCIAL_SCAN_MAX_RUN = 40;
+
+export function socialDays(raw: string | number | null | undefined): number {
+  const n = Number(raw);
+  return (SOCIAL_WINDOWS as readonly number[]).includes(n) ? n : SOCIAL_DEFAULT_DAYS;
+}
+
+/** Every post by a 1st-degree connection inside the window. No relevance, no
+ *  hook, no bucket, no campaign — and deliberately NOT one row per person. */
+export async function socialFeed(
+  orgId: string,
+  opts: { days: number; limit?: number },
+) {
+  const want = Math.min(Math.max(opts.limit ?? SOCIAL_DEFAULT_ROWS, 1), SOCIAL_MAX_ROWS);
+  const since = sql`now() - ${sql.raw(String(socialDays(opts.days)))} * interval '1 day'`;
+
+  const fetch = (take: number) => db.select({
+    postId: post.id,
+    providerId: post.providerId,
+    excerpt: sql<string>`${EXCERPT_SQL}`.as("post_excerpt"),
+    text: post.text,
+    postUrl: post.url,
+    postedAt: post.postedAt,
+    ageDays: sql<number>`greatest(0, round(extract(epoch from (now() - ${post.postedAt})) / 86400.0, 1))::float8`.as("age_days"),
+    connectionId: connection.id,
+    firstName: connection.firstName,
+    lastName: connection.lastName,
+    role: sql<string | null>`coalesce(${connection.positionRaw}, ${connection.headlineRaw})`,
+    company: connection.companyRaw,
+    linkedinUrl: connection.linkedinUrl,
+    activityUrl: connection.activityUrl,
+    // Carried only so the card can say "you already messaged them" — never to
+    // filter. A reply is still worth making after an outreach went out.
+    sentAt: connection.sentAt,
+    bucket: connection.bucket,
+  }).from(post)
+    .innerJoin(connection, eq(connection.id, post.connectionId))
+    .where(and(
+      eq(post.orgId, orgId),
+      FIRST_DEGREE,
+      isNotNull(post.postedAt),
+      gte(post.postedAt, since),
+    ))
+    .orderBy(desc(post.postedAt))
+    .limit(take);
+
+  // Dedupe on (human, post) — NOT on human alone, which would throw away the
+  // second and third things they said this week, and that is the feature. The
+  // same human can be several connection rows (linkedin_url has no unique
+  // constraint and CSV import does no dedupe) and post is unique per
+  // (connection_id, provider_id), so one post reachable through two rows is two
+  // records here. Widen-and-retry mirrors hookFeed's loop.
+  let rows: Awaited<ReturnType<typeof fetch>> = [];
+  let collapsed = 0;
+  let take = want * 2 + 8;
+  for (let pass = 0; pass < 3; pass += 1) {
+    const raw = await fetch(take);
+    const seen = new Set<string>();
+    rows = []; collapsed = 0;
+    for (const r of raw) {
+      const human = (r.linkedinUrl || r.connectionId).toLowerCase();
+      const key = `${human}::${r.providerId}`;
+      if (seen.has(key)) { collapsed += 1; continue; }
+      seen.add(key);
+      if (rows.length < want) rows.push(r);
+    }
+    if (rows.length >= want || raw.length < take) break;
+    take *= 4;
+  }
+  return { rows, collapsed };
+}
+
+export type SocialRow = Awaited<ReturnType<typeof socialFeed>>["rows"][number];
+
+/** What the screen must admit about itself.
+ *
+ *  A page of 50 cards drawn from 6% of the network, with no line saying so, is
+ *  the most misleading thing this feature could ship: it reads as "my network
+ *  was quiet" when the truth is "nobody has looked at most of them". */
+export async function socialCoverage(orgId: string, days: number) {
+  const since = sql`now() - ${sql.raw(String(socialDays(days)))} * interval '1 day'`;
+  const [row] = await db.select({
+    firstDegree: sql<number>`count(distinct ${HUMAN})::int`,
+    reachable: sql<number>`count(distinct ${HUMAN}) filter (where ${REACHABLE})::int`,
+    everScanned: sql<number>`count(distinct ${HUMAN}) filter (where ${connection.lastScanAt} is not null)::int`,
+    // The number that explains an empty screen: the dropdown filters posted_at,
+    // but what actually limits the list is how many people were CHECKED lately.
+    scannedInWindow: sql<number>`count(distinct ${HUMAN}) filter (where ${connection.lastScanAt} >= ${since})::int`,
+    newestScan: sql<string | null>`max(${connection.lastScanAt})`,
+  }).from(connection)
+    .where(and(eq(connection.orgId, orgId), FIRST_DEGREE));
+
+  const firstDegree = row?.firstDegree ?? 0;
+  const d = socialDays(days);
+  return {
+    firstDegree,
+    reachable: row?.reachable ?? 0,
+    everScanned: row?.everScanned ?? 0,
+    neverScanned: firstDegree - (row?.everScanned ?? 0),
+    scannedInWindow: row?.scannedInWindow ?? 0,
+    newestScan: row?.newestScan ? new Date(row.newestScan) : null,
+    /** People a day that would have to be checked to keep THIS window honest
+     *  for everyone. Printed against the cap, because at 100/day every one of
+     *  3/7/15 asks for more than a day allows on a network this size. */
+    scansPerDayForWindow: d > 0 ? Math.ceil(firstDegree / d) : 0,
+  };
+}
+
+/** Who to check next, workspace-wide.
+ *
+ *  A separate picker rather than an edit to pickScanTargets, which is
+ *  campaign-scoped and pitchable-only and pinned by the harness. Shares only
+ *  its two non-negotiable predicates: REACHABLE, because the runner stamps
+ *  last_scan_at even when nothing resolves and an identifier-less row would
+ *  burn a cap slot on a guaranteed no-op; and the since-UTC-midnight test, so
+ *  one person is never checked twice in a day.
+ *
+ *  Order: never-checked first, then longest-ago. Within the never-checked tier,
+ *  pitchable people lead — they are the ones Today also wants, so a shared cap
+ *  buys both screens at once — then the rest. rank is NULL for exactly the
+ *  people this feed exists to reach, so it cannot be the sort key. */
+export async function pickSocialTargets(orgId: string, n: number) {
+  const utcMidnight = new Date(); utcMidnight.setUTCHours(0, 0, 0, 0);
+  return db.select({ id: connection.id }).from(connection)
+    .where(and(
+      eq(connection.orgId, orgId),
+      FIRST_DEGREE,
+      REACHABLE,
+      or(isNull(connection.lastScanAt), lt(connection.lastScanAt, utcMidnight)),
+    ))
+    .orderBy(
+      sql`${connection.lastScanAt} asc nulls first`,
+      sql`case when ${connection.bucket} = 'pitchable' then 0 else 1 end`,
+      asc(connection.id),
+    )
+    .limit(n);
+}
+
+/** The guard chain behind "Check more connections", mirroring planScan. */
+export async function planSocialScan(orgId: string, want: number): Promise<ScanPlan> {
+  const [seat] = await db.select({ id: channelAccount.id }).from(channelAccount)
+    .where(and(eq(channelAccount.orgId, orgId), eq(channelAccount.status, "operational")))
+    .limit(1);
+  if (!seat) return { ok: false, reason: "noseat" };
+  if (await liveJob(orgId)) return { ok: false, reason: "busy" };
+
+  const { remaining } = await getDailyScanUsage(orgId);
+  if (remaining === 0) return { ok: false, reason: "cap" };
+
+  // Clamped three ways. The worker re-reads the cap before every person and
+  // THROWS on hitting it, failing the whole run and raising the app-wide
+  // banner, so handing it more ids than the budget allows is not a nicety.
+  const bounded = Math.min(Math.max(want, 1), SOCIAL_SCAN_MAX_RUN, remaining);
+  const targets = await pickSocialTargets(orgId, bounded);
+  if (targets.length === 0) return { ok: false, reason: "none" };
+  return { ok: true, ids: targets.map((t) => t.id) };
+}

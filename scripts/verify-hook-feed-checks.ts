@@ -39,7 +39,8 @@ import { DEAD_AFTER_SECONDS, sweepDeadJobs } from "../src/jobs/reap";
 import { HOOK_DECAY_DAYS, HOOK_MIN_RELEVANCE, coerce } from "../src/modules/posts/judge";
 import { markStopped } from "../src/jobs/runner";
 import {
-  RELEVANCE_BANDS, bandFor, employerKey, deepLinkFor, feedStatus, frontierWithHookCount, hookFeed, hooksElsewhere,
+  RELEVANCE_BANDS, bandFor, employerKey, deepLinkFor,
+  pickSocialTargets, socialCoverage, socialDays, socialFeed, feedStatus, frontierWithHookCount, hookFeed, hooksElsewhere,
   hooksForPeople, rereadTargets,
   liveJob, pickHookFrontier, pickScanTargets, pipelineCounts, pipelineWithHooks,
   planRead, planScan, rowState, scanCoverage, waitingToRead, type RowState,
@@ -1243,6 +1244,105 @@ async function main() {
     refused && batchCountAfter === batchCountBefore,
     `refused=${refused} batches ${batchCountBefore} -> ${batchCountAfter}`);
   await db.update(service).set({ status: "active" }).where(eq(service.id, activeOffer!.id));
+
+  // ── The social feed: the opposite of Today, deliberately ────────────────
+  // Every assertion here is a gate Today HAS and this must not.
+  //
+  // buildFixture() has run again since `people`/`posts` were destructured at
+  // the top (lines 893 and 916), and it mints fresh ids — the comment at 897
+  // says exactly this. Re-read them rather than assert against rows that no
+  // longer exist.
+  const sfx = await buildFixture();
+  const sp2 = sfx.people, spost = sfx.posts;
+  // Most fixture people carry a scanSlot, i.e. "checked today", which is
+  // precisely what the picker excludes. Free one non-pitchable person so the
+  // picker assertion tests bucket-blindness rather than the freshness rule.
+  await db.update(connection).set({ lastScanAt: null }).where(eq(connection.id, sp2.peer));
+  const soc = await socialFeed(orgA, { days: 7 });
+  const socNames = soc.rows.map((r) => r.firstName);
+  const socIds = soc.rows.map((r) => r.connectionId);
+
+  // 1. No bucket gate. A peer and an off-ICP person are real connections whose
+  //    posts you might want to reply to; Today must never offer them and this
+  //    must always show them.
+  check("a peer_competitor's post is shown here though Today forbids it",
+    socIds.includes(sp2.peer), `got ${JSON.stringify(socNames)}`);
+  check("an off-ICP person's post is shown here too", socIds.includes(sp2.off_icp));
+  // 2. No hook or relevance gate.
+  check("an unjudged post is shown — no relevance needed to read someone's words",
+    socIds.includes(sp2.unjudged));
+  check("a congratulation scoring 0 is shown; it is a reason to react, not to sell",
+    soc.rows.some((r) => r.postId === spost.asha_congrats));
+  check("a substantive post under the sales bar is shown", socIds.includes(sp2.weak));
+  // 3. No one-row-per-person collapse — the whole point of the screen.
+  check("one person's several posts each get their own row",
+    socNames.filter((n) => n === "Asha").length >= 2,
+    `Asha rows=${socNames.filter((n) => n === "Asha").length}`);
+  // 4. Workspace-wide, not campaign-scoped: Today excludes the older batch.
+  check("it spans the workspace, not one campaign", socIds.includes(sp2.other_batch));
+  // 5. But never another workspace.
+  check("another workspace's post never appears", !socIds.includes(sp2.other_org));
+  // 6. Newest first, and every row is inside the window.
+  const socDates = soc.rows.map((r) => r.postedAt!.getTime());
+  check("newest first", socDates.every((t, i) => i === 0 || socDates[i - 1]! >= t));
+  check("every row is inside the window",
+    soc.rows.every((r) => Date.now() - r.postedAt!.getTime() <= 7.5 * 86400_000));
+
+  // 7. THE DEGREE GATE. Radar stamps '2'/'3' on strangers it finds and stores
+  //    their posts; those are not your connections and must never appear here.
+  const [stranger] = await db.insert(connection).values({
+    orgId: orgA, batchId: batchA, firstName: "Stranger", lastName: "Second",
+    companyRaw: "Stranger Industries", positionRaw: "VP Marketing",
+    linkedinUrl: "https://www.linkedin.com/in/stranger_second",
+    publicIdentifier: "stranger_second", memberId: "mock:stranger_second",
+    networkDistance: "2", bucket: "excluded",
+  }).returning({ id: connection.id });
+  await db.insert(post).values({
+    orgId: orgA, connectionId: stranger!.id, providerId: "fixture:stranger_post",
+    text: "A 2nd-degree stranger's post, found by Radar and stored.",
+    url: "https://example.invalid/stranger", postedAt: new Date(Date.now() - 86400_000),
+  });
+  const socNoStranger = await socialFeed(orgA, { days: 7 });
+  check("a 2nd-degree stranger's post never appears — they are not a connection",
+    !socNoStranger.rows.some((r) => r.connectionId === stranger!.id));
+  // And NULL still means 1st degree, which is how every real row is stored.
+  check("but NULL network_distance still counts as 1st degree",
+    socNoStranger.rows.length > 0 && socIds.includes(sp2.three_posts));
+
+  // 8. The window actually filters.
+  const soc3 = await socialFeed(orgA, { days: 3 });
+  const soc15 = await socialFeed(orgA, { days: 15 });
+  check("a 12-day-old post is outside 3 days and inside 15",
+    !soc3.rows.some((r) => r.postId === spost.asha_older_stronger)
+    && soc15.rows.some((r) => r.postId === spost.asha_older_stronger),
+    `3d=${soc3.rows.length} 15d=${soc15.rows.length}`);
+  eqCheck("an unknown window falls back to the default rather than showing everything",
+    [socialDays("999"), socialDays(""), socialDays(null), socialDays(7)], [7, 7, 7, 7]);
+
+  // 9. Coverage must describe the SCAN, not the posts — that is what explains
+  //    a short list.
+  const scov = await socialCoverage(orgA, 7);
+  check("coverage counts 1st-degree people and how many were checked",
+    scov.firstDegree > 0 && scov.everScanned + scov.neverScanned === scov.firstDegree
+    && scov.scansPerDayForWindow === Math.ceil(scov.firstDegree / 7),
+    JSON.stringify(scov));
+  check("the 2nd-degree stranger is not counted as a connection",
+    scov.firstDegree === (await socialCoverage(orgA, 15)).firstDegree);
+
+  // 10. The picker: workspace-wide, bucket-blind, 1st degree, reachable.
+  const socTargets = await pickSocialTargets(orgA, 50);
+  const socTargetIds = socTargets.map((t) => t.id);
+  check("the picker reaches non-pitchable people, which pickScanTargets cannot",
+    socTargetIds.includes(sp2.peer) || socTargetIds.includes(sp2.off_icp),
+    `${socTargetIds.length} targets`);
+  check("the picker never offers a 2nd-degree stranger",
+    !socTargetIds.includes(stranger!.id));
+  check("and never someone already checked today",
+    !socTargetIds.includes(sp2.three_posts),
+    `three_posts scanned today, targets=${socTargetIds.length}`);
+
+  await db.delete(post).where(eq(post.connectionId, stranger!.id));
+  await db.delete(connection).where(eq(connection.id, stranger!.id));
 
   // ── The reaper: what a deploy leaves behind ──────────────────────────────
   // Placed after the foreign-workspace guard on purpose — sweepDeadJobs is
