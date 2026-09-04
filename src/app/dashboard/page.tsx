@@ -344,6 +344,10 @@ export default async function DashboardPage({ searchParams }: {
             <p className="text-[11px] uppercase tracking-wider text-[#98A2B3]">Reasons to reach out</p>
             <span className="tnum text-[11px] text-[#98A2B3]">
               {feedPeople} {feedPeople === 1 ? "person" : "people"} · showing {rows.length}
+              {/* Said out loud rather than left implicit: a colleague who
+                  qualified but is not on screen looks like a missing person,
+                  and "why isn't X here" is the question this line answers. */}
+              {feed.sameCompany > 0 && ` · ${feed.sameCompany} more at ${feed.sameCompany === 1 ? "a company" : "companies"} already shown`}
               {feedPeople > rows.length && (rows.length < FEED_MAX_ROWS
                 // An offer to "show all" that lands on the same 40 rows is a
                 // no-op; past the cap, say what the screen will actually do.

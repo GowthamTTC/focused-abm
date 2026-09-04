@@ -36,7 +36,7 @@ import { and, eq, gte, inArray, isNotNull, isNull, notInArray, sql } from "drizz
 import { db, connection, channelAccount, connectionBatch, job, org, post, service } from "../src/db";
 import { buildFixture } from "./verify-hook-feed";
 import {
-  bandFor, deepLinkFor, feedStatus, frontierWithHookCount, hookFeed, hooksElsewhere,
+  bandFor, companyKey, deepLinkFor, feedStatus, frontierWithHookCount, hookFeed, hooksElsewhere,
   hooksForPeople, rereadTargets,
   liveJob, pickHookFrontier, pickScanTargets, pipelineCounts, pipelineWithHooks,
   planRead, planScan, rowState, scanCoverage, waitingToRead, type RowState,
@@ -213,7 +213,7 @@ async function main() {
   // The same human twice in one CSV is two connection rows in one batch.
   const [dupPerson] = await db.insert(connection).values({
     orgId: orgA, batchId: batchA, firstName: "Asha", lastName: "Fixture (dupe)",
-    companyRaw: "Fixture Co", positionRaw: "VP Marketing",
+    companyRaw: "Asha Industries", positionRaw: "VP Marketing",
     linkedinUrl: "https://www.linkedin.com/in/three_posts",   // same person, same URL
     publicIdentifier: "three_posts_dupe", memberId: "mock:dupe",
     bucket: "pitchable", serviceSlug: "demand-gen", rank: 11, tier: 2,
@@ -233,6 +233,83 @@ async function main() {
     `rows=${dupFeed.rows.length} collapsed=${dupFeed.collapsed}`);
   await db.delete(post).where(eq(post.connectionId, dupPerson!.id));
   await db.delete(connection).where(eq(connection.id, dupPerson!.id));
+
+  // ── One ACCOUNT, one card ────────────────────────────────────────────────
+  // This app sells to companies, so two colleagues posting the same week is one
+  // reason to reach out. The normaliser has to see through spelling: a CSV and
+  // a LinkedIn sync rarely agree on whether the employer has a comma and an Inc.
+  eqCheck("company key normalises punctuation and legal suffixes",
+    ["Northwind Data, Inc.", "northwind data", "Northwind Data LLC", "  NORTHWIND   DATA  "]
+      .map((c) => companyKey(c)),
+    ["northwind data", "northwind data", "northwind data", "northwind data"]);
+  eqCheck("salesforce.com and Salesforce are one account",
+    [companyKey("Salesforce.com"), companyKey("Salesforce, Inc.")], ["salesforce", "salesforce"]);
+  // The suffix list is anchored and needs a separator, so these keep their letters.
+  eqCheck("a suffix inside a name is not stripped",
+    [companyKey("Costco"), companyKey("Limited Run Games"), companyKey("Incode")],
+    ["costco", "limited run games", "incode"]);
+  // THE TRAP. 57% of pitchable rows carry no company. If a blank were a key,
+  // every one of them would collapse into a single card.
+  for (const blank of [null, undefined, "", "   ", ","]) {
+    check(`a blank company (${JSON.stringify(blank)}) yields no key`, companyKey(blank) === null);
+  }
+
+  const coFolk = await db.insert(connection).values([
+    { orgId: orgA, batchId: batchA, firstName: "Ravi", lastName: "Colleague",
+      companyRaw: "Northwind Data, Inc.", positionRaw: "VP Marketing",
+      linkedinUrl: "https://www.linkedin.com/in/ravi_colleague",
+      publicIdentifier: "ravi_colleague", memberId: "mock:ravi_colleague",
+      bucket: "pitchable", serviceSlug: "demand-gen", rank: 20, tier: 2 },
+    // Same employer, spelled differently, and a WEAKER post — so the check also
+    // proves the survivor is chosen by hook score rather than by insert order.
+    { orgId: orgA, batchId: batchA, firstName: "Nita", lastName: "Colleague",
+      companyRaw: "northwind data llc", positionRaw: "Head of Growth",
+      linkedinUrl: "https://www.linkedin.com/in/nita_colleague",
+      publicIdentifier: "nita_colleague", memberId: "mock:nita_colleague",
+      bucket: "pitchable", serviceSlug: "demand-gen", rank: 21, tier: 2 },
+    // Two strangers with NO company: they must BOTH keep their card.
+    { orgId: orgA, batchId: batchA, firstName: "Ola", lastName: "Nocompany",
+      companyRaw: null, positionRaw: "Fractional CMO",
+      linkedinUrl: "https://www.linkedin.com/in/ola_nocompany",
+      publicIdentifier: "ola_nocompany", memberId: "mock:ola_nocompany",
+      bucket: "pitchable", serviceSlug: "demand-gen", rank: 22, tier: 2 },
+    { orgId: orgA, batchId: batchA, firstName: "Pia", lastName: "Nocompany",
+      companyRaw: "   ", positionRaw: "Advisor",
+      linkedinUrl: "https://www.linkedin.com/in/pia_nocompany",
+      publicIdentifier: "pia_nocompany", memberId: "mock:pia_nocompany",
+      bucket: "pitchable", serviceSlug: "demand-gen", rank: 23, tier: 2 },
+  ]).returning({ id: connection.id, first: connection.firstName });
+  const coId = (n: string) => coFolk.find((c) => c.first === n)!.id;
+  await db.insert(post).values(([
+    ["Ravi", 91, "The strongest of the two colleagues — this is the card that must survive."],
+    ["Nita", 62, "A weaker post from the same company — must be collapsed away."],
+    ["Ola", 77, "No employer on the row; still a person in their own right."],
+    ["Pia", 74, "Also no employer; must NOT be merged with the other blank."],
+  ] as const).map(([who, rel, hook]) => ({
+    orgId: orgA, connectionId: coId(who), providerId: `fixture:${who.toLowerCase()}_co`,
+    text: `${hook} Filler so the excerpt has something to cut.`,
+    url: `https://www.linkedin.com/feed/update/${who.toLowerCase()}_co`,
+    postedAt: new Date(Date.now() - 86400000), relevance: rel,
+    category: "substantive", hook, judgedAt: new Date(),
+  })));
+
+  const coFeed = await hookFeed(orgA, { batchId: batchA, limit: 12 });
+  const coNames = coFeed.rows.map((r) => r.firstName);
+  check("two colleagues at one company yield ONE card",
+    coNames.filter((n) => n === "Ravi" || n === "Nita").length === 1,
+    `got ${JSON.stringify(coNames)}`);
+  check("the survivor is the colleague with the stronger post",
+    coNames.includes("Ravi") && !coNames.includes("Nita"), `got ${JSON.stringify(coNames)}`);
+  check("the collapse is reported, not silent", coFeed.sameCompany === 1,
+    `sameCompany=${coFeed.sameCompany}`);
+  // The one that matters most: blanks are not an account.
+  check("two people with NO company both keep their card",
+    coNames.includes("Ola") && coNames.includes("Pia"), `got ${JSON.stringify(coNames)}`);
+  check("a company collapse is NOT counted as a duplicate human",
+    coFeed.collapsed === 0, `collapsed=${coFeed.collapsed}`);
+
+  await db.delete(post).where(inArray(post.connectionId, coFolk.map((c) => c.id)));
+  await db.delete(connection).where(inArray(connection.id, coFolk.map((c) => c.id)));
 
   // ── Review's reason block: the same rule, over ids a caller already holds ──
   const everyone = Object.values(people);
@@ -580,7 +657,7 @@ async function main() {
   }).returning({ id: channelAccount.id });
   const [scanTarget] = await db.insert(connection).values({
     orgId: orgA, batchId: batchA, firstName: "Scan", lastName: "Target",
-    companyRaw: "Fixture Co", positionRaw: "VP Marketing",
+    companyRaw: "Scan Target Industries", positionRaw: "VP Marketing",
     publicIdentifier: "scan-target-4", memberId: "mock-4",
     bucket: "pitchable", serviceSlug: "demand-gen", rank: 12, tier: 2,
   }).returning({ id: connection.id });

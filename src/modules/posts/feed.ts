@@ -48,6 +48,36 @@ const FRESH = sql`now() - ${sql.raw(String(HOOK_DECAY_DAYS))} * interval '1 day'
  *  people than exist. */
 const HUMAN = sql`coalesce(lower(${connection.linkedinUrl}), ${connection.id})`;
 
+/** One ACCOUNT's identity, for the one-card-per-company rule below.
+ *
+ *  Returns null — meaning "no account, never group this row" — for a blank
+ *  company, and that null is the whole point of the function. 57% of pitchable
+ *  rows carry no company_raw (a LinkedIn headline frequently names no
+ *  employer), so treating "" as a key would collapse 290 unrelated people in
+ *  one workspace into a single card. A missing company is an absence of
+ *  information, never evidence that two people share an employer.
+ *
+ *  Normalised so "Salesforce", "salesforce.com" and "Salesforce, Inc." are one
+ *  account rather than three: lowercase, drop a trailing .com, strip trailing
+ *  legal suffixes (repeatedly — "Acme Co Ltd" sheds both), then reduce
+ *  punctuation to single spaces. The suffix list is anchored at the end and
+ *  requires whitespace or a comma before it, so "Costco" keeps its "co" and
+ *  "Limited Run Games" keeps its "Limited". */
+const LEGAL_TAIL =
+  /[\s,]+(?:incorporated|inc|llc|ltd|limited|corp|corporation|company|co|gmbh|bv|nv|ag|sa|sas|plc|pty|pvt|llp|srl)\.?$/;
+export function companyKey(raw: string | null | undefined): string | null {
+  let s = (raw ?? "").trim().toLowerCase().replace(/\.com$/, "");
+  for (let prev = ""; prev !== s; ) { prev = s; s = s.replace(LEGAL_TAIL, "").trim(); }
+  s = s.replace(/[^a-z0-9]+/g, " ").trim();
+  // ONE exit for every blank form — null, "", "   ", ",". An earlier draft had
+  // a fast `if (!s) return null` above as well, and that second guard made the
+  // feed-level check that protects against merging all company-less people
+  // stop biting: null and "   " returned early and never reached this line, so
+  // a mutation here passed the check it exists to fail. A one-character residue
+  // is likewise not an account name.
+  return s.length >= 2 ? s : null;
+}
+
 /** What the runner can actually turn into a posts request: a member id, a
  *  public identifier, or a URL it can pull an "/in/" slug out of. A row whose
  *  only identifier is some other LinkedIn URL is not scannable — the runner
@@ -186,24 +216,45 @@ export async function hookFeed(orgId: string, opts: { batchId?: string; limit?: 
   // more times, and "showing 9" when 21 people qualify is a worse answer than
   // one more indexed query. Bounded at three passes so a pathological import
   // cannot turn one screen into an unbounded scan.
+  //
+  // Then one ACCOUNT, one row. This app sells to companies, so three people at
+  // one employer posting in the same fortnight is ONE reason to reach out, not
+  // three — and three messages into one account on one morning is how that
+  // account gets burned. `raw` arrives ordered by hook score, so the first
+  // occurrence of a company is its strongest post and the one that survives.
+  //
+  // Counted separately from `collapsed` and NEVER folded into it: a duplicate
+  // connection row is not a person and must come off the people count, whereas
+  // a colleague IS a real person who qualified and is merely not being shown.
+  // Subtracting them from the same total would under-report how many people
+  // the campaign actually has.
   let rows: Awaited<ReturnType<typeof fetch>> = [];
   let collapsed = 0;
+  let sameCompany = 0;
   let take = want * 2 + 8;
   for (let pass = 0; pass < 3; pass += 1) {
     const raw = await fetch(take);
     const seen = new Set<string>();
-    rows = []; collapsed = 0;
+    const seenCo = new Set<string>();
+    rows = []; collapsed = 0; sameCompany = 0;
     for (const r of raw) {
       const key = (r.linkedinUrl || r.connectionId).toLowerCase();
       if (seen.has(key)) { collapsed += 1; continue; }
       seen.add(key);
+      const co = companyKey(r.company);
+      // A null key is a row with no company: it can never match another row,
+      // so company-less people are all still shown, one card each.
+      if (co !== null) {
+        if (seenCo.has(co)) { sameCompany += 1; continue; }
+        seenCo.add(co);
+      }
       if (rows.length < want) rows.push(r);
     }
     // Short only because the window ran out, not because the pool did.
     if (rows.length >= want || raw.length < take) break;
     take *= 4;
   }
-  return { rows, collapsed };
+  return { rows, collapsed, sameCompany };
 }
 
 export type FeedRow = Awaited<ReturnType<typeof hookFeed>>["rows"][number];

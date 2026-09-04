@@ -190,7 +190,11 @@ export async function buildFixture(): Promise<Fixture> {
     const [row] = await db.insert(connection).values({
       orgId: p.org, batchId: p.batch,
       firstName: p.first, lastName: "Fixture",
-      companyRaw: "Fixture Co", positionRaw: "VP Marketing",
+      // ONE COMPANY PER PERSON. These are meant to be thirteen different
+      // accounts, and hookFeed now shows one card per company — a shared
+      // "Fixture Co" would collapse the whole feed to a single row and make
+      // every ordering check below meaningless.
+      companyRaw: `${p.first} Industries`, positionRaw: "VP Marketing",
       linkedinUrl: `https://www.linkedin.com/in/${p.key}`,
       publicIdentifier: p.key, memberId: `mock:${p.key}`,
       location: "Bengaluru, Karnataka, India", country: "India",
