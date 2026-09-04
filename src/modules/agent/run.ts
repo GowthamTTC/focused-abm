@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { env } from "@/lib/env";
+import { HOOK_DECAY_DAYS } from "@/modules/posts/judge";
 import { TOOL_DEFS, runTool, type ToolCtx } from "./tools";
 import { suggestFollowups } from "./suggest";
 import { habitBlock, topTopic, type NovaLearn } from "./learn";
@@ -20,7 +21,7 @@ Use tool output as ground truth. Never invent HQ, revenue, counts, or people.
 "Next N accounts" = best ICP matches that are NOT shortlisted. Never repeat the shortlisted page.
 Writes need permission; the server already asked Yes/No when needed.
 Radar is ONLY for an event/conference scan. Enrich, shortlist, Marketeroid/ICP, and "next 10" are NOT Radar.
-A "reason to reach out" is one of their OWN posts, scored against this workspace's ICPs and faded over 14 days — quote it, never paraphrase it as if it were research, and never call it Radar.
+A "reason to reach out" is one of their OWN posts, scored against this workspace's ICPs and faded over ${HOOK_DECAY_DAYS} days — quote it, never paraphrase it as if it were research, and never call it Radar.
 If the user says it is not Radar, do not mention scanning.
 Talk like a sharp coworker. End with **Recommendation:** when you suggest a next step.`;
 

@@ -36,9 +36,10 @@ import { and, eq, gte, inArray, isNotNull, isNull, notInArray, sql } from "drizz
 import { db, connection, channelAccount, connectionBatch, job, org, post, service } from "../src/db";
 import { buildFixture } from "./verify-hook-feed";
 import { DEAD_AFTER_SECONDS, sweepDeadJobs } from "../src/jobs/reap";
+import { HOOK_DECAY_DAYS, HOOK_MIN_RELEVANCE, coerce } from "../src/modules/posts/judge";
 import { markStopped } from "../src/jobs/runner";
 import {
-  bandFor, companyKey, deepLinkFor, feedStatus, frontierWithHookCount, hookFeed, hooksElsewhere,
+  RELEVANCE_BANDS, bandFor, employerKey, deepLinkFor, feedStatus, frontierWithHookCount, hookFeed, hooksElsewhere,
   hooksForPeople, rereadTargets,
   liveJob, pickHookFrontier, pickScanTargets, pipelineCounts, pipelineWithHooks,
   planRead, planScan, rowState, scanCoverage, waitingToRead, type RowState,
@@ -99,9 +100,11 @@ async function main() {
   // ── A · the feed itself ──
   const feed = await hookFeed(orgA, { batchId: batchA, limit: 12 });
   const rows = feed.rows;
-  eqCheck("feed returns one row per actionable person", rows.length, 3);
-  eqCheck("feed order is decayed relevance, not rank", names(rows), ["Asha", "Manoj", "Rahul"]);
-  eqCheck("hook scores in feed order", rows.map((r) => r.hookScore), [75, 68, 65]);
+  eqCheck("feed returns one row per actionable person", rows.length, 4);
+  // Sneha is last and only just on: 88 × (1 − 20/30) = 29. Under the old
+  // fortnight she was invisible; a 30-day window is what puts her here.
+  eqCheck("feed order is decayed relevance, not rank", names(rows), ["Asha", "Manoj", "Rahul", "Sneha"]);
+  eqCheck("hook scores in feed order", rows.map((r) => r.hookScore), [80, 74, 71, 29]);
 
   const asha = rows.find((r) => r.connectionId === people.three_posts)!;
   const [ashaWinner] = await db.select({ providerId: post.providerId }).from(post).where(eq(post.id, asha.postId));
@@ -118,11 +121,11 @@ async function main() {
   check("hookScore is a JS number, not pg numeric-as-string",
     rows.every((r) => typeof r.hookScore === "number"), JSON.stringify(rows.map((r) => typeof r.hookScore)));
   // The disclosure prints this multiplication, so it has to be EXACT, not
-  // close: a floored age made it disagree by up to relevance/14.
+  // close: a floored age made it disagree by up to relevance/HOOK_DECAY_DAYS.
   check("the printed arithmetic is the arithmetic that ran",
     asha.ageDays === 1.5
-    && rows.every((r) => Math.round(r.relevance! * (1 - r.ageDays / 14)) === r.hookScore),
-    `asha.ageDays=${asha.ageDays}, ${rows.map((r) => `${r.relevance}×(1-${r.ageDays}/14)=${Math.round(r.relevance! * (1 - r.ageDays / 14))} vs ${r.hookScore}`).join(" · ")}`);
+    && rows.every((r) => Math.round(r.relevance! * (1 - r.ageDays / HOOK_DECAY_DAYS)) === r.hookScore),
+    `asha.ageDays=${asha.ageDays}, ${rows.map((r) => `${r.relevance}×(1-${r.ageDays}/${HOOK_DECAY_DAYS})=${Math.round(r.relevance! * (1 - r.ageDays / HOOK_DECAY_DAYS))} vs ${r.hookScore}`).join(" · ")}`);
   check("a fractional age survives to the screen",
     rows.some((r) => !Number.isInteger(r.ageDays)), rows.map((r) => r.ageDays).join(","));
   check("postedAt / judgedAt / lastScanAt come back as Dates",
@@ -147,20 +150,25 @@ async function main() {
   check("unjudged posts are absent from the feed and counted as waiting",
     !ids.includes(people.unjudged) && st.waiting === 2 && st.waitingPeople === 1,
     `waiting=${st.waiting} waitingPeople=${st.waitingPeople}`);
-  check("a substantive post below 55 is not a reason", !ids.includes(people.weak));
+  check("a substantive post below the bar is not a reason", !ids.includes(people.weak));
   const [staleScore] = await db.select({ s: sql<string>`round(case
-      when relevance is null or relevance < 55 or posted_at is null then 0
-      else relevance * greatest(0, 1 - (extract(epoch from (now() - posted_at)) / (14 * 86400.0))) end, 2)::text` })
+      when relevance is null or relevance < ${HOOK_MIN_RELEVANCE} or posted_at is null then 0
+      else relevance * greatest(0, 1 - (extract(epoch from (now() - posted_at)) / (${HOOK_DECAY_DAYS} * 86400.0))) end, 2)::text` })
     .from(post).where(eq(post.id, posts.stale_hook));
-  check("a 40-day-old hook has decayed to nothing", !ids.includes(people.stale) && Number(staleScore?.s) === 0,
-    `score ${staleScore?.s}`);
-  // Sneha also has a 20-day hook: inside a 28-day window, outside a 14-day one.
-  // If HOOK_DECAY_DAYS ever drifts away from the 14 in HOOK_SCORE_SQL, this is
-  // the row that notices.
+  const sneha = rows.find((r) => r.connectionId === people.stale);
+  check("a 40-day-old hook has decayed to nothing",
+    Number(staleScore?.s) === 0 && sneha?.postId !== posts.stale_hook,
+    `score ${staleScore?.s} shown=${sneha?.postId === posts.decay_edge ? "the 20-day post" : sneha?.postId}`);
+  // Sneha also has a 20-day hook. It sits INSIDE the 30-day window and outside
+  // the 14-day one this screen used to have, so it is the row that notices if
+  // HOOK_DECAY_DAYS moves. The ages stay literal on purpose: deriving them from
+  // the constant would make the fixture follow the change instead of objecting
+  // to it, which is the whole job of this row.
   const [edge] = await db.select({ id: post.id }).from(post).where(eq(post.id, posts.decay_edge));
-  check("the decay window is 14 days, not merely 'some window'",
-    Boolean(edge) && !ids.includes(people.stale) && st.hooksFresh === 5 && st.hooksEver === 7,
-    `hooksFresh=${st.hooksFresh} hooksEver=${st.hooksEver}`);
+  check("the decay window is 30 days, not merely 'some window'",
+    Boolean(edge) && ids.includes(people.stale) && sneha?.postId === posts.decay_edge
+    && st.hooksFresh === 6 && st.hooksEver === 7,
+    `hooksFresh=${st.hooksFresh} hooksEver=${st.hooksEver} shown=${sneha?.postId}`);
   check("someone already messaged is not a reason to message", !ids.includes(people.sent) && st.sentWithHook === 1);
 
   // Providers really do hand back timestamps in the future — timezone skew, or
@@ -176,8 +184,8 @@ async function main() {
   }).returning({ id: post.id });
   const [futureScore] = await db.select({
     s: sql<number>`round(case
-      when relevance is null or relevance < 55 or posted_at is null then 0
-      else relevance * greatest(0, least(1, 1 - (extract(epoch from (now() - posted_at)) / (14 * 86400.0)))) end)::int`,
+      when relevance is null or relevance < ${HOOK_MIN_RELEVANCE} or posted_at is null then 0
+      else relevance * greatest(0, least(1, 1 - (extract(epoch from (now() - posted_at)) / (${HOOK_DECAY_DAYS} * 86400.0)))) end)::int`,
   }).from(post).where(eq(post.id, futurePost!.id));
   const futureFeed = await hookFeed(orgA, { batchId: batchA, limit: 12 });
   const futureRow = futureFeed.rows.find((r) => r.connectionId === people.weak);
@@ -188,6 +196,30 @@ async function main() {
     futureFeed.rows[0]?.connectionId === people.three_posts,
     `head=${futureFeed.rows[0]?.firstName}`);
   await db.delete(post).where(eq(post.id, futurePost!.id));
+
+  // THE BAND THIS WHOLE CHANGE EXISTS TO ADMIT. Nothing in the fixture scores
+  // between 25 and 54, so before this the score floor inside HOOK_SCORE_SQL
+  // could be reverted to 55 and every check still passed — the admitted post
+  // would simply have scored 0 and nobody would have noticed. Inserted and
+  // removed here, like the future-dated one, so no other expectation moves.
+  const [adjacentPost] = await db.insert(post).values({
+    orgId: orgA, connectionId: people.weak, providerId: "fixture:adjacent_band",
+    text: "Rebuilding how we report on the funnel this quarter.",
+    url: "https://example.invalid/adjacent",
+    postedAt: new Date(Date.now() - 3 * 86400_000),
+    relevance: 40, category: "substantive",
+    hook: "They are rebuilding funnel reporting this quarter.", judgedAt: new Date(),
+  }).returning({ id: post.id });
+  const adjFeed = await hookFeed(orgA, { batchId: batchA, limit: 12 });
+  const adjRow = adjFeed.rows.find((r) => r.connectionId === people.weak);
+  check("a 25-54 post is shown, and scores rather than flatlining at zero",
+    adjRow?.hookScore === Math.round(40 * (1 - 3 / HOOK_DECAY_DAYS)),
+    `score=${adjRow?.hookScore} expected=${Math.round(40 * (1 - 3 / HOOK_DECAY_DAYS))}`);
+  check("…and the screen can explain the score it just showed",
+    bandFor(adjRow?.relevance ?? 0)?.band === "25–54",
+    `band=${JSON.stringify(bandFor(adjRow?.relevance ?? 0))}`);
+  await db.delete(post).where(eq(post.id, adjacentPost!.id));
+
   const cov = await scanCoverage(orgA, batchA);
   check("someone never scanned is absent and counted", !ids.includes(people.never_scanned) && cov.neverScanned === 1);
   check("the strongest hook in the workspace stays in its own campaign", !ids.includes(people.other_batch));
@@ -208,7 +240,7 @@ async function main() {
   const droppedStatus = await feedStatus(orgA, batchA);
   check("a dropped person leaves the feed and is counted instead",
     !droppedFeed.rows.some((r) => r.connectionId === people.flagged)
-    && droppedStatus.droppedWithHook === 1 && droppedStatus.feedPeople === 2,
+    && droppedStatus.droppedWithHook === 1 && droppedStatus.feedPeople === 3,
     `rows=${droppedFeed.rows.length} dropped=${droppedStatus.droppedWithHook} feedPeople=${droppedStatus.feedPeople}`);
   await db.update(connection).set({ flagVerdict: null }).where(eq(connection.id, people.flagged));
 
@@ -231,7 +263,7 @@ async function main() {
   });
   const dupFeed = await hookFeed(orgA, { batchId: batchA, limit: 12 });
   check("one human, one row, even with a duplicated CSV import",
-    dupFeed.rows.length === 3 && dupFeed.collapsed === 1,
+    dupFeed.rows.length === 4 && dupFeed.collapsed === 1,
     `rows=${dupFeed.rows.length} collapsed=${dupFeed.collapsed}`);
   await db.delete(post).where(eq(post.connectionId, dupPerson!.id));
   await db.delete(connection).where(eq(connection.id, dupPerson!.id));
@@ -242,18 +274,18 @@ async function main() {
   // a LinkedIn sync rarely agree on whether the employer has a comma and an Inc.
   eqCheck("company key normalises punctuation and legal suffixes",
     ["Northwind Data, Inc.", "northwind data", "Northwind Data LLC", "  NORTHWIND   DATA  "]
-      .map((c) => companyKey(c)),
+      .map((c) => employerKey(c)),
     ["northwind data", "northwind data", "northwind data", "northwind data"]);
   eqCheck("salesforce.com and Salesforce are one account",
-    [companyKey("Salesforce.com"), companyKey("Salesforce, Inc.")], ["salesforce", "salesforce"]);
+    [employerKey("Salesforce.com"), employerKey("Salesforce, Inc.")], ["salesforce", "salesforce"]);
   // The suffix list is anchored and needs a separator, so these keep their letters.
   eqCheck("a suffix inside a name is not stripped",
-    [companyKey("Costco"), companyKey("Limited Run Games"), companyKey("Incode")],
+    [employerKey("Costco"), employerKey("Limited Run Games"), employerKey("Incode")],
     ["costco", "limited run games", "incode"]);
   // THE TRAP. 57% of pitchable rows carry no company. If a blank were a key,
   // every one of them would collapse into a single card.
   for (const blank of [null, undefined, "", "   ", ","]) {
-    check(`a blank company (${JSON.stringify(blank)}) yields no key`, companyKey(blank) === null);
+    check(`a blank company (${JSON.stringify(blank)}) yields no key`, employerKey(blank) === null);
   }
 
   const coFolk = await db.insert(connection).values([
@@ -321,7 +353,7 @@ async function main() {
   // legitimately answered when asked for by id.
   eqCheck("a reason is offered for exactly the people who have one",
     [...reasons.keys()].map((k) => Object.entries(people).find(([, v]) => v === k)![0]).sort(),
-    ["drafted", "flagged", "other_batch", "sent", "three_posts"]);
+    ["drafted", "flagged", "other_batch", "sent", "stale", "three_posts"]);
   const ashaReason = reasons.get(people.three_posts)!;
   check("the reason is the same post, score and age the feed chose",
     ashaReason.postId === asha.postId && ashaReason.hookScore === asha.hookScore
@@ -333,7 +365,10 @@ async function main() {
   check("a peer with a live hook is never handed a reason to reach out",
     !reasons.has(people.peer) && !reasons.has(people.off_icp));
   check("a stale or sub-threshold post is not a reason",
-    !reasons.has(people.stale) && !reasons.has(people.weak) && !reasons.has(people.never_scanned));
+    // Sneha HAS a reason now — her 20-day post — so the thing to assert is that
+    // it is not the 40-day one, which is what "stale" meant here.
+    reasons.get(people.stale)?.postId === posts.decay_edge
+    && !reasons.has(people.weak) && !reasons.has(people.never_scanned));
   check("another workspace's person gets nothing, even asked for by id",
     !(await hooksForPeople(orgA, [people.other_org])).has(people.other_org));
   check("no ids means no query and no reasons", (await hooksForPeople(orgA, [])).size === 0);
@@ -358,7 +393,7 @@ async function main() {
   const novaReasons = await runTool({ orgId: orgA }, "reasons_to_reach_out", { n: 8 });
   check("the reason tool answers with the people, their words and the link",
     novaReasons.text.includes("Asha") && novaReasons.text.includes("attribution model")
-    && novaReasons.text.includes("hook 75") && (novaReasons.cards?.length ?? 0) === 4
+    && novaReasons.text.includes("hook 80") && (novaReasons.cards?.length ?? 0) === 5
     && novaReasons.open === "/dashboard",
     novaReasons.text.slice(0, 140));
   check("and it is org-scoped — no other workspace's person appears",
@@ -372,12 +407,12 @@ async function main() {
   const novaLeft = await runTool({ orgId: orgA }, "whats_left", {});
   check("whats_left no longer calls the queue clear while posts sit unread",
     novaLeft.text.includes("not read against your ICPs: 2")
-    && /People with a post you can open with, nobody messaged yet: 4/.test(novaLeft.text),
+    && /People with a post you can open with, nobody messaged yet: 5/.test(novaLeft.text),
     novaLeft.text.slice(-300));
 
   const novaSnap = await runTool({ orgId: orgA }, "workspace_snapshot", {});
   check("the snapshot reports what has been looked at, not only what exists",
-    /With a post you can open with: 4/.test(novaSnap.text)
+    /With a post you can open with: 5/.test(novaSnap.text)
     && /ever scanned/.test(novaSnap.text) && /not read yet: 2/.test(novaSnap.text),
     novaSnap.text.slice(-260));
 
@@ -390,7 +425,7 @@ async function main() {
     scoredNoHook: st.scoredNoHook,
   }, {
     stored: 11, read: 9, waiting: 2, waitingPeople: 1, notSubstantive: 1, adjacent: 1,
-    hooksEver: 7, hooksFresh: 5, feedPeople: 3, sentWithHook: 1, droppedWithHook: 0,
+    hooksEver: 7, hooksFresh: 6, feedPeople: 4, sentWithHook: 1, droppedWithHook: 0,
     scoredNoHook: 0,
   });
   eqCheck("the header count cannot disagree with the list", st.feedPeople, rows.length);
@@ -417,7 +452,7 @@ async function main() {
     scannable: cov.scannable, unreachable: cov.unreachable, newestIsDate: cov.newestScanAt instanceof Date,
   }, {
     pitchable: 9, scannedEver: 8, neverScanned: 1,
-    scannedFresh: 7, scannedStale: 1,
+    scannedFresh: 8, scannedStale: 0,
     scannable: 3, unreachable: 0, newestIsDate: true,
   });
   check("the recency buckets partition the campaign exactly",
@@ -457,8 +492,29 @@ async function main() {
     { readyWithHook: 1, decisionsWithHook: 1 });
 
   eqCheck("the relevance bands are the ones the prompt defines",
-    [bandFor(100)?.band, bandFor(80)?.band, bandFor(79)?.band, bandFor(55)?.band, bandFor(54), bandFor(null)],
-    ["80–100", "80–100", "55–79", "55–79", null, null]);
+    [bandFor(100)?.band, bandFor(80)?.band, bandFor(79)?.band, bandFor(55)?.band,
+     bandFor(54)?.band, bandFor(25)?.band, bandFor(24), bandFor(null)],
+    ["80–100", "80–100", "55–79", "55–79", "25–54", "25–54", null, null]);
+  // THE BUG THAT MADE THIS CHANGE NECESSARY, now pinned. coerce() decides
+  // whether a hook STRING is written at all, and the feed requires a non-null
+  // hook — so if coerce's floor is higher than the feed's, lowering the feed's
+  // threshold admits posts that can never render and the change silently does
+  // nothing. That is exactly what happened at 55. They must be one number.
+  eqCheck("a post at the threshold keeps its hook, one below loses it",
+    [coerce("substantive", HOOK_MIN_RELEVANCE, "kept").hook,
+     coerce("substantive", HOOK_MIN_RELEVANCE - 1, "dropped").hook],
+    ["kept", null]);
+  eqCheck("only substantive may score, whatever the model said",
+    [coerce("congrats", 90, "no").relevance, coerce("congrats", 90, "no").hook,
+     coerce("substantive", 90, "yes").relevance],
+    [0, null, 90]);
+
+  // The invariant that keeps them honest: the screen must never admit a score
+  // it cannot describe, so the lowest band IS the threshold.
+  check("every score the feed will show has a band to explain it",
+    Math.min(...RELEVANCE_BANDS.map((b) => b.min)) === HOOK_MIN_RELEVANCE
+    && bandFor(HOOK_MIN_RELEVANCE) !== null && bandFor(HOOK_MIN_RELEVANCE - 1) === null,
+    `min band=${Math.min(...RELEVANCE_BANDS.map((b) => b.min))} threshold=${HOOK_MIN_RELEVANCE}`);
 
   // The old page tallied these in JavaScript over every researched row.
   const enriched = await db.select().from(connection)
@@ -509,7 +565,7 @@ async function main() {
     frontierWithHookCount(orgA, batchA, "France"),
   ]);
   check("the picker's number counts the frontier the button will select",
-    fwh === 1 && pipe.frontier === 6 && fwhIndia === 1 && fwhFrance === 0,
+    fwh === 2 && pipe.frontier === 6 && fwhIndia === 2 && fwhFrance === 0,
     `withHook=${fwh} india=${fwhIndia} france=${fwhFrance} frontier=${pipe.frontier}`);
 
   // ── D · row states: nobody vanishes ──
@@ -617,18 +673,19 @@ async function main() {
   await updateOrgSettings(orgA, { postScanDailyCap: 100 });
 
   const hookFrontier = await pickHookFrontier(orgA, batchA, 30, "");
-  eqCheck("the hook branch selects the reason-bearing frontier", hookFrontier.map((r) => r.id), [people.three_posts]);
+  eqCheck("the hook branch selects the reason-bearing frontier", hookFrontier.map((r) => r.id),
+    [people.three_posts, people.stale]);
   await db.update(connection).set({ enrichStatus: "done" }).where(eq(connection.id, people.three_posts));
   const frontierAfter = await pickHookFrontier(orgA, batchA, 30, "");
-  check("the frontier is 'never researched', never 'never selected'", frontierAfter.length === 0,
-    `${frontierAfter.length} rows`);
+  eqCheck("the frontier is 'never researched', never 'never selected'",
+    frontierAfter.map((r) => r.id), [people.stale]);
   await db.update(connection).set({ enrichStatus: "pending" }).where(eq(connection.id, people.three_posts));
   const [noFrance, inIndia] = await Promise.all([
     pickHookFrontier(orgA, batchA, 30, "France"),
     pickHookFrontier(orgA, batchA, 30, "India"),
   ]);
   check("the hook branch still honours the country filter",
-    noFrance.length === 0 && inIndia.map((r) => r.id).join() === people.three_posts,
+    noFrance.length === 0 && inIndia.map((r) => r.id).join() === [people.three_posts, people.stale].join(),
     `france=${noFrance.length} india=${inIndia.length}`);
 
   // ── F · job effects, against the mock provider ──

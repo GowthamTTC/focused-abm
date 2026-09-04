@@ -6,6 +6,7 @@ import { db, connection, accountShortlist } from "@/db";
 import { companyKey } from "@/modules/radar/score";
 import { toggleShortlist, enrichOneAccount, enrichOnePerson } from "@/modules/accounts/shortlist";
 import { enqueue } from "@/jobs/runner";
+import { HOOK_DECAY_DAYS } from "@/modules/posts/judge";
 import { countryBySlug } from "@/modules/geo/countries";
 
 export type ToolCtx = { orgId: string };
@@ -253,7 +254,7 @@ export const TOOL_DEFS = [
     type: "function" as const,
     function: {
       name: "reasons_to_reach_out",
-      description: "Who posted something you can open with: their own words, scored against this workspace's ICPs and faded over 14 days. Use for 'who posted', 'what can I open with', 'any reason to reach out', hooks, recent activity worth a message.",
+      description: `Who posted something you can open with: their own words, scored against this workspace's ICPs and faded over ${HOOK_DECAY_DAYS} days. Use for 'who posted', 'what can I open with', 'any reason to reach out', hooks, recent activity worth a message.`,
       parameters: { type: "object", properties: { n: { type: "number", description: "How many people, default 8" } } },
     },
   },
@@ -841,12 +842,12 @@ export async function runTool(
           ? `Nobody's posts have been looked at yet — ${summary.pitchable} pitchable people, none scanned. Run a post scan from Today first; nothing here is quiet, it is unobserved.`
           : summary.unread > 0
             ? `No live reasons yet, but ${summary.unread} stored posts have not been read against your ICPs. Press Read on Today.`
-            : "Nobody has a post from the last 14 days that scores against your ICPs. That is the filter working, not a failure.",
+            : `Nobody has a post from the last ${HOOK_DECAY_DAYS} days that scores against your ICPs. That is the filter working, not a failure.`,
       };
     }
     return {
       text: [
-        `${summary.people} ${summary.people === 1 ? "person has" : "people have"} a post you can open with. Strongest first, faded over 14 days:`,
+        `${summary.people} ${summary.people === 1 ? "person has" : "people have"} a post you can open with. Strongest first, faded over ${HOOK_DECAY_DAYS} days:`,
         ...rows.map((r) => [
           `- ${r.firstName} ${r.lastName}${r.company ? ` @ ${r.company}` : ""} · hook ${r.hookScore}`,
           `  ${r.hook}`,
@@ -887,7 +888,7 @@ export async function runTool(
         ? `People with a post you can open with, nobody messaged yet: ${reasons.people}. Open Today.`
         : reasons.everScanned === 0
           ? `Nobody's posts have been looked at yet — ${reasons.pitchable} pitchable people, none scanned, so there is no reason list to work from.`
-          : "Nobody has a post from the last 14 days worth opening with.",
+          : `Nobody has a post from the last ${HOOK_DECAY_DAYS} days worth opening with.`,
       reasons.unread > 0 ? `Posts stored but not read against your ICPs: ${reasons.unread}.` : null,
     ].filter(Boolean).join("\n");
     return {

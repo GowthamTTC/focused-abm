@@ -7,7 +7,7 @@
  * person needs. The numbers survive at the bottom, collapsed, because they are
  * the answer to a different question.
  *
- * The order is relevance-against-your-own-offers faded to nothing over 14 days,
+ * The order is relevance-against-your-own-offers faded to nothing over HOOK_DECAY_DAYS,
  * so it deliberately disagrees with fit rank — and every row can show the
  * arithmetic that put it there, because a list nobody can audit is a list
  * nobody should trust.
@@ -24,7 +24,7 @@ import { getDailyEnrichUsage, resetsIn } from "@/modules/enrich/usage";
 import { JUDGE_MAX_PER_RUN } from "@/modules/posts/judge";
 import { getDailyScanUsage } from "@/modules/posts/usage";
 import {
-  FEED_DEFAULT_ROWS, FEED_MAX_ROWS, bandFor, deepLinkFor, feedStatus, frontierWithHookCount,
+  FEED_DEFAULT_ROWS, FEED_MAX_ROWS, HOOK_DECAY_DAYS, bandFor, deepLinkFor, feedStatus, frontierWithHookCount,
   hookFeed, hooksElsewhere, pipelineCounts, pipelineWithHooks, rowState,
   scanCoverage, waitingToRead, type FeedRow, type RowState,
 } from "@/modules/posts/feed";
@@ -267,8 +267,8 @@ export default async function DashboardPage({ searchParams }: {
       <div className={EMPTY}>
         <p className="tnum text-[#101828]">{status.hooksEver} posts scored high enough to open with, but the freshest is {status.newestHookAt ? daysSince(status.newestHookAt) : "—"} days old — past the 14-day window this list uses, so all of them now score 0.</p>
         <p className="tnum mt-1 text-sm text-[#98A2B3]">
-          A strong post from last week still beats silence, but after 14 days it stops counting.
-          {cov.scannedStale > 0 ? ` ${cov.scannedStale} people were last looked at more than 14 days ago.` : ""}
+          A strong post from last week still beats silence, but after {HOOK_DECAY_DAYS} days it stops counting.
+          {cov.scannedStale > 0 ? ` ${cov.scannedStale} people were last looked at more than ${HOOK_DECAY_DAYS} days ago.` : ""}
         </p>
         <div className="mt-3 flex justify-center">{scanForm(false)}</div>
         {elsewhereLine}
@@ -527,7 +527,7 @@ export default async function DashboardPage({ searchParams }: {
           </p>
           {pipe.ready > 0 && (
             <p className="tnum mt-1 text-[11px] text-[#98A2B3]">
-              {pipe.ready - runA.readyWithHook} of {pipe.ready} ready drafts have no post from the last 14 days —{" "}
+              {pipe.ready - runA.readyWithHook} of {pipe.ready} ready drafts have no post from the last {HOOK_DECAY_DAYS} days —{" "}
               <Link href="/network?view=recency" className="text-[#263BAA] underline underline-offset-2">who is going quiet</Link>
             </p>
           )}
@@ -668,7 +668,7 @@ function HookRow({ r, batchId, matched, offers, enrichCapReached, resetsAt }: {
         <summary className="cursor-pointer list-none text-[11px] text-[#98A2B3] hover:text-[#263BAA]">Why this one is here ▾</summary>
         <div className="mt-2 rounded-[10px] border border-[#DDE2EE] bg-[#F4F6FB] p-3.5">
           <p className="tnum text-[12px] text-[#46506E]">
-            relevance {r.relevance} × (1 − {r.ageDays} of 14 days) = {r.hookScore}
+            relevance {r.relevance} × (1 − {r.ageDays} of {HOOK_DECAY_DAYS} days) = {r.hookScore}
           </p>
           <p className="mt-1.5 text-[12px] leading-5 text-[#475467]">
             {band && <>{r.relevance} is in the {band.band} band — {band.sentence}. </>}

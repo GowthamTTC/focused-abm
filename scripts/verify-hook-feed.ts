@@ -249,7 +249,7 @@ export async function buildFixture(): Promise<Fixture> {
       text: "An off-target person's unjudged post — likewise never counted." },
     { key: "sent_hook", who: "sent", org: orgA, daysAgo: 1, relevance: 80, category: "substantive", hook: "They posted again after we messaged them.", judged: true,
       text: "Following up on last week's thread about pipeline forecasting." },
-    { key: "weak_post", who: "weak", org: orgA, daysAgo: 3, relevance: 40, category: "substantive", hook: null, judged: true,
+    { key: "weak_post", who: "weak", org: orgA, daysAgo: 3, relevance: 20, category: "substantive", hook: null, judged: true,
       text: "Nice weather for a walk between calls." },
     { key: "stale_hook", who: "stale", org: orgA, daysAgo: 40, relevance: 88, category: "substantive", hook: "A strong hook that is far too old to open with.", judged: true,
       text: "Forty days ago we rebuilt the whole funnel and nobody noticed." },

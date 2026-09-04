@@ -27,15 +27,12 @@
  */
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { db, channelAccount, connection, connectionBatch, job, post, service } from "@/db";
-import { HOOK_SCORE_SQL } from "@/modules/posts/judge";
+import { HOOK_DECAY_DAYS, HOOK_MIN_RELEVANCE, HOOK_SCORE_SQL } from "@/modules/posts/judge";
 import { getDailyScanUsage } from "@/modules/posts/usage";
 
-/** Below this the judge writes no hook at all (prompts/post-relevance/v1.md). */
-export const HOOK_MIN_RELEVANCE = 55;
-/** MUST stay in lockstep with the 14 inside HOOK_SCORE_SQL (judge.ts). Two
- *  separate literals: change one alone and this pre-filter either drops rows
- *  that would have scored or admits rows that score exactly 0. */
-export const HOOK_DECAY_DAYS = 14;
+// Both defined in judge.ts, which owns coerce() and HOOK_SCORE_SQL too, and
+// re-exported here because every screen reads them from the feed.
+export { HOOK_DECAY_DAYS, HOOK_MIN_RELEVANCE };
 export const FEED_DEFAULT_ROWS = 12;
 export const FEED_MAX_ROWS = 40;
 
@@ -48,7 +45,14 @@ const FRESH = sql`now() - ${sql.raw(String(HOOK_DECAY_DAYS))} * interval '1 day'
  *  people than exist. */
 const HUMAN = sql`coalesce(lower(${connection.linkedinUrl}), ${connection.id})`;
 
-/** One ACCOUNT's identity, for the one-card-per-company rule below.
+/** One EMPLOYER's identity, for the one-card-per-company rule below.
+ *
+ *  Deliberately NOT named companyKey: @/modules/radar/score exports a function
+ *  by that name which is the canonical account key across accounts, radar and
+ *  the shortlist, and it returns the SHARED sentinel "_none" for a blank rather
+ *  than null. Grouping on that sentinel is right where company-less people
+ *  belong in one bucket and catastrophic here, so the two must not be confused
+ *  at an import site.
  *
  *  Returns null — meaning "no account, never group this row" — for a blank
  *  company, and that null is the whole point of the function. 57% of pitchable
@@ -65,7 +69,7 @@ const HUMAN = sql`coalesce(lower(${connection.linkedinUrl}), ${connection.id})`;
  *  "Limited Run Games" keeps its "Limited". */
 const LEGAL_TAIL =
   /[\s,]+(?:incorporated|inc|llc|ltd|limited|corp|corporation|company|co|gmbh|bv|nv|ag|sa|sas|plc|pty|pvt|llp|srl)\.?$/;
-export function companyKey(raw: string | null | undefined): string | null {
+export function employerKey(raw: string | null | undefined): string | null {
   let s = (raw ?? "").trim().toLowerCase().replace(/\.com$/, "");
   for (let prev = ""; prev !== s; ) { prev = s; s = s.replace(LEGAL_TAIL, "").trim(); }
   s = s.replace(/[^a-z0-9]+/g, " ").trim();
@@ -111,7 +115,11 @@ end`;
  *  in the same words that produced it. */
 export const RELEVANCE_BANDS = [
   { min: 80, band: "80–100", sentence: "they name a problem or need one of your ICPs exists to solve" },
-  { min: HOOK_MIN_RELEVANCE, band: "55–79", sentence: "they describe pressure or change in the area your ICPs work in, without naming the need" },
+  { min: 55, band: "55–79", sentence: "they describe pressure or change in the area your ICPs work in, without naming the need" },
+  // The floor. Quoted from the prompt like the others: the screen must be able
+  // to explain every score it is willing to show, so the lowest band's `min`
+  // and HOOK_MIN_RELEVANCE are the same number by construction (checked).
+  { min: HOOK_MIN_RELEVANCE, band: "25–54", sentence: "substantive about their work, adjacent to your ICPs' territory but not in it" },
 ] as const;
 
 export function bandFor(relevance: number | null) {
@@ -241,7 +249,7 @@ export async function hookFeed(orgId: string, opts: { batchId?: string; limit?: 
       const key = (r.linkedinUrl || r.connectionId).toLowerCase();
       if (seen.has(key)) { collapsed += 1; continue; }
       seen.add(key);
-      const co = companyKey(r.company);
+      const co = employerKey(r.company);
       // A null key is a row with no company: it can never match another row,
       // so company-less people are all still shown, one card each.
       if (co !== null) {
@@ -322,7 +330,7 @@ export async function feedStatus(orgId: string, batchId: string) {
     droppedWithHook: sql<number>`count(distinct ${HUMAN}) filter (
                       where ${fresh} and ${connection.flagVerdict} = 'dropped')::int`,
     /** Scored high enough for an opener but the judge returned none, so the
-     *  "nothing cleared the bar" sentence must not claim they scored under 55. */
+     *  "nothing cleared the bar" sentence must not claim they scored too low. */
     scoredNoHook:   sql<number>`count(*) filter (where ${post.judgedAt} is not null
                       and ${post.hook} is null and ${post.relevance} >= ${HOOK_MIN_RELEVANCE})::int`,
     // sql<Date> over a raw aggregate would be a lie: drizzle's node-postgres
