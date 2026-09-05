@@ -21,7 +21,9 @@
  */
 import Link from "next/link";
 import { and, eq, inArray } from "drizzle-orm";
+import { redirect } from "next/navigation";
 import { Shell, requirePage } from "@/app/shell";
+import { socialHidden } from "@/lib/feature-access";
 import { db, job } from "@/db";
 import { ago } from "@/components/dash-bits";
 import { getDailyScanUsage } from "@/modules/posts/usage";
@@ -44,6 +46,9 @@ export default async function SocialPage({ searchParams }: {
   searchParams: Promise<{ days?: string; n?: string; err?: string; scanning?: string }>;
 }) {
   const user = await requirePage();
+  // Same shape as /nova: the route itself refuses, so a bookmarked or guessed
+  // URL lands somewhere useful rather than on a page the seat should not see.
+  if (socialHidden(user)) redirect("/dashboard");
   const sp = await searchParams;
   const days = socialDays(sp.days);
   const limit = Number(sp.n) || undefined;

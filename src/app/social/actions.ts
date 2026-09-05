@@ -1,6 +1,7 @@
 "use server";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/auth/session";
+import { socialHidden } from "@/lib/feature-access";
 import { enqueue } from "@/jobs/runner";
 import { planSocialScan, SOCIAL_SCAN_MAX_RUN, socialDays } from "@/modules/posts/feed";
 
@@ -12,6 +13,9 @@ import { planSocialScan, SOCIAL_SCAN_MAX_RUN, socialDays } from "@/modules/posts
  *  change at all. */
 export async function scanConnections(formData: FormData) {
   const user = await requireUser();
+  // A server action is a POST endpoint like any other: it stays callable after
+  // the link and the page are gone, and it spends the shared daily scan cap.
+  if (socialHidden(user)) redirect("/dashboard");
   const days = socialDays(String(formData.get("days") ?? ""));
   const plan = await planSocialScan(user.orgId, SOCIAL_SCAN_MAX_RUN);
   if (!plan.ok) redirect(`/social?days=${days}&err=${plan.reason}`);

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { currentUser } from "@/auth/session";
-import { novaHidden } from "@/lib/nova-access";
+import { novaHidden } from "@/lib/feature-access";
 import { runAgent } from "@/modules/agent/run";
 import { absorb, loadLearn, saveLearn } from "@/modules/agent/learn";
 import { appendTurn } from "@/modules/agent/threads";

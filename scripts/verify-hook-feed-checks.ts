@@ -35,6 +35,7 @@ import "./require-mock-provider";
 import { and, eq, gte, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
 import { db, connection, channelAccount, connectionBatch, job, org, post, service } from "../src/db";
 import { buildFixture } from "./verify-hook-feed";
+import { novaHidden, socialHidden } from "../src/lib/feature-access";
 import { DEAD_AFTER_SECONDS, sweepDeadJobs } from "../src/jobs/reap";
 import { HOOK_DECAY_DAYS, HOOK_MIN_RELEVANCE, coerce } from "../src/modules/posts/judge";
 import { markStopped } from "../src/jobs/runner";
@@ -496,6 +497,31 @@ async function main() {
     [bandFor(100)?.band, bandFor(80)?.band, bandFor(79)?.band, bandFor(55)?.band,
      bandFor(54)?.band, bandFor(25)?.band, bandFor(24), bandFor(null)],
     ["80–100", "80–100", "55–79", "55–79", "25–54", "25–54", null, null]);
+  // ── Features switched off for one seat ──────────────────────────────────
+  // The nav is a courtesy; the route guard and the action guard are the gate.
+  // These pin the predicate all three share.
+  for (const [who, hidden] of [
+    [{ email: "apingel@arielgroup.com", name: "Adam Pingel" }, true],
+    [{ email: "someone.else@arielgroup.com", name: "Someone Else" }, true],
+    [{ email: "adam@example.com", name: "Adam of Ariel Group" }, true],
+    [{ email: "APINGEL@ARIELGROUP.COM", name: null }, true],
+    // Everyone else keeps both features.
+    [{ email: "gowthamdarani@gmail.com", name: "Gowtham" }, false],
+    [{ email: null, name: null }, false],
+    // Word boundary, and it is not hypothetical: a real connection in this very
+    // fixture is called Arielle. A substring match would switch her seat off.
+    [{ email: "arielle@example.com", name: "Arielle Fixture" }, false],
+    // A domain that merely ends with the string is a different company.
+    [{ email: "someone@notarielgroup.com", name: "Someone" }, false],
+  ] as const) {
+    check(`social ${hidden ? "hidden" : "shown "} for ${who.email ?? "(no email)"}`,
+      socialHidden(who) === hidden);
+    // Same seat, same answer today — but they are separate product decisions
+    // and separate functions, so this asserts the pairing rather than assuming it.
+    check(`nova   ${hidden ? "hidden" : "shown "} for ${who.email ?? "(no email)"}`,
+      novaHidden(who) === hidden);
+  }
+
   // THE BUG THAT MADE THIS CHANGE NECESSARY, now pinned. coerce() decides
   // whether a hook STRING is written at all, and the feed requires a non-null
   // hook — so if coerce's floor is higher than the feed's, lowering the feed's

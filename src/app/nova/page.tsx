@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { Shell, requirePage } from "@/app/shell";
 import { NovaDesk } from "@/components/nova-desk";
-import { novaHidden } from "@/lib/nova-access";
+import { novaHidden } from "@/lib/feature-access";
 
 export default async function NovaPage() {
   const user = await requirePage();

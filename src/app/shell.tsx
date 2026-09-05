@@ -11,7 +11,7 @@ import { LiveJob } from "@/components/live-job";
 import { DismissibleBanner } from "@/components/dismissible-banner";
 import { HelpCenter } from "@/components/help-center";
 import { AgentRail } from "@/components/agent-rail";
-import { novaHidden } from "@/lib/nova-access";
+import { novaHidden, socialHidden } from "@/lib/feature-access";
 
 export async function requirePage(): Promise<Ctx> {
   const user = await currentUser();
@@ -75,6 +75,7 @@ export async function Shell({ user, active, children }: {
 }) {
   const isAdmin = user.email.toLowerCase() === (env.ADMIN_EMAIL ?? "").toLowerCase();
   const hideNova = novaHidden(user);
+  const hideSocial = socialHidden(user);
   const [jobs, [badges]] = await Promise.all([
     db.select().from(job).where(eq(job.orgId, user.orgId)).orderBy(desc(job.createdAt)).limit(1),
     db.select({
@@ -129,7 +130,9 @@ export async function Shell({ user, active, children }: {
             <div key={group.section} className="mb-4">
               <p className="mb-[6px] px-2 text-[9px] font-semibold uppercase tracking-[.12em] text-[#98A2B3]">{group.section}</p>
               <div className="space-y-[2px]">
-                {group.items.filter(([key]) => !(hideNova && key === "nova")).map(([key, href, label, tip]) => {
+                {group.items.filter(([key]) =>
+                  !(hideNova && key === "nova") && !(hideSocial && key === "social"),
+                ).map(([key, href, label, tip]) => {
                   const isActive = active === key;
                   const badge = badgeFor(key);
                   return (
