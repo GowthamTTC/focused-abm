@@ -49,7 +49,7 @@ export function servicesDigest(
 export async function classifyBatch(
   orgId: string,
   batchId: string,
-  opts: { reclassifyAll?: boolean } = {},
+  opts: { reclassifyAll?: boolean; fullPool?: boolean } = {},
   onProgress?: (done: number, total: number) => Promise<void>,
   shouldStop?: () => Promise<boolean>,
 ): Promise<{ classified: number; ruleHits: number; llmCalls: number }> {
@@ -122,7 +122,12 @@ export async function classifyBatch(
 
   // Pass 2 — LLM in batches of 25, capped by the matching guardrail,
   // v10: 3 calls in flight at once; each call's 25 verdicts land in one bulk write.
-  const { classifyLlmPeopleCap } = settings;
+  //
+  // fullPool ignores that guardrail for this one run. Setup's mapping step is
+  // its only caller: a new org has never seen the setting, and the default 1000
+  // would quietly leave a larger network part-mapped at the exact moment every
+  // later step starts reading from it. Everywhere else the org's own cap rules.
+  const classifyLlmPeopleCap = opts.fullPool ? ("all" as const) : settings.classifyLlmPeopleCap;
   const digest = servicesDigest(services, settings.catchAllSlug);
   const slices: (typeof rows)[] = [];
   let planned = 0;

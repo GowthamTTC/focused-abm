@@ -17,6 +17,7 @@ export async function requirePage(): Promise<Ctx> {
   const user = await currentUser();
   if (!user) redirect("/login");
   if (user.mustChangePassword) redirect("/change-password");
+  if (!user.onboardingCompletedAt) redirect("/onboarding");
   return user;
 }
 

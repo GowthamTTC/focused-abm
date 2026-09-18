@@ -8,7 +8,11 @@ import { requireUser } from "@/auth/session";
 import { enqueue } from "@/jobs/runner";
 import { getChannelProvider } from "@/providers/channel";
 
-export async function startConnect() {
+/** `returnTo` is where the hosted-auth redirect lands the user back —
+ *  `/settings` from the settings page, `/onboarding/{CONNECT_STEP}` from the
+ *  wizard. Callers bind it (`startConnect.bind(null, returnTo)`) since a form
+ *  action's only runtime argument is its FormData. */
+export async function startConnect(returnTo: string) {
   const user = await requireUser();
   const { markConnectStarted } = await import("@/modules/channel/claim");
   await markConnectStarted(user.orgId, user.userId);
@@ -19,19 +23,19 @@ export async function startConnect() {
     : `${env.APP_URL}/api/webhooks/unipile`;
   const { url } = await getChannelProvider().createHostedAuthLink({
     userRef: user.userId,
-    successRedirectUrl: `${env.APP_URL}/settings?connected=1`,
-    failureRedirectUrl: `${env.APP_URL}/settings?connect_failed=1`,
+    successRedirectUrl: `${env.APP_URL}${returnTo}?connected=1`,
+    failureRedirectUrl: `${env.APP_URL}${returnTo}?connect_failed=1`,
     notifyUrl,
   });
   redirect(url);
 }
 
 /** Post-connect / recovery: pull Unipile seats and attach to this org. */
-export async function claimLinkedInSeats() {
+export async function claimLinkedInSeats(returnTo: string) {
   const user = await requireUser();
   const { claimAccountsForUser } = await import("@/modules/channel/claim");
   await claimAccountsForUser({ orgId: user.orgId, userId: user.userId });
-  redirect("/settings?connected=1");
+  redirect(`${returnTo}?connected=1`);
 }
 
 /** Restore a seat that already exists in Unipile (deleted FABM user / missed webhook). */
@@ -182,13 +186,17 @@ export async function saveSignals(formData: FormData) {
 }
 
 /** Sample the seat owner's own posts and distill a voice profile the
- *  message drafter follows. One light seat touch. */
-export async function scanVoice(formData: FormData) {
+ *  message drafter follows. One light seat touch.
+ *
+ *  `returnTo` is where the scan lands the user back — `/settings` from the
+ *  settings page, `/onboarding/{VOICE_STEP}` from the wizard — same
+ *  bind-the-first-argument pattern as startConnect above. */
+export async function scanVoice(returnTo: string, formData: FormData) {
   const user = await requireUser();
   const raw = String(formData.get("profileUrl") ?? "").trim();
   const m = raw.match(/linkedin\.com\/in\/([^/?#]+)/i);
   const identifier = m ? m[1] : raw.replace(/^@/, "");
   // blank is fine — the worker resolves the connected account itself
   await enqueue(user.orgId, "voice_scan", { identifier: identifier || "me" });
-  redirect("/settings?ok=voice");
+  redirect(`${returnTo}?ok=voice`);
 }

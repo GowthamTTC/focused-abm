@@ -46,8 +46,9 @@ export class MockChannelProvider implements ChannelProvider {
   readonly name = "mock";
   private total = 120;
 
-  async createHostedAuthLink(): Promise<{ url: string }> {
-    return { url: "/api/mock/hosted-auth" };
+  async createHostedAuthLink(input: { successRedirectUrl: string; failureRedirectUrl: string }): Promise<{ url: string }> {
+    const q = new URLSearchParams({ success: input.successRedirectUrl, failure: input.failureRedirectUrl });
+    return { url: `/api/mock/hosted-auth?${q}` };
   }
 
   async listAccounts() {

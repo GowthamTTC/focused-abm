@@ -113,6 +113,13 @@
       "when": 1788344165477,
       "tag": "0015_post_table",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1788767684479,
+      "tag": "0016_onboarding_progress",
+      "breakpoints": true
     }
   ]
 }

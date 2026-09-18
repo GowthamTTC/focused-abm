@@ -217,7 +217,7 @@ export default async function DashboardPage({ searchParams }: {
       <div className={EMPTY}>
         <p className="tnum text-[#101828]">No posts looked at in this campaign yet — {cov.pitchable.toLocaleString()} matched people, none scanned. Nobody here is quiet; nobody here has been checked.</p>
         <div className="mt-3 flex justify-center">
-          {seatOk ? scanForm(true) : <form action={startConnect}><button className={PILL_PRIMARY}>Connect a seat</button></form>}
+          {seatOk ? scanForm(true) : <form action={startConnect.bind(null, "/settings")}><button className={PILL_PRIMARY}>Connect a seat</button></form>}
         </div>
         <p className="tnum mt-1.5 text-[11px] text-[#98A2B3]">
           {seatOk
@@ -329,7 +329,7 @@ export default async function DashboardPage({ searchParams }: {
       ) : !seatOk ? (
         <div className="mt-4 flex flex-wrap items-center gap-3 rounded-[14px] border border-[#E7CE96] bg-[#FEFBF3] p-4 text-sm text-[#B54708]">
           <span>Posts cannot be collected — the LinkedIn seat {seats.length ? "needs reconnecting" : "is not connected"}.</span>
-          <form action={startConnect}>
+          <form action={startConnect.bind(null, "/settings")}>
             <button className="rounded-[8px] border border-[#E7CE96] bg-white px-3 py-1.5 text-[12px] text-[#B54708] hover:bg-[#FDF6E7]">
               {seats.length ? "Reconnect" : "Connect a seat"}
             </button>

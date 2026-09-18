@@ -5,8 +5,10 @@ import { clientIp } from "@/lib/security/client-ip";
 
 const PUBLIC_PREFIXES = [
   "/login",
+  "/signup",
   "/change-password",
   "/api/login",
+  "/api/signup",
   "/api/change-password",
   "/api/webhooks",
   "/api/version",
@@ -29,6 +31,17 @@ export function middleware(req: NextRequest) {
     const rl = rateLimit(`login:${ip}`, 10, 15 * 60_000); // 10 / 15 min
     if (!rl.ok) {
       const res = NextResponse.redirect(new URL("/login?err=rate", req.url), 303);
+      res.headers.set("Retry-After", String(rl.retryAfterSec));
+      return applySecurityHeaders(res, https);
+    }
+  }
+
+  // Sign-up flood shield — cheaper here than after the org insert
+  if (pathname === "/api/signup" && req.method === "POST") {
+    const ip = clientIp(req);
+    const rl = rateLimit(`signup:${ip}`, 5, 15 * 60_000); // 5 / 15 min
+    if (!rl.ok) {
+      const res = NextResponse.redirect(new URL("/signup?err=rate", req.url), 303);
       res.headers.set("Retry-After", String(rl.retryAfterSec));
       return applySecurityHeaders(res, https);
     }

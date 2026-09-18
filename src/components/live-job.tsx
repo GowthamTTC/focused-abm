@@ -16,7 +16,9 @@ function stageOf(j: LiveJobState): string {
   }
   if (j.kind === "activity_scan") return (j.total ?? 0) > 0 ? `Scanning ${j.progress}/${j.total} people` : "Starting";
   if (j.kind === "post_judge") return (j.total ?? 0) > 0 ? `Reading ${j.progress}/${j.total} posts` : "Starting";
-  if (j.kind === "classify") return "Classifying";
+  // Plain words, and the count it already tracks: "classify" is a job kind, not
+  // something a user asked for.
+  if (j.kind === "classify") return (j.total ?? 0) > 0 ? `Matching ${j.progress}/${j.total} people` : "Matching";
   if (j.kind === "sync") return "Syncing connections";
   if (j.kind === "deep_enrich") return "Researching";
   return "Running";

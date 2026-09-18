@@ -141,8 +141,10 @@ export async function processNext(): Promise<boolean> {
     } else if (next.kind === "classify") {
       const batchId = String(next.payloadJson.batchId);
       const reclassifyAll = Boolean(next.payloadJson.reclassifyAll);
+      // Set only by setup's mapping step — see classifyBatch.
+      const fullPool = Boolean(next.payloadJson.fullPool);
       const stoppedEarly = { v: false };
-      await classifyBatch(next.orgId, batchId, { reclassifyAll },
+      await classifyBatch(next.orgId, batchId, { reclassifyAll, fullPool },
         (done, total) => setProgress(next.id, done, total),
         async () => {
           const stop = await stopRequested(next.id);

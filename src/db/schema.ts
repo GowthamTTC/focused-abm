@@ -96,6 +96,11 @@ export const appUser = pgTable("app_user", {
   name: text("name").notNull(),
   /** true for admin-issued temporary passwords — forces a change on first login */
   mustChangePassword: boolean("must_change_password").notNull().default(false),
+  /** Guided-setup progress: highest wizard step finished (0 = none yet).
+   *  A null completedAt is what pins the user inside /onboarding, so every
+   *  account that predates the wizard is backfilled complete by the migration. */
+  onboardingStep: integer("onboarding_step").notNull().default(0),
+  onboardingCompletedAt: ts("onboarding_completed_at"),
   /** Decayed topic weights + last Nova asks — per login, not shared workspace. */
   novaLearnJson: jsonb("nova_learn_json").$type<{
     topics: Record<string, number>;
