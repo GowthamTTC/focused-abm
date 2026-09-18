@@ -10,32 +10,28 @@ import { bucketCounts } from "@/modules/matching/service-fit";
 import { enrichOne, enrichSelected, moveToPitchable, reclassifyAllAction, retryPerson, runClassify, scanActivity } from "./actions";
 import { EnrichButton, EnrichRowButton } from "@/components/enrich-button";
 import { SelectRows } from "@/components/select-rows";
-import { MAX_MANUAL_SELECT } from "@/modules/enrich/limits";
-import { getDailyEnrichUsage } from "@/modules/enrich/usage";
+import { enrichAllowance } from "@/modules/enrich/queue";
 import { UsageMeter } from "@/components/usage-meter";
+import { EnrichStatusChip } from "@/components/enrich-status-chip";
+import { enrichStateOf, isEnrichable } from "@/modules/enrich/status";
+import { deepLinkFor } from "@/modules/posts/feed";
 
 const BUCKET_LABEL: Record<string, string> = {
   pitchable: "Matched", off_icp: "Off-target", peer_competitor: "Peers", excluded: "Excluded",
 };
 
-function StatusChip({ s }: { s: string }) {
-  // "queued" is never shown to a human — a handle held by a live run reads as
-  // "researching", and a handle held by nothing does not survive the worker.
-  const label = s === "queued" ? "researching" : s;
-  const cls = label === "done" ? "bg-[#EEF1FC] text-[#263BAA]"
-    : label === "failed" ? "bg-red-500/15 text-[#B42318]"
-    : label === "pending" ? "bg-[#EEF1FC] text-[#475467]"
-    : "bg-[#FDF6E7] text-[#B54708]";
-  return <span className={`rounded px-1.5 py-0.5 text-[11px] ${cls}`}>{label}</span>;
-}
-
 export default async function BatchPage(props: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ view?: string; p?: string; country?: string; posted?: string; order?: string; run?: string }>;
+  searchParams: Promise<{
+    view?: string; p?: string; country?: string; posted?: string; order?: string;
+    run?: string; held?: string; kept?: string;
+  }>;
 }) {
   const user = await requirePage();
   const { id } = await props.params;
-  const { view = "pitchable", p, country = "", posted = "", order = "rank", run } = await props.searchParams;
+  const { view = "pitchable", p, country = "", posted = "", order = "rank", run, held, kept } = await props.searchParams;
+  const heldN = Number(held ?? 0) || 0;
+  const keptN = Number(kept ?? 0) || 0;
   // Every row action returns to the exact tab + filters it was fired from.
   const qs = new URLSearchParams(
     Object.entries({ view, country, posted, order }).filter(([, v]) => v) as [string, string][],
@@ -51,7 +47,10 @@ export default async function BatchPage(props: {
   const counts = await bucketCounts(id);
   const totalRows = Object.values(counts).reduce((a, b) => a + b, 0);
   const classifiedRows = totalRows - counts.unclassified;
-  const usage = await getDailyEnrichUsage(user.orgId);
+  // allowance, not just usage: the checkboxes must refuse past the same number
+  // queueEnrich clamps to, or the difference reaches the user as rows silently
+  // held back.
+  const { allowance, ...usage } = await enrichAllowance(user.orgId);
 
   // Research state, batch-wide. Read from enrich_status ONLY — selected_for_enrich
   // is a worker handle, not a fact about a person, and reading it is what let a
@@ -95,6 +94,11 @@ export default async function BatchPage(props: {
     )).limit(1);
     person = fallback;
   }
+  // Same anchor the dashboard offers, from the same resolver: the post if we
+  // have one, else their activity feed, else the profile's activity tab.
+  const activityHref = person
+    ? deepLinkFor({ postUrl: null, activityUrl: person.activityUrl, linkedinUrl: person.linkedinUrl })
+    : null;
 
   return (
     <Shell user={user} active="connections">
@@ -105,11 +109,24 @@ export default async function BatchPage(props: {
           <p className="tnum mt-1 text-[#98A2B3]">
             {batch.source} · {batch.createdAt.toISOString().slice(0, 10)} · {totalRows.toLocaleString()} rows
           </p>
-          {run === "0" && <p className="mt-1 text-sm text-[#B54708]">Nothing was selected — tick a row or press Enrich on one.</p>}
+          {run === "0" && heldN === 0 && keptN === 0 && (
+            <p className="mt-1 text-sm text-[#B54708]">Nothing was selected — tick a row or press Enrich on one.</p>
+          )}
           {run && run !== "0" && (
             <p className="mt-1 text-sm text-[#067647]">
               Researching {run} {Number(run) === 1 ? "person" : "people"} now — drafts land in Review as each finishes.
               {capReached && <span className="text-[#B54708]"> Today&apos;s budget is spent, so they run after the reset.</span>}
+            </p>
+          )}
+          {heldN > 0 && (
+            <p className="mt-1 text-sm text-[#B54708]">
+              {heldN} {heldN === 1 ? "person was" : "people were"} not queued — that would pass today&apos;s
+              ceiling of {usage.cap}. Tick them again after the reset.
+            </p>
+          )}
+          {keptN > 0 && (
+            <p className="mt-1 text-sm text-[#475467]">
+              {keptN} already researched or in flight, so {keptN === 1 ? "it was" : "they were"} left alone.
             </p>
           )}
         </div>
@@ -203,7 +220,7 @@ export default async function BatchPage(props: {
                 Open profile ↗
               </a>
             )}
-            <span className="ml-auto"><StatusChip s={person.enrichStatus} /></span>
+            <span className="ml-auto"><EnrichStatusChip status={person.enrichStatus} enrichedAt={person.enrichedAt} /></span>
           </div>
           <p className="mt-1 text-sm text-[#475467]">
             {person.positionRaw ?? person.headlineRaw ?? "—"}
@@ -252,7 +269,7 @@ export default async function BatchPage(props: {
                     <span className="tnum w-5 text-[#98A2B3]">{i + 1}</span>
                     <span className="min-w-0 flex-1 truncate font-medium">{c.firstName} {c.lastName}</span>
                     {c.flag && <span className="rounded border border-[#FDA29B] px-1 text-[10px] text-[#B42318]">⚑</span>}
-                    <StatusChip s={c.enrichStatus} />
+                    <EnrichStatusChip status={c.enrichStatus} enrichedAt={c.enrichedAt} />
                   </Link>
                 </li>
               ))}
@@ -267,7 +284,7 @@ export default async function BatchPage(props: {
                       Open profile ↗
                     </a>
                   )}
-                  <span className="ml-auto"><StatusChip s={person.enrichStatus} /></span>
+                  <span className="ml-auto"><EnrichStatusChip status={person.enrichStatus} enrichedAt={person.enrichedAt} /></span>
                 </div>
 
                 {/* Stage A */}
@@ -320,9 +337,9 @@ export default async function BatchPage(props: {
                     <div>
                       <p className="text-xs text-[#B54708]">
                         Posts{" "}
-                        {(person.activityUrl || person.linkedinUrl) && (
-                          <a href={person.activityUrl ?? `${person.linkedinUrl?.replace(/\/$/, "")}/recent-activity/all/`}
-                            target="_blank" className="text-[#263BAA] underline decoration-[#263BAA]/40">activity feed ↗</a>
+                        {activityHref && (
+                          <a href={activityHref} target="_blank" rel="noreferrer"
+                            className="text-[#263BAA] underline decoration-[#263BAA]/40">activity feed ↗</a>
                         )}
                       </p>
                       {person.postsSummary
@@ -380,11 +397,15 @@ export default async function BatchPage(props: {
                         <div className="mt-2.5 flex items-center gap-3">
                           <CopyButton text={person.outreachMessage} />
                           {person.linkedinUrl && (
-                            <a href={person.linkedinUrl} target="_blank" className="text-sm text-[#263BAA] underline decoration-[#263BAA]/40 hover:text-[#1D2E86]">
-                              Open profile
+                            <a href={person.linkedinUrl} target="_blank" rel="noreferrer" className="text-sm text-[#263BAA] underline decoration-[#263BAA]/40 hover:text-[#1D2E86]">
+                              Open on LinkedIn ↗
                             </a>
                           )}
                         </div>
+                        <p className="mt-1.5 text-[11px] text-[#98A2B3]">
+                          Copy, then paste it into LinkedIn yourself — LinkedIn has no API that lets an
+                          app send on your behalf.
+                        </p>
                       </div>
                     )}
                   </div>
@@ -406,7 +427,7 @@ export default async function BatchPage(props: {
         </div>
       ) : (
         /* ── Bucket tables ── */
-        <SelectRows enabled={view === "pitchable"} max={MAX_MANUAL_SELECT}
+        <SelectRows enabled={view === "pitchable" && allowance > 0} max={allowance}
           action={enrichSelected.bind(null, id, qs)}>
         <div className="mt-4 overflow-x-auto bg-white border border-[#DDE2EE] rounded-[14px] shadow-[0_1px_2px_rgba(16,24,40,.04)]">
           <table className="w-full text-left text-sm">
@@ -429,16 +450,18 @@ export default async function BatchPage(props: {
             <tbody className="divide-y divide-[#EEF1F8] align-top">
               {rows.map((c) => {
                 const b = c.scoreBreakdownJson;
+                const state = enrichStateOf(c);
+                const enrichable = isEnrichable(state);
                 return (
                   <tr key={c.id} className={c.enrichStatus === "done" && view === "pitchable"
                     ? "border-l-2 border-l-[#263BAA] bg-[#263BAA]/5" : ""}>
                     {view === "pitchable" ? (<>
                       <td className="px-3 py-2.5">
                         <input type="checkbox" name="ids" value={c.id}
-                          disabled={c.enrichStatus === "done" || c.enrichStatus === "running" || c.enrichStatus === "queued"}
-                          title={c.enrichStatus === "pending" || c.enrichStatus === "failed"
+                          disabled={!enrichable}
+                          title={enrichable
                             ? "Select for research"
-                            : c.enrichStatus === "done" ? "Already researched — nothing to spend here"
+                            : state === "enriched" ? "Already researched — nothing to spend here"
                             : "In the run happening right now"}
                           className="h-4 w-4 accent-[#263BAA] disabled:opacity-30" />
                       </td>
@@ -480,13 +503,16 @@ export default async function BatchPage(props: {
                       </td>
                       <td className="tnum px-3 py-2.5 text-right text-[#475467]">{c.score ?? "—"}</td>
                       <td className="px-3 py-2.5 text-right">
-                        {c.enrichStatus === "pending" || c.enrichStatus === "failed" ? (
+                        {enrichable ? (
                           <EnrichRowButton
-                            failed={c.enrichStatus === "failed"}
+                            failed={state === "failed"}
                             action={enrichOne.bind(null, id, c.id, `${qs}${qs ? "&" : ""}p=${c.id}`)}
                           />
                         ) : (
-                          <StatusChip s={c.enrichStatus === "done" ? "done" : "researching"} />
+                          /* The row's own status, not a guess from it: this used to
+                             coerce everything unfinished to "running", so a skipped
+                             person read as one being researched right now. */
+                          <EnrichStatusChip status={c.enrichStatus} enrichedAt={c.enrichedAt} />
                         )}
                       </td>
                     </>) : (<>

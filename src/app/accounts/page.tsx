@@ -6,6 +6,7 @@ import { listShortlistedKeys, shortlistCount } from "@/modules/accounts/shortlis
 import { enrichThisAccount, enrichThisPerson, setAccountShortlistState, startEnrichShortlist } from "./actions";
 import { ShortlistStar, ShortlistTextButton } from "@/components/shortlist-star";
 import { AccountEnrichButton, EnrichRowButton } from "@/components/enrich-button";
+import { enrichStateLabel, enrichStateOf, isEnrichable } from "@/modules/enrich/status";
 
 export default async function AccountsPage({ searchParams }: {
   searchParams: Promise<{
@@ -226,12 +227,10 @@ export default async function AccountsPage({ searchParams }: {
                 />
               </div>
               {(() => {
-                const pendingPeople = selected.people.filter((p) =>
-                  ["pending", "failed", "skipped"].includes(p.enrichStatus)
-                );
-                const running = selected.people.some((p) =>
-                  ["queued", "running"].includes(p.enrichStatus)
-                );
+                // Same predicate the tables and the queue module use, rather
+                // than a fourth copy of the status strings.
+                const pendingPeople = selected.people.filter((p) => isEnrichable(enrichStateOf(p)));
+                const running = selected.people.some((p) => enrichStateOf(p) === "researching");
                 return (
                   <AccountEnrichButton
                     count={pendingPeople.length}
@@ -261,16 +260,18 @@ export default async function AccountsPage({ searchParams }: {
                       {p.serviceSlug ?? "unclassified"}
                       {p.tier ? ` · T${p.tier}` : ""}
                       {p.sentAt ? " · already sent" : ""}
-                      {p.enrichStatus === "done" ? " · researched" : ""}
-                      {p.enrichStatus === "running" || p.enrichStatus === "queued" ? " · researching" : ""}
+                      {(() => {
+                        const st = enrichStateOf(p);
+                        return st === "not-enriched" ? "" : ` · ${enrichStateLabel(st)}`;
+                      })()}
                     </p>
                     <div className="mt-1.5 flex items-center gap-3">
-                      {p.enrichStatus === "pending" || p.enrichStatus === "failed" || p.enrichStatus === "skipped" ? (
+                      {isEnrichable(enrichStateOf(p)) ? (
                         <EnrichRowButton
-                          failed={p.enrichStatus === "failed"}
+                          failed={enrichStateOf(p) === "failed"}
                           action={enrichThisPerson.bind(null, p.id, selected.key, view)}
                         />
-                      ) : p.enrichStatus === "done" && p.batchId ? (
+                      ) : enrichStateOf(p) === "enriched" && p.batchId ? (
                         <Link href={`/batches/${p.batchId}?view=enriched&p=${p.id}`}
                           className="text-[12px] text-[#263BAA] underline">
                           Open research

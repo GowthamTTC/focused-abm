@@ -1,12 +1,12 @@
 "use server";
 import { redirect } from "next/navigation";
-import { and, asc, eq, gte, ilike, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, gte, ilike, isNull, sql } from "drizzle-orm";
 import { db, connection } from "@/db";
 import { requireUser } from "@/auth/session";
 import { enqueue } from "@/jobs/runner";
 import { markSelection } from "@/modules/matching/service-fit";
 import { clampToLimit, getOrgSettings } from "@/modules/settings/org-settings";
-import { MAX_MANUAL_SELECT } from "@/modules/enrich/limits";
+import { outcomeQs, queueEnrich } from "@/modules/enrich/queue";
 
 /** Return to exactly the tab + filters the click came from. */
 function backTo(batchId: string, back: string, extra: string) {
@@ -77,39 +77,29 @@ export async function runDeepEnrich(batchId: string) {
 }
 
 /** Tick-and-run: research exactly the people the user checked, nobody else.
- *  Hard-clamped to MAX_MANUAL_SELECT on the server as well as in the UI. */
+ *
+ *  The brake is queueEnrich, the same one /people presses: ownership re-checked,
+ *  rows already done or in flight dropped, and the rest clamped to what is left
+ *  of today's budget. This screen used to enqueue whatever was ticked and let
+ *  the worker discover the cap mid-run — which threw, and handed the remainder
+ *  back to the pool with an error where a held-back count belonged. */
 export async function enrichSelected(batchId: string, back: string, formData: FormData) {
   const user = await requireUser();
-  const picked = formData.getAll("ids").map(String).filter(Boolean).slice(0, MAX_MANUAL_SELECT);
+  const picked = formData.getAll("ids").map(String).filter(Boolean);
   if (picked.length === 0) redirect(backTo(batchId, back, "run=0"));
-  const mine = await db.select({ id: connection.id }).from(connection)
-    .where(and(
-      eq(connection.orgId, user.orgId), eq(connection.batchId, batchId),
-      inArray(connection.id, picked),
-    ));
-  if (mine.length === 0) redirect(backTo(batchId, back, "run=0"));
-  const ids = mine.map((m) => m.id);
-  await markSelection(batchId, ids, true);
-  await enqueue(user.orgId, "deep_enrich", { connectionIds: ids });
-  redirect(backTo(batchId, back, `run=${ids.length}`));
+  const outcome = await queueEnrich(user.orgId, picked);
+  redirect(backTo(batchId, back, outcomeQs(outcome)));
 }
 
 /** One row, one decision — the per-record Enrich button. */
 export async function enrichOne(batchId: string, connId: string, back: string = "") {
   const user = await requireUser();
-  const [mine] = await db.select({ id: connection.id }).from(connection)
-    .where(and(
-      eq(connection.orgId, user.orgId), eq(connection.batchId, batchId),
-      eq(connection.id, connId),
-    ));
-  if (!mine) redirect(backTo(batchId, back, "run=0"));
-  await markSelection(batchId, [connId], true);
-  await enqueue(user.orgId, "deep_enrich", { connectionIds: [connId] });
+  const outcome = await queueEnrich(user.orgId, [connId]);
   // Always return to this person so the wait panel is visible (not a bare table).
   const backQs = back && back.includes("p=")
     ? back
     : [back, `p=${connId}`].filter(Boolean).join("&");
-  redirect(backTo(batchId, backQs || `view=pitchable&p=${connId}`, "run=1"));
+  redirect(backTo(batchId, backQs || `view=pitchable&p=${connId}`, outcomeQs(outcome)));
 }
 
 /** Quiet rescue action on Off-ICP / Peers rows (design 1d footer): promote a

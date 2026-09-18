@@ -7,6 +7,7 @@ import { db, accountShortlist, connection } from "@/db";
 import { companyKey } from "@/modules/radar/score";
 import { markSelection } from "@/modules/matching/service-fit";
 import { getOrgSettings, clampToLimit } from "@/modules/settings/org-settings";
+import { ENRICHABLE_STATUSES } from "@/modules/enrich/status";
 import { enqueue } from "@/jobs/runner";
 
 /** Max people to enrich per shortlisted account (senior seats first). */
@@ -76,7 +77,7 @@ export async function enrichShortlistedAccounts(
   }).from(connection).where(and(
     eq(connection.orgId, orgId),
     eq(connection.bucket, "pitchable"),
-    inArray(connection.enrichStatus, ["pending", "failed", "skipped"]),
+    inArray(connection.enrichStatus, [...ENRICHABLE_STATUSES]),
   ));
 
   const byKey = new Map<string, typeof people>();
@@ -128,7 +129,7 @@ export async function enrichOneAccount(
   }).from(connection).where(and(
     eq(connection.orgId, orgId),
     eq(connection.bucket, "pitchable"),
-    inArray(connection.enrichStatus, ["pending", "failed", "skipped"]),
+    inArray(connection.enrichStatus, [...ENRICHABLE_STATUSES]),
   ));
 
   // All remaining people at this company (not just top 3).
@@ -153,20 +154,16 @@ export async function enrichOneAccount(
   return { people: capped.length };
 }
 
+/** The account card's per-person Enrich — one click, one person, so it presses
+ *  the same brake the People and Matched tables do rather than enqueuing blind.
+ *  It used to, which let someone walk past today's cap one click at a time and
+ *  meet it as a thrown run instead of a refusal.
+ *
+ *  False means nothing is happening for this person: either they are not ours,
+ *  or today's budget is spent. Already-researched and in-flight rows come back
+ *  as `skipped`, which is a true "nothing to do here". */
 export async function enrichOnePerson(orgId: string, connId: string): Promise<boolean> {
-  const [row] = await db.select({
-    id: connection.id,
-    batchId: connection.batchId,
-    enrichStatus: connection.enrichStatus,
-  }).from(connection).where(and(
-    eq(connection.orgId, orgId),
-    eq(connection.id, connId),
-  )).limit(1);
-  if (!row) return false;
-  if (row.enrichStatus === "done" || row.enrichStatus === "running" || row.enrichStatus === "queued") {
-    return true;
-  }
-  await markSelection(row.batchId, [row.id], true);
-  await enqueue(orgId, "deep_enrich", { connectionIds: [row.id] });
-  return true;
+  const { queueEnrich } = await import("@/modules/enrich/queue");
+  const { queued, skipped } = await queueEnrich(orgId, [connId]);
+  return queued > 0 || skipped > 0;
 }
