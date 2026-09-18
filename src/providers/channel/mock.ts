@@ -16,6 +16,22 @@ const COS = [
   "Quill Media House", "Beacon Agency Collective", "Lumen Data Systems", "Orbit EdTech", "Trellis Logistics Tech",
 ];
 
+/** Which synthetic persona an identifier refers to.
+ *
+ *  BOTH separators, and that is not cosmetic: fetchProfile answers with
+ *  `providerId = "mock:<i>"`, and every caller that has to resolve a profile
+ *  before reading posts hands that value straight back to fetchRecentPosts
+ *  (see modules/radar/scan.ts — memberId is overwritten from the profile, then
+ *  used as the posts identifier). Parsing only "-" made the double contradict
+ *  ITSELF: "mock-10" was persona 10, its own providerId "mock:10" was persona
+ *  0, and persona 0 never posts. So a scan that went through a profile fetch
+ *  saw an empty feed, and the three radar checks that depend on a connection's
+ *  own post naming an event failed against a mock that had quietly answered
+ *  about the wrong person. */
+function personaIndex(identifier: string): number {
+  return Number(identifier.split(/[-:]/).pop() ?? 0) || 0;
+}
+
 function relationAt(i: number): Relation {
   const fn = FIRST[i % FIRST.length];
   const ln = LAST[(i * 3) % LAST.length];
@@ -67,7 +83,7 @@ export class MockChannelProvider implements ChannelProvider {
   }
 
   async fetchProfile(input: { identifier: string }): Promise<FetchedProfile> {
-    const i = Number(input.identifier.split("-").pop() ?? 0) || 0;
+    const i = personaIndex(input.identifier);
     const posts = i % 3 !== 0; // a third of mock people never post — mirrors reality
     return {
       headline: relationAt(i).headline,
@@ -81,7 +97,7 @@ export class MockChannelProvider implements ChannelProvider {
   }
 
   async fetchRecentPosts(input: { identifier: string; limit: number }): Promise<FetchedPost[]> {
-    const i = Number(input.identifier.split("-").pop() ?? 0) || 0;
+    const i = personaIndex(input.identifier);
     if (i % 3 === 0) return []; // the no-posts reality
     const loc = relationAt(i).location ?? "";
     const bay = /San Francisco|Palo Alto|Oakland/i.test(loc);
