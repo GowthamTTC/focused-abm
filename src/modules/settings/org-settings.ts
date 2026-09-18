@@ -27,6 +27,7 @@ const settingsSchema = z.object({
   offIcpSignals: z.array(z.string().max(60)).max(200).optional(),
   postScanDailyCap: z.number().int().min(1).max(2000).optional(),
   functionTerms: z.array(z.string().max(60)).max(200).optional(),
+  icpFitBonus: z.number().int().min(0).max(40).optional(),
   serviceWeights: z.record(z.number().int().min(0).max(40)).optional(),
   catchAllSlug: z.string().max(120).optional(),
   voiceProfile: z.string().optional(),

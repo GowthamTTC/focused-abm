@@ -410,17 +410,46 @@ title is mid-senior, the EMPLOYER is the qualification.
 by handing the scorer the deliverable's own buckets and services: the ranking is
 the entire gap, and it can now be iterated on for free.
 
-**This is left unfixed on purpose.** The obvious repair — a company-term list
-that rewards "technologies / systems / solutions / labs" — would be drawn from
-the same 30 rows it would then be scored against, which is how a number gets
-flattering without the product getting better. A principled version exists: the
-services already carry `fit_signals` ("it services", "saas", "enterprise
-software", "manufacturing"), and a company-fit component driven by those is real
-data rather than an answer key. It does not work as a substring test — the
-signals describe company profiles and would never match the string "Zuci
-Systems" — so it needs a resolved industry per company, which this product does
-not collect today. That is the next piece of work, and it is worth more than a
-ninth prompt version.
+**The repair is built, and shipped switched off.** The obvious version — a
+company-term list rewarding "technologies / systems / solutions / labs" — would
+be drawn from the same 30 rows it would then be scored against, which is how a
+number gets flattering without the product getting better. So the component in
+`rank.ts` uses the services' own `fit_signals` instead, tested against
+everything already known about the employer. Which text carries the signal was
+measured, not assumed, across 400 classified people:
+
+| where the ICP's own language appears | share |
+|---|---|
+| the company name | 1.5% |
+| the headline | 3.5% |
+| **the classifier's own `why` sentence** | **54.8%** |
+
+The model names the trade while explaining itself — "Chief Marketing Officer at
+iPacket (B2B IT services)" — so the reasoning the pipeline already pays for is
+where the employer lives.
+
+`DEFAULT_ICP_FIT_BONUS` is **0**. The component is tested and inert: no
+workspace's ranking moves until someone measures what moving it does. What is
+missing is only the weight, and the recipe is one paid classify followed by a
+free sweep:
+
+```bash
+KEEP=1 CLASSIFY_PROMPT_VERSION=v8 npx tsx scripts/eval-top30-overlap.ts   # ~$2.30, once
+RERANK=1 ICP_FIT_BONUS=0  npx tsx scripts/eval-top30-overlap.ts           # baseline, free
+RERANK=1 ICP_FIT_BONUS=14 npx tsx scripts/eval-top30-overlap.ts           # …and 10, 18, 25
+```
+
+Arithmetic bounds for whoever runs it: below 6 nothing changes, because a
+C-title outscores a VP by exactly 6; past about 20, a manager at a fitting
+employer starts outranking a CMO at one. A rule-pass hit writes a `why` about
+the title rather than the employer, so those rows will not fire the test at all
+— verified fit ranks above unverified, and that asymmetry is itself worth
+measuring before the weight is set.
+
+One measurement was attempted and abandoned: the run was interrupted, and then
+the kept batch was destroyed by the harness's own re-rank path, which ran its
+cleanup on a workspace it had only read. That flaw is fixed — reuse now implies
+keep — but the number was not recovered, and this file does not carry one.
 
 
 

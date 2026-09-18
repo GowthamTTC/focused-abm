@@ -37,6 +37,11 @@ export interface OrgSettings {
   /** Who the outreach is FROM, in one sentence — the message drafter is told
    *  this and sells the workspace's own services in its terms. */
   sellerContext?: string;
+  /** Points a person earns when their EMPLOYER matches the ICP they were
+   *  matched to (rank.ts). Unset falls back to DEFAULT_ICP_FIT_BONUS, which is
+   *  0 — the component is built but switched off until its weight has been
+   *  measured. Set it per workspace to turn the employer test on. */
+  icpFitBonus?: number;
   /** Company-name fragments that mark a PEER (a competitor, not a buyer), and
    *  title fragments that mark someone OFF-TARGET. Both run before persona
    *  matching, so they are the workspace's own or its ICP cannot win.
@@ -185,6 +190,9 @@ export interface ScoreBreakdown {
   founder_bonus: number;
   company_present: number;
   service_bonus: number;
+  /** Their EMPLOYER matched the ICP they were matched to. Optional because
+   *  rows scored before v2.21.0 have no such field; read it as 0. */
+  icp_fit?: number;
   total: number;
 }
 export const connection = pgTable("connection", {

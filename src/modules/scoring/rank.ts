@@ -29,9 +29,74 @@ export interface RankWeights {
   functionTerms: string[];
   /** Exact slug -> bonus. Falls back to the substring rules when absent. */
   serviceWeights?: Record<string, number>;
+  /** slug -> that service's ICP fit signals, for the employer test below. */
+  fitSignals?: Record<string, string[]>;
+  /** What a confirmed employer match is worth. Unset means DEFAULT_ICP_FIT_BONUS,
+   *  which is 0 until someone measures it — see that constant. */
+  icpFitBonus?: number;
 }
 
+/** What a confirmed employer↔ICP match is worth, in points.
+ *
+ *  ZERO, AND THAT IS NOT THE ANSWER — it is the absence of one. The component
+ *  below is built and tested; what has never been measured is the WEIGHT, and
+ *  a number invented for the ranking every workspace's daily list comes out of
+ *  is worse than no number. Shipping it off means nobody's list moves until
+ *  someone has measured what moving it does.
+ *
+ *  What IS measured (docs/ACCEPTANCE.md, run 2026-09-18): top-30 overlap is
+ *  6/30 because the scorer never looks at the employer at all, and the ICP's
+ *  own language is present in the classifier's `why` sentence for 54.8% of
+ *  classified people, against 1.5% in company names. So the signal is real and
+ *  reachable. What it is worth against a C-title's 40 points is the open
+ *  question.
+ *
+ *  To answer it, per that doc: classify the workbook once (one paid run), keep
+ *  the batch, then sweep this weight for free —
+ *    KEEP=1 CLASSIFY_PROMPT_VERSION=v8 npx tsx scripts/eval-top30-overlap.ts
+ *    RERANK=1 ICP_FIT_BONUS=0  npx tsx scripts/eval-top30-overlap.ts   # baseline
+ *    RERANK=1 ICP_FIT_BONUS=10 npx tsx scripts/eval-top30-overlap.ts   # …and 14, 18, 25
+ *  Set the winner as `icpFitBonus` in Settings, or make it this default once a
+ *  run backs it. Arithmetic bounds, for whoever does: under 6 nothing changes,
+ *  because a CMO outscores a VP by exactly 6; past ~20 a manager at a fitting
+ *  employer starts outranking a CMO at one. */
+export const DEFAULT_ICP_FIT_BONUS = 0;
+
 export const DEFAULT_RANK_WEIGHTS: RankWeights = { functionTerms: DEFAULT_FUNCTION_TERMS };
+
+/** Does this person's EMPLOYER look like the ICP they were matched to?
+ *
+ *  The ranker used to award exactly five points for "has a company at all" and
+ *  nothing whatever for WHICH company, which is how its top 30 filled up with
+ *  CMOs at a paint retailer and a construction firm while the human's top 30
+ *  was VP-level marketers at IT-services firms — mid-senior titles, employers
+ *  that buy (docs/ACCEPTANCE.md, top-30 overlap 6/30).
+ *
+ *  The evidence is the service's OWN fit_signals — the workspace wrote them —
+ *  tested against everything we already hold about the employer. Which text
+ *  matters is measured, not assumed: across 400 classified people, the ICP's
+ *  language appears in the company NAME 1.5% of the time, in the headline 3.5%,
+ *  and in the classifier's own `why` sentence 54.8%, because the model names
+ *  the trade while explaining itself ("Chief Marketing Officer at iPacket (B2B
+ *  IT services)"). So `why` is the signal and the other two are free extras.
+ *
+ *  A rule-pass hit writes a `why` about the TITLE ("Title matched pattern
+ *  'chief'"), never the employer, so those rows will not fire this. That is
+ *  the honest reading: nobody has qualified that employer. Verified fit ranks
+ *  above unverified, and unverified still ranks above a verified mismatch. */
+export function employerFitsIcp(
+  employerText: string | null | undefined,
+  fitSignals: string[] | undefined,
+): boolean {
+  if (!employerText || !fitSignals?.length) return false;
+  const hay = employerText.toLowerCase();
+  for (const sig of fitSignals) {
+    const s = sig.trim().toLowerCase();
+    // One- and two-character signals would match inside unrelated words.
+    if (s.length > 2 && hay.includes(s)) return true;
+  }
+  return false;
+}
 
 /** Substring test against the normalised title, matching how every other
  *  signal list in the codebase is evaluated. An empty list scores nobody. */
@@ -66,6 +131,9 @@ function serviceBonus(slug: string, weights?: Record<string, number>): number {
 export function scoreConnection(input: {
   position: string | null; company: string | null; confidence: number | null;
   serviceSlug?: string | null;
+  /** Everything known about the employer at rank time: the classifier's own
+   *  reason, the headline, the company name. See employerFitsIcp. */
+  matchWhy?: string | null; headline?: string | null;
 }, weights: RankWeights = DEFAULT_RANK_WEIGHTS): ScoreBreakdown {
   const title = normalizeTitle(input.position ?? "");
   let seniority = 8;
@@ -78,8 +146,12 @@ export function scoreConnection(input: {
   const founder_bonus = /founder\b|chief executive officer/.test(title) && !fit ? 8 : 0;
   const company_present = input.company ? 5 : 0;
   const service_bonus = serviceBonus(input.serviceSlug ?? "", weights.serviceWeights);
-  const total = seniority + function_fit + confidence + founder_bonus + company_present + service_bonus;
-  return { seniority, function_fit, confidence, founder_bonus, company_present, service_bonus, total };
+  const employerText = [input.matchWhy, input.headline, input.company].filter(Boolean).join(" · ");
+  const icp_fit = employerFitsIcp(employerText, weights.fitSignals?.[input.serviceSlug ?? ""])
+    ? (weights.icpFitBonus ?? DEFAULT_ICP_FIT_BONUS)
+    : 0;
+  const total = seniority + function_fit + confidence + founder_bonus + company_present + service_bonus + icp_fit;
+  return { seniority, function_fit, confidence, founder_bonus, company_present, service_bonus, icp_fit, total };
 }
 
 export function tierFor(total: number): 1 | 2 | 3 {
@@ -92,9 +164,18 @@ export async function rankBatch(orgId: string, batchId: string): Promise<number>
   // One settings read per run, not per person.
   const { getOrgSettings } = await import("@/modules/settings/org-settings");
   const s = await getOrgSettings(orgId);
+  // The workspace's own ICP language, one read per run, keyed by the slug each
+  // person was matched to — this is what the employer test is made of.
+  const { service } = await import("@/db");
+  const services = await db.select({ slug: service.slug, icpJson: service.icpJson })
+    .from(service).where(and(eq(service.orgId, orgId), eq(service.status, "active")));
+  const fitSignals: Record<string, string[]> = {};
+  for (const svc of services) fitSignals[svc.slug] = svc.icpJson?.fit_signals ?? [];
   const weights: RankWeights = {
     functionTerms: s.functionTerms ?? DEFAULT_FUNCTION_TERMS,
     serviceWeights: s.serviceWeights,
+    fitSignals,
+    icpFitBonus: s.icpFitBonus,
   };
 
   const rows = await db.select({
@@ -104,6 +185,7 @@ export async function rankBatch(orgId: string, batchId: string): Promise<number>
     companyRaw: connection.companyRaw,
     matchConfidence: connection.matchConfidence,
     serviceSlug: connection.serviceSlug,
+    matchWhy: connection.matchWhy,
   }).from(connection)
     .where(and(eq(connection.orgId, orgId), eq(connection.batchId, batchId), eq(connection.bucket, "pitchable")));
 
@@ -117,6 +199,8 @@ export async function rankBatch(orgId: string, batchId: string): Promise<number>
         company: c.companyRaw,
         confidence: c.matchConfidence,
         serviceSlug: c.serviceSlug,
+        matchWhy: c.matchWhy,
+        headline: c.headlineRaw,
       }, weights);
       return sql`(${c.id}::text, ${b.total}::int, ${tierFor(b.total)}::int, ${JSON.stringify(b)}::jsonb)`;
     }), sql`, `);

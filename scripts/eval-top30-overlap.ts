@@ -61,6 +61,28 @@ const CATCH_ALL = process.env.CATCH_ALL ?? "gtm-office";
  *  $2.30 increments. The full run remains the honest end-to-end number. */
 const RANK_ONLY = Boolean(process.env.RANK_ONLY);
 const FIXED_CONFIDENCE = 80;
+/** KEEP=1 leaves the classified workspace in the local database instead of
+ *  deleting it, and RERANK=1 re-scores and re-measures that kept workspace
+ *  without importing or classifying anything. Classification is the only part
+ *  that costs money; ranking is arithmetic. Keeping the batch turns tuning the
+ *  scorer from a $2.30 question into a free one, which is the difference
+ *  between measuring a weight and guessing it. */
+/** Implied by RERANK and RESUME, and that is not a convenience: the first
+ *  version required KEEP alongside them, so a free re-rank of a kept workspace
+ *  ran its finally block and DELETED the classified rows it had just read —
+ *  $1.60 of classification thrown away by a read-only-looking command. Asking
+ *  to reuse a workspace is asking to keep it. */
+const KEEP = Boolean(process.env.KEEP) || Boolean(process.env.RERANK) || Boolean(process.env.RESUME);
+const RERANK = Boolean(process.env.RERANK);
+/** RESUME=1 picks a kept workspace back up and classifies only the rows that
+ *  have no bucket yet. classifyBatch already works that way by default — it
+ *  filters on `bucket is null` unless told to reclassify — so an interrupted
+ *  run costs only what it had not reached, which is the difference between
+ *  stopping a measurement and abandoning one. */
+const RESUME = Boolean(process.env.RESUME);
+/** Override the workspace's employer-fit weight for this measurement only. */
+const ICP_FIT_BONUS = process.env.ICP_FIT_BONUS === undefined
+  ? undefined : Number(process.env.ICP_FIT_BONUS);
 
 type Truth = "pitchable" | "off_icp" | "peer_competitor";
 interface Person {
@@ -176,7 +198,7 @@ async function wipe() {
 function pct(n: number, d: number) { return d ? `${((n / d) * 100).toFixed(1)}%` : "n/a"; }
 
 async function main() {
-  await wipe();
+  if (!RERANK && !RESUME) await wipe();
   const { people, top30 } = await loadWorkbook();
   const { services, settings } = await loadLiveConfig();
   console.log(`Workbook: ${people.length} people · human Top 30: ${top30.size}`);
@@ -189,8 +211,34 @@ async function main() {
   console.log(`  signal lists      ${LIVE_SIGNALS ? "the workspace's SAVED lists" : "the shipped defaults (saved lists ignored)"}`);
   console.log(`  prompt version    ${env.CLASSIFY_PROMPT_VERSION}${DRY ? "  (DRY — no model calls)" : ""}`);
 
-  const [o] = await db.insert(org).values({ name: LABEL }).returning();
+  let o: { id: string };
+  // Assigned on both paths below (created, or looked up under RERANK); the
+  // definite-assignment marker keeps the reporting code free of null checks
+  // that could only ever fire if one of those paths forgot to set it.
+  let batch!: { id: string };
+  if (RERANK || RESUME) {
+    const [kept] = await db.select({ id: org.id }).from(org).where(eq(org.name, LABEL));
+    if (!kept) throw new Error(`Nothing kept — run once with KEEP=1 before RERANK=1.`);
+    const [keptBatch] = await db.select({ id: connectionBatch.id }).from(connectionBatch)
+      .where(eq(connectionBatch.orgId, kept.id)).limit(1);
+    if (!keptBatch) throw new Error("The kept workspace has no batch.");
+    o = kept; batch = keptBatch;
+    const [done] = await db.select({ n: sql<number>`count(*)::int` }).from(connection)
+      .where(and(eq(connection.batchId, batch.id), sql`bucket is not null`));
+    const [all] = await db.select({ n: sql<number>`count(*)::int` }).from(connection)
+      .where(eq(connection.batchId, batch.id));
+    console.log(RESUME
+      ? `\nResuming the kept workspace: ${done.n}/${all.n} already classified, ${all.n - done.n} to go.`
+      : `\nRe-ranking the kept workspace: ${done.n} rows already classified, no model calls.`);
+  } else {
+    [o] = await db.insert(org).values({ name: LABEL }).returning();
+  }
   try {
+    if (ICP_FIT_BONUS !== undefined) {
+      await updateOrgSettings(o.id, { icpFitBonus: ICP_FIT_BONUS });
+      console.log(`  employer-fit weight for this run: ${ICP_FIT_BONUS} points`);
+    }
+    if (!RERANK && !RESUME) {
     await updateOrgSettings(o.id, {
       ...settings,
       ...(LIVE_SIGNALS ? {} : { peerSignals: undefined, offIcpSignals: undefined }),
@@ -202,7 +250,7 @@ async function main() {
     for (const s of services) {
       await db.insert(service).values({ orgId: o.id, slug: s.slug, name: s.name, icpJson: s.icp });
     }
-    const [batch] = await db.insert(connectionBatch)
+    [batch] = await db.insert(connectionBatch)
       .values({ orgId: o.id, source: "csv", label: LABEL, statsJson: { imported: people.length } })
       .returning();
 
@@ -222,7 +270,10 @@ async function main() {
     }
     console.log(`\nImported ${importing.length} rows.${RANK_ONLY ? " Scoring only (RANK_ONLY)…" : " Classifying…"}`);
 
-    if (!RANK_ONLY) {
+    }
+    // Fresh or resumed, never on a pure re-rank. classifyBatch only touches
+    // rows with no bucket, so a resume pays for exactly what was left.
+    if (!RANK_ONLY && !RERANK) {
       const t0 = Date.now();
       const res = await classifyBatch(o.id, batch.id, { fullPool: !DRY },
         async (done, total) => {
@@ -298,8 +349,14 @@ async function main() {
       console.log(`     human #${String(humanRank).padStart(2)}  ${k.padEnd(28)} tool: ${got ? `${got.bucket}${got.rank ? ` rank ${got.rank}` : ""}${got.score != null ? ` score ${got.score}` : ""}` : "NOT FOUND in the import"}`);
     }
   } finally {
-    await wipe();
-    console.log(`\ncleaned up the ${LABEL} workspace`);
+    if (KEEP) {
+      console.log(`\nKEEP=1 — the ${LABEL} workspace stays in the local database.`);
+      console.log(`  re-score it for free:  RERANK=1 ICP_FIT_BONUS=<n> npx tsx scripts/eval-top30-overlap.ts`);
+      console.log(`  delete it when done:   psql "$DATABASE_URL" -c "delete from connection where org_id='${o.id}'; delete from connection_batch where org_id='${o.id}'; delete from service where org_id='${o.id}'; delete from org where id='${o.id}';"`);
+    } else {
+      await wipe();
+      console.log(`\ncleaned up the ${LABEL} workspace`);
+    }
   }
 }
 main().then(() => process.exit(0)).catch((e) => { console.error(e); process.exit(1); });
