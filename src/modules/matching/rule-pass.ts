@@ -15,16 +15,29 @@ export interface RuleExclusion { serviceSlug: string; pattern: string }
  *  Settings. They describe TOSS THE COIN's competitors; left hardcoded they
  *  discard a client's genuine prospects, and because both signals run BEFORE
  *  persona matching the client's own ICP cannot override them. */
+/** `design` and `productions` are NOT in this list, and that is measured, not
+ *  taste: across the 196 fires in the ground truth they matched a real peer
+ *  ZERO times between them and discarded 37 genuine prospects (docs/ACCEPTANCE.md,
+ *  per-signal precision). A signal with no true positives anywhere in the
+ *  dataset that produced this list is not a weak signal, it is a wrong one.
+ *
+ *  `creative` (30%) and `media` (39%) stay, and they are the honest argument in
+ *  this list: dropping them would recover 44 more prospects and lose 25 real
+ *  peer detections. That is a trade, not a free win, so it belongs to whoever
+ *  owns the pipeline — it is a Settings edit per workspace, not a default. */
 export const DEFAULT_PEER_COMPANY_SIGNALS = [
   "agency", "agencies", "studio", "advertis", "branding", "creative",
-  "design", "media", "digital marketing", "marketing", "productions",
+  "media", "digital marketing", "marketing",
   "films", "adtech", "event management",
 ];
 
+/** Same evidence, same rule: `facilitator`, `personal brand` and `yoga` fired
+ *  11 times in the ground truth, caught nobody the human had flagged, and cost
+ *  11 prospects. `brand therapist` and `therapist` stay — both are 100%. */
 export const DEFAULT_OFF_ICP_TITLE_SIGNALS = [
-  "coach", "mentor", "facilitator", "personal brand", "brand therapist",
+  "coach", "mentor", "brand therapist",
   "motivational", "therapist", "astrolog", "numerolog", "tarot",
-  "spiritual", "yoga",
+  "spiritual",
 ];
 
 /** Suffixes owned by these two rules. The re-apply pass recognises its own

@@ -12,7 +12,7 @@ const schema = z.object({
   LLM_MODEL_CLASSIFY: z.string().default("anthropic/claude-haiku-4.5"),
   /** Default, not just a .env suggestion: production reads this schema, so a
    *  Railway variable that nobody sets must not silently pin the old prompt. */
-  CLASSIFY_PROMPT_VERSION: z.string().default("v4"),
+  CLASSIFY_PROMPT_VERSION: z.string().default("v8"),
   LLM_MODEL_DEEPDIVE: z.string().default("anthropic/claude-sonnet-4.6"),
 
   UNIPILE_API_KEY: z.string().optional().or(z.literal("")),
