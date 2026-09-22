@@ -64,10 +64,21 @@ export function PulsePanel({ pulse, domains }: { pulse: AccountPulse; domains: n
         <Score score={network.score} n={network.n} label="Network" />
       </div>
 
-      {/* ── Network coverage. The denominator, always. ── */}
+      {/* ── Network coverage. The denominator, always. ──
+          Three ways this band can be empty, and they are three different facts:
+          switched off for the seat, nobody from the company is in the network at
+          all, or people are there but too few have been read. Only the last one
+          is fixed by scanning, so collapsing them into one grey line would send
+          someone off to scan a company where they know nobody. */}
       <p className={`mt-2 ${MUTED}`}>
         {network.hidden ? (
           <>The Network band is switched off for this workspace. The other bands are unaffected.</>
+        ) : network.peopleAtAccount === 0 ? (
+          <>
+            Nobody from this company is in your network, so there is nothing for this
+            band to read — and scanning will not change that. The bands above draw on
+            published news instead, which is why they still work here.
+          </>
         ) : (
           <>
             <span className="tnum">{network.peopleAtAccount}</span> here in your network ·{" "}

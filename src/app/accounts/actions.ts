@@ -8,6 +8,7 @@ import {
   toggleShortlist,
 } from "@/modules/accounts/shortlist";
 import { audit } from "@/lib/security/audit";
+import { companyKey } from "@/modules/radar/score";
 import { enqueue } from "@/jobs/runner";
 import { db, job } from "@/db";
 import { and, eq, inArray } from "drizzle-orm";
@@ -93,4 +94,24 @@ export async function refreshAccountPulse(key: string, name: string, view: strin
   await enqueue(user.orgId, "account_pulse", { companyKey: key, companyName: name });
   await audit(user.orgId, user.email, "pulse.refresh", { key });
   redirect(accountsReturn({ view, a: key, extra: { pulse: "queued" } }));
+}
+
+/** Track a company by name, with or without anybody in it.
+ *
+ *  The only way to reach an account you have no route into. Everything else on
+ *  this page is derived from pitchable connections, so a company where you know
+ *  nobody cannot otherwise be named, shortlisted, or read about — which excludes
+ *  precisely the accounts worth researching before the first conversation.
+ */
+export async function addAccountByName(formData: FormData) {
+  const user = await requireUser();
+  const name = String(formData.get("name") ?? "").trim().slice(0, 200);
+  const view = String(formData.get("view") ?? "");
+  if (name.length < 2) redirect(accountsReturn({ view, extra: { added: "bad" } }));
+  // Passing an empty key lets toggleShortlist derive it with companyKey(), so
+  // a typed name and a discovered company land on the SAME key. Deriving it
+  // here instead would be a second definition of what a company key is.
+  await toggleShortlist(user.orgId, "", name, true);
+  await audit(user.orgId, user.email, "account.named", { name });
+  redirect(accountsReturn({ view: "shortlist", a: companyKey(name), extra: { added: "1" } }));
 }

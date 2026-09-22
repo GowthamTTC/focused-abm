@@ -304,6 +304,31 @@ account".
 | 10 | `pulseNetworkHidden` gate | `src/lib/feature-access.ts`, `scripts/verify-hook-feed-checks.ts` | Own exported predicate, not a shared one; the Arielle false-positive case still passes |
 | 11 | Competitors band | `src/modules/pulse/competitors.ts` | Reads the peer list, does not hardcode one |
 
+### Named accounts (added after the first real check of the data)
+
+A production query for the worked example returned one row: a single connection
+at Allergan Aesthetics, in the wrong workspace, correctly filed `off_icp`. The
+account the whole note is written around could not be reached by the feature at
+all, because `/accounts` is derived entirely from pitchable connections.
+
+That is the wrong gate for this feature, and the brief said so from the start:
+the account worth reading about is the one nobody has a route into. News,
+Narrative and Triggers need only a company NAME — they were coupled to the
+network for no reason beyond where the accounts list happened to come from.
+
+So a company can be tracked by name. `account_shortlist` already held a name and
+a key with no reference to any connection, so no new table was needed: only a
+read for the shortlisted keys with nobody behind them, and a list willing to show
+a row with zero people in it. `loadAccounts` was left alone — it is a roll-up OF
+connections, and teaching it to emit rows with none would push a case only this
+screen has onto every caller.
+
+The Network band then has THREE empty states, and they are three different
+facts: switched off for the seat, nobody from the company is in the network, or
+people are there but too few have been read. Only the last is fixed by scanning,
+so the panel names which one it is rather than showing one grey line that would
+send someone off to scan a company where they know nobody.
+
 ### Built
 
 Tasks 1–11 are in the tree. What landed, beyond the table above:

@@ -5,6 +5,7 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db, accountShortlist, connection } from "@/db";
 import { companyKey } from "@/modules/radar/score";
+import type { AccountRow } from "@/modules/accounts/query";
 import { markSelection } from "@/modules/matching/service-fit";
 import { getOrgSettings, clampToLimit } from "@/modules/settings/org-settings";
 import { enqueue } from "@/jobs/runner";
@@ -44,6 +45,47 @@ export async function toggleShortlist(
       eq(accountShortlist.companyKey, key),
     ));
   }
+}
+
+/** Companies this workspace tracks that have NOBODY in the network.
+ *
+ *  The accounts list is otherwise derived entirely from pitchable connections,
+ *  which quietly means you can only be told about companies you are already
+ *  inside. That is backwards for the case the list exists to serve: an account
+ *  nobody has a route into is exactly the one worth reading about before the
+ *  first call, and it is the one the derived list can never show.
+ *
+ *  account_shortlist already stored a name and a key with no reference to any
+ *  connection, so a named account needs no new table — only this read, and a
+ *  list willing to show a row with nothing behind it yet.
+ */
+export async function listNamedOnlyAccounts(
+  orgId: string,
+  keysWithPeople: Set<string>,
+): Promise<AccountRow[]> {
+  const rows = await db.select({
+    key: accountShortlist.companyKey,
+    name: accountShortlist.companyName,
+  }).from(accountShortlist).where(eq(accountShortlist.orgId, orgId));
+
+  return rows
+    .filter((r) => !keysWithPeople.has(r.key))
+    .map((r): AccountRow => ({
+      key: r.key,
+      name: r.name,
+      // Zero, and shown as zero. The panel reads this to say "nobody from this
+      // company is in your network", which is a different fact from "nobody has
+      // been checked yet" and must not be allowed to look like it.
+      peopleCount: 0,
+      tier1Count: 0,
+      bestRank: null,
+      avgScore: null,
+      services: [],
+      countries: [],
+      lastActivity: null,
+      sentCount: 0,
+      people: [],
+    }));
 }
 
 export async function shortlistCount(orgId: string): Promise<number> {
