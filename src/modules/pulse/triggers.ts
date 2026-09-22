@@ -7,7 +7,7 @@
  * exist, or an offer this workspace does not sell, is worse than no trigger,
  * because the panel's whole claim is that you can go and read what it read.
  */
-import { and, eq, isNotNull } from "drizzle-orm";
+import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { z } from "zod";
 import { db, accountSignal, service } from "@/db";
 import { complete } from "@/llm/client";
@@ -32,6 +32,13 @@ export async function deriveTriggers(
   orgId: string,
   companyKey: string,
   companyName: string,
+  /** Restrict the read to these signals. The Intelligence panel uses it to ask
+   *  the question of ONE voice: run against everything stored for Allergan
+   *  Aesthetics it returned nothing, because forty-seven practitioners
+   *  enthusing about a product launch were most of what it was reading, and
+   *  none of that opens a leadership-development offer. The eleven posts by
+   *  people who work there are a different question. */
+  opts: { ids?: string[] } = {},
 ): Promise<Trigger[]> {
   const signals = await db.select({
     id: accountSignal.id,
@@ -47,6 +54,9 @@ export async function deriveTriggers(
       eq(accountSignal.orgId, orgId),
       eq(accountSignal.companyKey, companyKey),
       isNotNull(accountSignal.judgedAt),
+      // An empty array would mean "no signals", not "no filter" — and inArray
+      // with [] is a SQL false that would silently return nothing.
+      ...(opts.ids && opts.ids.length > 0 ? [inArray(accountSignal.id, opts.ids)] : []),
     ))
     .limit(MAX_SIGNALS);
 
