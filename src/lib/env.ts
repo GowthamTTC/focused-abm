@@ -14,12 +14,20 @@ const schema = z.object({
    *  Railway variable that nobody sets must not silently pin the old prompt. */
   CLASSIFY_PROMPT_VERSION: z.string().default("v4"),
   LLM_MODEL_DEEPDIVE: z.string().default("anthropic/claude-sonnet-4.6"),
-  /** Same reasoning as CLASSIFY_PROMPT_VERSION: production reads this schema, so
-   *  the default has to be the version we actually want running. v2 adds the
-   *  sentiment field the Pulse Network band reads and changes nothing else —
-   *  the relevance bands are byte-identical, because HOOK_MIN_RELEVANCE is
-   *  pinned to their exact wording. */
-  POST_RELEVANCE_PROMPT_VERSION: z.string().default("v2"),
+  /** Ships at v1 on purpose, the way enrichLimit ships at 10.
+   *
+   *  v2 is the version Pulse's Network band needs: it adds a sentiment field and
+   *  its relevance bands are byte-identical to v1's, checked by
+   *  scripts/verify-pulse-pure.ts. But it has never been run against the model,
+   *  and the screen it would change first is Today — an existing, working
+   *  feature whose ordering depends on the relevance number. Asking a model to
+   *  do a third job can move how it does the first two even when the wording
+   *  for those is unchanged.
+   *
+   *  So the version bump is a deliberate act, not a side effect of deploying
+   *  Pulse. Set this to v2 when you want the Network band and are ready to look
+   *  at Today afterwards. Seats with the band gated off lose nothing by waiting. */
+  POST_RELEVANCE_PROMPT_VERSION: z.string().default("v1"),
 
   UNIPILE_API_KEY: z.string().optional().or(z.literal("")),
   UNIPILE_DSN: z.string().optional().or(z.literal("")),
