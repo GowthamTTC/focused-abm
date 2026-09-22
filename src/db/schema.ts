@@ -236,6 +236,13 @@ export const connection = pgTable("connection", {
   tier: integer("tier"),
   rank: integer("rank"),
 
+  // ── Account map — which unit of the parent account this person sits in ──
+  /** Unit name, copied EXACTLY from that account's map. Null = unmapped,
+   *  which is a real answer: it is the pile the coverage view makes you look at. */
+  division: text("division"),
+  divisionMethod: text("division_method"),  // rule | llm | manual
+  divisionWhy: text("division_why"),
+
   // Stage B — deep enrichment (the amber columns)
   selectedForEnrich: boolean("selected_for_enrich").notNull().default(false),
   enrichStatus: text("enrich_status").notNull().default("pending"), // pending | queued | running | done | failed | skipped
@@ -329,6 +336,40 @@ export const activityLog = pgTable("activity_log", {
 /** Daily network stats — one row per org per day, upserted on page view and
  *  after syncs. The growth charts begin the day this ships; we never invent
  *  history that was not observed. */
+
+/** One unit inside a mapped account — a BU, a function, an acquired brand.
+ *  `aka` carries the spellings people actually put in a headline, which is how
+ *  the free rule pass finds them without asking the model anything. */
+export interface OrgUnit {
+  name: string;
+  aka?: string[];
+  note?: string;
+}
+
+/** The org chart we are mapping an account against.
+ *
+ *  This is the one thing the connection list cannot produce. A network shows
+ *  the units you have LANDED in; it is silent about the ones you have not, and
+ *  silence is exactly what an account plan has to name. So the unit list is an
+ *  input — researched, pasted, or drafted — and coverage is the diff between it
+ *  and the people we actually hold.
+ *
+ *  `aliases` are other company_raw spellings that roll up to this parent, so an
+ *  acquired brand (Allergan Aesthetics under AbbVie) counts as coverage of its
+ *  own unit instead of sitting off to the side as a separate account. */
+export const accountMap = pgTable("account_map", {
+  id: id(),
+  orgId: text("org_id").notNull().references(() => org.id),
+  companyKey: text("company_key").notNull(),
+  name: text("name").notNull(),
+  aliases: jsonb("aliases").$type<string[]>().notNull().default([]),
+  units: jsonb("units").$type<OrgUnit[]>().notNull().default([]),
+  source: text("source").notNull().default("manual"),  // manual | drafted
+  createdAt: ts("created_at").notNull().defaultNow(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("account_map_org_key_uq").on(t.orgId, t.companyKey),
+]);
 
 /** User-shortlisted companies for account-led enrich (Stage B gate). */
 export const accountShortlist = pgTable("account_shortlist", {

@@ -3,6 +3,7 @@ import { Shell, requirePage } from "@/app/shell";
 import { ActivityBadge, ago } from "@/components/dash-bits";
 import { accountCompanies, accountCountries, accountServices, loadAccounts, pitchableTotals } from "@/modules/accounts/query";
 import { listShortlistedKeys, shortlistCount } from "@/modules/accounts/shortlist";
+import { listAccountMaps } from "@/modules/accounts/org-map";
 import { enrichThisAccount, enrichThisPerson, setAccountShortlistState, startEnrichShortlist } from "./actions";
 import { ShortlistStar, ShortlistTextButton } from "@/components/shortlist-star";
 import { AccountEnrichButton, EnrichRowButton } from "@/components/enrich-button";
@@ -26,7 +27,7 @@ export default async function AccountsPage({ searchParams }: {
   const country = (sp.country ?? "").trim();
   const company = (sp.company ?? "").trim();
 
-  const [allAccounts, services, companies, countries, shortKeys, nShort, totals] = await Promise.all([
+  const [allAccounts, services, companies, countries, shortKeys, nShort, totals, maps] = await Promise.all([
     loadAccounts(user.orgId, {
       q: q || undefined,
       service: svc || undefined,
@@ -41,6 +42,7 @@ export default async function AccountsPage({ searchParams }: {
     listShortlistedKeys(user.orgId),
     shortlistCount(user.orgId),
     pitchableTotals(user.orgId),
+    listAccountMaps(user.orgId),
   ]);
 
   const accounts = view === "shortlist"
@@ -226,6 +228,21 @@ export default async function AccountsPage({ searchParams }: {
                   action={setAccountShortlistState}
                 />
               </div>
+              {(() => {
+                // The account list answers "who do we know here". The map
+                // answers "what here do we not know at all" — the second
+                // question is the one an account plan turns on, so the way in
+                // sits next to the first, not in a menu.
+                const m = maps.find((x) => x.companyKey === selected.key);
+                return (
+                  <p className="mt-2 text-[12px]">
+                    <Link href={`/accounts/${encodeURIComponent(selected.key)}`}
+                      className="text-[#263BAA] hover:underline">
+                      {m ? `Account map · ${m.units.length} units` : "Map this account's org chart"} &rarr;
+                    </Link>
+                  </p>
+                );
+              })()}
               {(() => {
                 // Same predicate the tables and the queue module use, rather
                 // than a fourth copy of the status strings.
