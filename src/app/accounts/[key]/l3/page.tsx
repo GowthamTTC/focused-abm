@@ -260,24 +260,6 @@ export default async function L3Page({ params, searchParams }: {
               ))}
             </ul>
           )}
-          {(() => {
-            // Counted from the searches actually run, not written into the page.
-            // The first version said "four searches" and stayed at four while
-            // fifteen were run — a claim about rigour has to be the real number.
-            const empty = v.queries.filter((q) => q.stored === 0);
-            if (empty.length === 0) return null;
-            return (
-              <div className="mt-3.5 rounded-[8px] border border-[#FEDF89] bg-[#FFFCF5] px-3 py-2.5">
-                <p className="text-[12px] leading-snug text-[#B54708]">
-                  <b>What is not here:</b> no restructuring signal.{" "}
-                  {empty.length} of {v.queries.length} searches returned nothing that names
-                  this unit — including {empty.slice(0, 4).map((q) =>
-                    q.keywords.replace(v.companyName, "").replace(focusUnit?.unit.name ?? "", "").trim()
-                  ).filter(Boolean).join(", ")}. If it is happening, it is not public.
-                </p>
-              </div>
-            );
-          })()}
         </section>
 
         <section className={`${CARD} p-5`}>

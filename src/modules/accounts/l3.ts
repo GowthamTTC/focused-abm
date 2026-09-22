@@ -198,13 +198,19 @@ export async function loadL3(
   )).orderBy(desc(accountSignal.publishedAt)).limit(400);
 
   const allLi = signals.filter((s) => s.kind === "linkedin");
-  const li = country
+  // A country filter over rows that carry no country is not a filter, it is an
+  // eraser: it emptied sentiment, themes and change signals while the buying
+  // score — which never read the parameter — went on showing 50. Hiding the
+  // control was not enough, because the parameter survives in a bookmarked URL.
+  // When nothing can be placed, the filter is inert rather than absolute.
+  const placeable = allLi.some((s) => s.authorCountry);
+  const li = country && placeable
     ? allLi.filter((s) => (s.authorCountry ?? "").toLowerCase() === country.toLowerCase())
     : allLi;
   /** How much of the feed could be placed at all — the coverage line, so a
    *  small country number is not mistaken for a quiet country. */
   const geo = {
-    country: country ?? null,
+    country: placeable ? (country ?? null) : null,
     located: allLi.filter((s) => s.authorCountry).length,
     total: allLi.length,
   };
