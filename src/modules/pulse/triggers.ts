@@ -7,7 +7,7 @@
  * exist, or an offer this workspace does not sell, is worse than no trigger,
  * because the panel's whole claim is that you can go and read what it read.
  */
-import { and, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { z } from "zod";
 import { db, accountSignal, service } from "@/db";
 import { complete } from "@/llm/client";
@@ -58,6 +58,13 @@ export async function deriveTriggers(
       // with [] is a SQL false that would silently return nothing.
       ...(opts.ids && opts.ids.length > 0 ? [inArray(accountSignal.id, opts.ids)] : []),
     ))
+    // NEWEST FIRST, and the ordering is not optional. An unordered LIMIT lets
+    // Postgres return whichever rows it likes, so an account holding more
+    // signals than the cap was handing the model an arbitrary subset — and a
+    // different one on each run. "No trigger qualified" then meant "none in
+    // the two thirds you happened to be shown", which is not an answer anyone
+    // can act on. If the cap has to drop signals, it drops the oldest.
+    .orderBy(desc(accountSignal.publishedAt))
     .limit(MAX_SIGNALS);
 
   // Spending a Sonnet call to be told there is nothing to say is the easiest
