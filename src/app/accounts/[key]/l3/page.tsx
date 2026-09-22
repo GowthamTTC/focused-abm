@@ -63,16 +63,20 @@ export default async function L3Page({ params, searchParams }: {
     );
   }
 
-  // The focused unit is the point of the diagram, so it is placed first and can
-  // never be cut by the cap. Units are stored engaged-first, so without this the
-  // tree showed eight pockets and left the whitespace unit being investigated
-  // off the chart entirely.
-  const TREE_MAX = 8;
-  const focusFirst = [
-    ...v.units.filter((u) => u.unit.name.toLowerCase() === focus.toLowerCase()),
-    ...v.units.filter((u) => u.unit.name.toLowerCase() !== focus.toLowerCase()),
+  // A WHITESPACE map has to show the whitespace. Units are stored engaged-first,
+  // so taking the first N filled the diagram with green pockets and read as
+  // "this account is almost fully covered" — the opposite of what the panel
+  // exists to say, and the grey legend entry never appeared at all. The order
+  // is the focus, then everything with no engagement, then the pockets; the cap
+  // is high enough that the balance on screen is the balance in the account.
+  const TREE_MAX = 18;
+  const isFocus = (n: string) => n.toLowerCase() === focus.toLowerCase();
+  const ordered = [
+    ...v.units.filter((u) => isFocus(u.unit.name)),
+    ...v.units.filter((u) => !isFocus(u.unit.name) && !u.engaged && u.people === 0),
+    ...v.units.filter((u) => !isFocus(u.unit.name) && (u.engaged || u.people > 0)),
   ];
-  const treeNodes = focusFirst.slice(0, TREE_MAX).map((u) => ({
+  const treeNodes = ordered.slice(0, TREE_MAX).map((u) => ({
     name: u.unit.name,
     state: (u.unit.name.toLowerCase() === focus.toLowerCase()
       ? "focus"
@@ -210,11 +214,10 @@ export default async function L3Page({ params, searchParams }: {
             </div>
           </div>
           <OrgTree root={v.companyName} nodes={treeNodes} />
-          {v.units.length > TREE_MAX && (
-            <p className="mt-3 text-center text-[11px] text-[#98A2B3]">
-              + {v.units.length - TREE_MAX} further functions mapped, {v.counts.whitespace} of {v.counts.mapped} with no engagement
-            </p>
-          )}
+          <p className="mt-3 text-center text-[11px] text-[#98A2B3]">
+            {v.counts.whitespace} of {v.counts.mapped} mapped functions have no engagement
+            {v.units.length > TREE_MAX && <> · {v.units.length - TREE_MAX} further functions not shown</>}
+          </p>
         </section>
       </div>
 
