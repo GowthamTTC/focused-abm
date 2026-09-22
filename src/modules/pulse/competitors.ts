@@ -57,7 +57,10 @@ export async function competitorHits(
   if (list.length === 0) return [];
 
   const since = new Date(Date.now() - PULSE_WINDOW_DAYS * DAY);
-  const account = companyName.trim();
+  // companyName is kept in the signature for the caller's convenience and for
+  // future sources that are not already scoped by key; neither source below
+  // needs it, because both are scoped by companyKey before they get here.
+  void companyName;
 
   const [signals, posts] = await Promise.all([
     // Already scoped to this account by companyKey, so the account name does
@@ -81,11 +84,13 @@ export async function competitorHits(
     for (const peer of list) if (mentions(text, peer)) record(peer, s.at);
   }
   for (const p of posts) {
-    // A post is not scoped to the account by construction the way a signal is,
-    // so it only counts when it names both — otherwise any post mentioning a
-    // peer anywhere in the network would be attributed to whichever account
-    // happened to be open.
-    if (account && !mentions(p.text, account)) continue;
+    // No test that the post names the employer. It was there at first, and it
+    // made the band almost never fire: accountPosts has already restricted
+    // these to people whose company_raw maps to this account, so the post is
+    // scoped by WHO WROTE IT, and people do not name their own employer when
+    // they talk about their week. Requiring it meant an incumbent could run a
+    // session with the leadership team, someone could post about it, and the
+    // band would still read "none".
     for (const peer of list) if (mentions(p.text, peer)) record(peer, p.at);
   }
 
