@@ -99,6 +99,7 @@ function cleanUnits(units: OrgUnit[]): OrgUnit[] {
       name: name.slice(0, 120),
       ...(u.aka && u.aka.length ? { aka: dedupe(u.aka).slice(0, 12) } : {}),
       ...(u.note ? { note: u.note.slice(0, 400) } : {}),
+      ...(u.engaged ? { engaged: true } : {}),
     });
   }
   return out;
@@ -290,19 +291,30 @@ export async function setDivision(
 export function parseUnitLines(text: string): OrgUnit[] {
   const units: OrgUnit[] = [];
   for (const line of (text ?? "").split(/\r?\n/)) {
-    const trimmed = line.trim();
+    let trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#")) continue;
+    // A leading * marks a unit the team says it is already inside. It is an
+    // assertion, not evidence, and the page labels it as one.
+    let engaged = false;
+    if (trimmed.startsWith("*")) {
+      engaged = true;
+      trimmed = trimmed.slice(1).trim();
+      if (!trimmed) continue;
+    }
     const [namePart, akaPart] = trimmed.split("|");
     const name = (namePart ?? "").trim();
     if (!name) continue;
     const aka = (akaPart ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-    units.push({ name, ...(aka.length ? { aka } : {}) });
+    units.push({ name, ...(aka.length ? { aka } : {}), ...(engaged ? { engaged: true } : {}) });
   }
   return cleanUnits(units);
 }
 
 export function formatUnitLines(units: OrgUnit[]): string {
-  return units.map((u) => (u.aka?.length ? `${u.name} | ${u.aka.join(", ")}` : u.name)).join("\n");
+  return units.map((u) => {
+    const body = u.aka?.length ? `${u.name} | ${u.aka.join(", ")}` : u.name;
+    return u.engaged ? `* ${body}` : body;
+  }).join("\n");
 }
 
 /**

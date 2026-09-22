@@ -355,6 +355,13 @@ export interface OrgUnit {
   name: string;
   aka?: string[];
   note?: string;
+  /** The team ASSERTS it is engaged here. Deliberately separate from coverage,
+   *  which is EVIDENCED by people in the network: Ariel has landed in nine
+   *  AbbVie pockets through delivery history, and not one of those people is a
+   *  LinkedIn connection of the seat. Deriving footprint from connections alone
+   *  would report that account as untouched, which is both false and the worst
+   *  thing to put in front of the client who owns the relationship. */
+  engaged?: boolean;
 }
 
 /** The org chart we are mapping an account against.

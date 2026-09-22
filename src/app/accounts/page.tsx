@@ -288,6 +288,15 @@ export default async function AccountsPage({ searchParams }: {
                       className="text-[#263BAA] hover:underline">
                       {m ? `Account map · ${m.units.length} units` : "Map this account's org chart"} &rarr;
                     </Link>
+                    {m && m.units.length > 0 && (
+                      <>
+                        <span className="mx-1.5 text-[#D0D5DD]">|</span>
+                        <Link href={`/accounts/${encodeURIComponent(selected.key)}/l3`}
+                          className="text-[#4338CA] hover:underline">
+                          L3 intelligence &rarr;
+                        </Link>
+                      </>
+                    )}
                   </p>
                 );
               })()}
