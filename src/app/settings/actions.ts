@@ -200,3 +200,30 @@ export async function scanVoice(returnTo: string, formData: FormData) {
   await enqueue(user.orgId, "voice_scan", { identifier: identifier || "me" });
   redirect(`${returnTo}?ok=voice`);
 }
+
+/** Domains Pulse's news collector may fetch.
+ *
+ *  Stored as bare hostnames. A pasted URL is reduced to its host rather than
+ *  rejected, because pasting the address bar is what people will actually do,
+ *  and a form that punishes that just gets a worse list in it. An empty list is
+ *  meaningful and is stored as []: it means the news band is off, and the panel
+ *  says so rather than showing an empty band that looks like quiet news.
+ */
+function parseDomains(raw: string): string[] {
+  const out = new Set<string>();
+  for (const line of raw.split(/[\n,\s]+/)) {
+    const t = line.trim().toLowerCase();
+    if (!t) continue;
+    // Tolerate "https://news.abbvie.com/path" and "news.abbvie.com" alike.
+    const host = t.replace(/^[a-z]+:\/\//, "").split("/")[0].replace(/^www\./, "");
+    if (host && host.includes(".") && !host.includes(" ")) out.add(host.slice(0, 120));
+  }
+  return [...out].slice(0, 50);
+}
+
+export async function savePulseDomains(formData: FormData) {
+  const user = await requireUser();
+  const pulseDomains = parseDomains(String(formData.get("pulseDomains") ?? ""));
+  await updateOrgSettings(user.orgId, { pulseDomains });
+  redirect(`/settings?saved=pulse&domains=${pulseDomains.length}`);
+}

@@ -18,6 +18,8 @@ import { runEventScan } from "@/modules/radar/scan";
 import { runEventExtended } from "@/modules/radar/extended";
 import { storePosts } from "@/modules/posts/store";
 import { judgePosts } from "@/modules/posts/judge";
+import { runAccountPulse } from "@/modules/pulse";
+import { runIntelScan } from "@/modules/intel";
 
 export async function enqueue(orgId: string, kind: string, payload: Record<string, unknown>) {
   const [row] = await db.insert(job).values({ orgId, kind, payloadJson: payload }).returning();
@@ -371,6 +373,54 @@ export async function processNext(): Promise<boolean> {
         await markStopped(next.id, row?.p ?? 0, row?.t ?? 0);
         return true;
       }
+    } else if (next.kind === "account_pulse") {
+      const payload = next.payloadJson as { companyKey?: string; companyName?: string };
+      if (!payload.companyKey) throw new Error("Account Pulse needs a company.");
+      // No stop handling on purpose, and the button is not offered for it: a
+      // refresh is one Haiku batch and one Sonnet call, so the window in which
+      // stopping would save anything is shorter than the round trip that asks.
+      // Every other job here runs for minutes and earns its stop check.
+      const result = await runAccountPulse(
+        next.orgId,
+        payload.companyKey,
+        payload.companyName ?? payload.companyKey,
+        (done, total) => setProgress(next.id, done, total),
+      );
+      // loadPulse reads the triggers back out of here — see the note at the top
+      // of modules/pulse/index.ts on why they live in the payload rather than a
+      // table of their own.
+      await db.update(job).set({
+        payloadJson: { ...payload, result },
+        updatedAt: new Date(),
+      }).where(eq(job.id, next.id));
+      // A workspace with no allowlisted domains is NOT a failed run. The other
+      // bands still ran, and triggers derived from signals already stored are
+      // still worth having — failing here would mark the job failed and hide
+      // them, since loadPulse only reads back a completed run. The panel reads
+      // result.domains and says the news band is empty because nothing was
+      // fetched, which is the distinction that matters to whoever is reading it.
+    } else if (next.kind === "intel_scan") {
+      const payload = next.payloadJson as {
+        companyKey?: string; companyName?: string;
+        window?: "past_day" | "past_week" | "past_month"; limit?: number;
+      };
+      if (!payload.companyKey || !payload.companyName) {
+        throw new Error("Intelligence needs a company.");
+      }
+      const result = await runIntelScan(
+        next.orgId,
+        payload.companyKey,
+        payload.companyName,
+        { window: payload.window, limit: payload.limit },
+        (done, total) => setProgress(next.id, done, total),
+      );
+      // Same place Pulse keeps its run summary: the panel reads counts back out
+      // of the job, so "what did the last scan actually find" survives without
+      // a table whose only job is to remember one row per run.
+      await db.update(job).set({
+        payloadJson: { ...payload, result },
+        updatedAt: new Date(),
+      }).where(eq(job.id, next.id));
     } else {
       throw new Error(`Unknown job kind: ${next.kind}`);
     }

@@ -45,6 +45,7 @@ export const KIND_LABEL: Record<string, string> = {
   event_scan: "Event scan",
   post_judge: "Reading posts",
   event_extended: "Event search",
+  account_pulse: "Reading an account",
 };
 
 const NAV: { section: string; items: [key: string, href: string, label: string, tip: string][] }[] = [
@@ -60,6 +61,7 @@ const NAV: { section: string; items: [key: string, href: string, label: string, 
   ]},
   { section: "Analysis", items: [
     ["accounts", "/accounts", "Accounts", "Companies with pitchable coverage — warm ABM list"],
+    ["intel", "/intel", "Intel", "What LinkedIn says about a company \u2014 tone, themes and top posts, no contacts"],
     ["network", "/network", "Network", "Composition by ICP and country, activity, and freshness"],
     ["alerts", "/alerts", "Alerts", "Failed runs, seats needing re-auth, people gone quiet"],
   ]},

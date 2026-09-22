@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db, channelAccount, service } from "@/db";
 import { Shell, requirePage } from "@/app/shell";
 import { LinkedInConnect } from "@/components/linkedin-connect";
-import { claimLinkedInSeats, disconnect, linkUnipileAccountId, refreshStatus, saveClassifyCap, saveEnrichLimit, saveCatchAll, savePostScanCap, saveRanking, saveSeller, saveSignals, scanVoice, startConnect } from "./actions";
+import { claimLinkedInSeats, disconnect, linkUnipileAccountId, refreshStatus, saveClassifyCap, saveEnrichLimit, saveCatchAll, savePostScanCap, savePulseDomains, saveRanking, saveSeller, saveSignals, scanVoice, startConnect } from "./actions";
 import { DEFAULT_OFF_ICP_TITLE_SIGNALS, DEFAULT_PEER_COMPANY_SIGNALS } from "@/modules/matching/rule-pass";
 import { DEFAULT_FUNCTION_TERMS } from "@/modules/scoring/rank";
 import { CLASSIFY_CAP_OPTIONS, ENRICH_LIMIT_OPTIONS, getOrgSettings } from "@/modules/settings/org-settings";
@@ -254,6 +254,38 @@ export default async function SettingsPage({ searchParams }: {
         <p className="mt-3 text-xs text-[#98A2B3]">
           Applies to the next matching run. People already classified keep their service.
         </p>
+      </section>
+
+      <section className="mt-6 rounded-[14px] border border-[#DDE2EE] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,.04)]">
+        <h2 className="font-medium">Account Pulse</h2>
+        <p className="mt-1 max-w-2xl text-sm text-[#475467]">
+          Where Pulse may look for company news. There is no general crawler and no default
+          list, because the trade press for one industry is not the trade press for another —
+          so this stays empty until you fill it, and the news band stays empty with it.
+        </p>
+        <form action={savePulseDomains} className="mt-4">
+          <label className="block text-xs font-semibold uppercase tracking-wide text-[#98A2B3]">
+            News domains for Account Pulse
+          </label>
+          <p className="mt-1 text-xs text-[#98A2B3]">
+            One hostname per line. Pulse fetches company news only from these — there is no
+            general crawler and no default list, because the trade press for one industry is
+            not the trade press for another. Leave it empty and the news band stays empty.
+          </p>
+          <textarea name="pulseDomains" rows={5}
+            defaultValue={(settings.pulseDomains ?? []).join("\n")}
+            placeholder={"news.abbvie.com\nfiercepharma.com\nbiospace.com"}
+            className="mt-2 w-full rounded-[10px] border border-[#DDE2EE] bg-white px-3 py-2 font-mono text-xs" />
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <button className="rounded-[10px] bg-[#263BAA] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#1D2E86]">
+              Save domains
+            </button>
+            {saved === "pulse" && (
+              <span className="text-sm text-[#067647]">Saved.</span>
+            )}
+          </div>
+        </form>
+
       </section>
 
       <section className="mt-6 rounded-[14px] border border-[#DDE2EE] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,.04)]">

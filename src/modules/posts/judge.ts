@@ -16,6 +16,7 @@ import { db, connection, post, service } from "@/db";
 import { complete } from "@/llm/client";
 import { servicesDigest } from "@/modules/matching/service-fit";
 import { getOrgSettings } from "@/modules/settings/org-settings";
+import { env } from "@/lib/env";
 
 /** THE TWO NUMBERS THAT DECIDE WHAT THE TODAY SCREEN SHOWS.
  *
@@ -56,6 +57,10 @@ const verdicts = z.array(z.object({
   category: z.string().min(1),
   relevance: z.number().int().min(0).max(100),
   hook: z.string().nullable(),
+  // Added by post-relevance v2. Optional rather than required so that pinning
+  // POST_RELEVANCE_PROMPT_VERSION back to v1 keeps working instead of failing
+  // every batch on a field that prompt was never asked to produce.
+  sentiment: z.number().int().min(-100).max(100).nullable().optional(),
 }));
 
 export interface JudgeResult { judged: number; calls: number; failed: number; withHook: number }
@@ -63,10 +68,28 @@ export interface JudgeResult { judged: number; calls: number; failed: number; wi
 /** Only "substantive" may score, and only a real score earns a hook. Enforced
  *  here rather than trusted from the model — the dashboard sorts on relevance,
  *  so a congratulation scoring 70 would poison the top of the list. */
-export function coerce(category: string, relevance: number, hook: string | null) {
+export function coerce(
+  category: string,
+  relevance: number,
+  hook: string | null,
+  sentiment?: number | null,
+) {
   const cat = CATEGORIES.has(category) ? category : "personal";
   const rel = cat === "substantive" ? relevance : 0;
-  return { category: cat, relevance: rel, hook: rel >= HOOK_MIN_RELEVANCE ? (hook?.trim() || null) : null };
+  // Sentiment is NOT gated on category or relevance, and that is the whole
+  // point of the field. Someone announcing they were laid off is a "personal"
+  // post scoring 0 for this workspace and is the single most informative thing
+  // the Network band will read all month. Clamping it to the relevance rules
+  // would throw away exactly the signal Pulse exists to find.
+  const sent = typeof sentiment === "number" && Number.isFinite(sentiment)
+    ? Math.max(-100, Math.min(100, Math.round(sentiment)))
+    : null;
+  return {
+    category: cat,
+    relevance: rel,
+    hook: rel >= HOOK_MIN_RELEVANCE ? (hook?.trim() || null) : null,
+    sentiment: sent,
+  };
 }
 
 export async function judgePosts(
@@ -120,6 +143,7 @@ export async function judgePosts(
     const out = await complete({
       stage: "classify",
       prompt: "post-relevance",
+      version: env.POST_RELEVANCE_PROMPT_VERSION,
       vars: { posts_json: postsJson },
       cachedContext: digest,
       schema: verdicts,
@@ -134,19 +158,20 @@ export async function judgePosts(
       // A post the model skipped is marked judged with a 0, not left to be
       // re-billed forever on every subsequent run.
       const v = o
-        ? coerce(o.category, o.relevance, o.hook)
-        : { category: "personal", relevance: 0, hook: null };
+        ? coerce(o.category, o.relevance, o.hook, o.sentiment)
+        : { category: "personal", relevance: 0, hook: null, sentiment: null };
       if (v.hook) withHook += 1;
       return { id: r.id, ...v };
     });
 
     const values = sql.join(writes.map((w) =>
-      sql`(${w.id}::text, ${w.category}::text, ${w.relevance}::int, ${w.hook}::text, ${now}::timestamptz)`,
+      sql`(${w.id}::text, ${w.category}::text, ${w.relevance}::int, ${w.hook}::text, ${w.sentiment}::int, ${now}::timestamptz)`,
     ), sql`, `);
     await db.execute(sql`
       update post as p
-      set category = v.category, relevance = v.relevance, hook = v.hook, judged_at = v.judged_at
-      from (values ${values}) as v(id, category, relevance, hook, judged_at)
+      set category = v.category, relevance = v.relevance, hook = v.hook,
+          sentiment = v.sentiment, judged_at = v.judged_at
+      from (values ${values}) as v(id, category, relevance, hook, sentiment, judged_at)
       where p.id = v.id
     `);
 
@@ -197,7 +222,7 @@ export async function judgeStats(orgId: string) {
 /** Re-judge everything — after a prompt version bump or an offer rewrite. */
 export async function clearVerdicts(orgId: string, ids?: string[]): Promise<number> {
   const rows = await db.update(post)
-    .set({ relevance: null, category: null, hook: null, judgedAt: null })
+    .set({ relevance: null, category: null, hook: null, sentiment: null, judgedAt: null })
     .where(ids?.length
       ? and(eq(post.orgId, orgId), inArray(post.id, ids))
       : eq(post.orgId, orgId))

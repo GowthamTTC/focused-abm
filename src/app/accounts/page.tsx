@@ -2,9 +2,13 @@ import Link from "next/link";
 import { Shell, requirePage } from "@/app/shell";
 import { ActivityBadge, ago } from "@/components/dash-bits";
 import { accountCompanies, accountCountries, accountServices, loadAccounts, pitchableTotals } from "@/modules/accounts/query";
-import { listShortlistedKeys, shortlistCount } from "@/modules/accounts/shortlist";
+import { listNamedOnlyAccounts, listShortlistedKeys, shortlistCount } from "@/modules/accounts/shortlist";
 import { listAccountMaps } from "@/modules/accounts/org-map";
-import { enrichThisAccount, enrichThisPerson, setAccountShortlistState, startEnrichShortlist } from "./actions";
+import { addAccountByName, enrichThisAccount, enrichThisPerson, refreshAccountPulse, setAccountShortlistState, startEnrichShortlist } from "./actions";
+import { PulsePanel } from "@/components/pulse-panel";
+import { loadPulse } from "@/modules/pulse";
+import { pulseNetworkHidden } from "@/lib/feature-access";
+import { getOrgSettings } from "@/modules/settings/org-settings";
 import { ShortlistStar, ShortlistTextButton } from "@/components/shortlist-star";
 import { AccountEnrichButton, EnrichRowButton } from "@/components/enrich-button";
 import { enrichStateLabel, enrichStateOf, isEnrichable } from "@/modules/enrich/status";
@@ -13,6 +17,7 @@ export default async function AccountsPage({ searchParams }: {
   searchParams: Promise<{
     q?: string; svc?: string; min?: string; a?: string; page?: string; size?: string;
     view?: string; enriched?: string; minScore?: string; country?: string; company?: string;
+    pulse?: string; added?: string;
   }>;
 }) {
   const user = await requirePage();
@@ -45,14 +50,35 @@ export default async function AccountsPage({ searchParams }: {
     listAccountMaps(user.orgId),
   ]);
 
+  // Companies tracked by name that have nobody in the network. Appended rather
+  // than merged into loadAccounts: that query is a roll-up OF connections, and
+  // teaching it to emit rows with no connections behind it would make every
+  // caller handle a case only this screen has. They are shown in both views —
+  // a company you just typed in must not vanish because you were looking at
+  // "All accounts" — and they ignore the people-count filter, since a filter
+  // for "at least N people" cannot sensibly hide a row that is deliberately 0.
+  const namedOnly = await listNamedOnlyAccounts(
+    user.orgId,
+    new Set(allAccounts.map((a) => a.key)),
+  );
+  const withNamed = [...namedOnly, ...allAccounts];
+
   const accounts = view === "shortlist"
-    ? allAccounts.filter((a) => shortKeys.has(a.key))
-    : allAccounts;
+    ? withNamed.filter((a) => shortKeys.has(a.key))
+    : withNamed;
 
   const pages = Math.max(1, Math.ceil(accounts.length / size));
   const safePage = Math.min(page, pages);
   const paged = accounts.slice((safePage - 1) * size, safePage * size);
   const selected = accounts.find((a) => a.key === sp.a) ?? paged[0] ?? null;
+
+  // Read AFTER `selected` is known: Pulse is a panel about one account, and
+  // loading it for every row on the page would turn a cheap list into a
+  // per-row fan-out for something only one of them displays.
+  const settings = await getOrgSettings(user.orgId);
+  const pulse = selected
+    ? await loadPulse(user.orgId, selected.key, selected.name, pulseNetworkHidden(user))
+    : null;
 
   const baseParams: Record<string, string> = {
     min: String(min),
@@ -150,6 +176,22 @@ export default async function AccountsPage({ searchParams }: {
         </div>
       </section>
 
+      <form action={addAccountByName} className="mt-5 flex flex-wrap items-center gap-2">
+        <input type="hidden" name="view" value={view} />
+        <input name="name" placeholder="Track a company by name — e.g. Allergan Aesthetics"
+          className="min-w-[19rem] flex-1 rounded-[8px] border border-[#DDE2EE] bg-white px-3 py-2 text-[13px]" />
+        <button className="rounded-[8px] border border-[#263BAA] px-3 py-2 text-[13px] font-medium text-[#263BAA] hover:bg-[#EEF1FB]">
+          Track it
+        </button>
+        <span className="text-[12px] text-[#98A2B3]">
+          {sp.added === "bad"
+            ? "That name is too short to track."
+            : sp.added === "1"
+            ? "Tracked. Pulse can read it even with nobody there."
+            : "For accounts you have no route into yet — the list otherwise only shows companies you already know someone at."}
+        </span>
+      </form>
+
       <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_400px]">
         <div className="overflow-hidden rounded-[14px] border border-[#DDE2EE] bg-white">
           {paged.length === 0 ? (
@@ -180,10 +222,12 @@ export default async function AccountsPage({ searchParams }: {
                         <span className="tnum text-[12px] text-[#98A2B3]">{a.peopleCount} people</span>
                       </div>
                       <p className="mt-0.5 text-[12px] text-[#475467]">
-                        {a.tier1Count > 0 ? `${a.tier1Count} tier 1 · ` : ""}
-                        {a.services.length ? a.services.slice(0, 3).join(", ") : "no ICP yet"}
-                        {a.countries?.length ? ` · ${a.countries.slice(0, 2).join(", ")}` : ""}
-                        {a.sentCount > 0 ? ` · ${a.sentCount} sent` : ""}
+                        {a.peopleCount === 0 ? "tracked by name · nobody here in your network" : <>
+                          {a.tier1Count > 0 ? `${a.tier1Count} tier 1 · ` : ""}
+                          {a.services.length ? a.services.slice(0, 3).join(", ") : "no ICP yet"}
+                          {a.countries?.length ? ` · ${a.countries.slice(0, 2).join(", ")}` : ""}
+                          {a.sentCount > 0 ? ` · ${a.sentCount} sent` : ""}
+                        </>}
                       </p>
                       {a.lastActivity && (
                         <p className="mt-1 text-[12px] text-[#98A2B3]">
@@ -215,9 +259,13 @@ export default async function AccountsPage({ searchParams }: {
               <p className="text-[11px] uppercase tracking-wider text-[#98A2B3]">Account</p>
               <h2 className="mt-1 text-lg font-semibold">{selected.name}</h2>
               <p className="mt-1 text-sm text-[#475467]">
-                {selected.peopleCount} pitchable
-                {selected.tier1Count ? ` · ${selected.tier1Count} tier 1` : ""}
-                {selected.avgScore != null ? ` · avg score ${selected.avgScore}` : ""}
+                {selected.peopleCount === 0
+                  ? "Tracked by name. Nobody from this company is in your network."
+                  : <>
+                      {selected.peopleCount} pitchable
+                      {selected.tier1Count ? ` · ${selected.tier1Count} tier 1` : ""}
+                      {selected.avgScore != null ? ` · avg score ${selected.avgScore}` : ""}
+                    </>}
               </p>
               <div className="mt-3">
                 <ShortlistTextButton
@@ -262,7 +310,30 @@ export default async function AccountsPage({ searchParams }: {
               {selected.lastActivity && (
                 <p className="mt-1 text-[11px] text-[#98A2B3]">Latest activity {ago(selected.lastActivity)}</p>
               )}
-              <ul className="mt-4 divide-y divide-[#EEF1F8]">
+              {pulse && (
+                <>
+                  <PulsePanel pulse={pulse} domains={(settings.pulseDomains ?? []).length} />
+                  <form action={refreshAccountPulse.bind(null, selected.key, selected.name, view)}
+                    className="mt-3">
+                    <button className="rounded-[8px] border border-[#DDE2EE] px-3 py-1.5 text-[12px] text-[#263BAA] hover:bg-[#F4F6FB]">
+                      Refresh pulse
+                    </button>
+                    {sp.pulse === "queued" && (
+                      <span className="ml-2 text-[12px] text-[#067647]">Queued — the panel fills as it runs.</span>
+                    )}
+                    {sp.pulse === "busy" && (
+                      <span className="ml-2 text-[12px] text-[#B54708]">A run is already going. Give it a moment.</span>
+                    )}
+                  </form>
+                </>
+              )}
+
+              {selected.people.length > 0 && (
+                <p className="mt-5 border-t border-[#EEF1F8] pt-4 text-[11px] uppercase tracking-wider text-[#98A2B3]">
+                  Who is here
+                </p>
+              )}
+              <ul className="mt-2 divide-y divide-[#EEF1F8]">
                 {selected.people.map((p) => (
                   <li key={p.id} className="py-2.5">
                     <div className="flex items-baseline justify-between gap-2">

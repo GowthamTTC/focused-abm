@@ -30,6 +30,10 @@ const settingsSchema = z.object({
   icpFitBonus: z.number().int().min(0).max(40).optional(),
   serviceWeights: z.record(z.number().int().min(0).max(40)).optional(),
   catchAllSlug: z.string().max(120).optional(),
+  /** Hostnames only — no scheme, no path. Validated here rather than at fetch
+   *  time so a bad entry is rejected when it is saved, not silently skipped on
+   *  every run afterwards. */
+  pulseDomains: z.array(z.string().max(120)).max(50).optional(),
   voiceProfile: z.string().optional(),
   voiceSampledAt: z.string().optional(),
   pickN: z.number().int().positive().max(80).optional(),

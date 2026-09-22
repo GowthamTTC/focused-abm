@@ -48,3 +48,16 @@ export function signupAllowed(email: string): boolean {
   const domain = e.split("@")[1] ?? "";
   return SIGNUP_ALLOWED_EMAILS.includes(e) || SIGNUP_ALLOWED_DOMAINS.includes(domain);
 }
+
+/** Account Pulse's Network band is the Social feed rolled up by employer, so a
+ *  seat that does not get Social does not get it here under another name.
+ *
+ *  This hides ONE BAND, not the panel. The rest of Pulse — news, narrative,
+ *  competitors, triggers — stands on its own, and a seat that declined a post
+ *  feed has not thereby declined to know that its target account is being
+ *  restructured. The band must still render, saying it is switched off: a band
+ *  that simply vanishes reads as "nothing happening here", which is the one
+ *  thing it must never be allowed to mean. */
+export function pulseNetworkHidden(user: { email?: string | null; name?: string | null }): boolean {
+  return arielSeat(user);
+}
