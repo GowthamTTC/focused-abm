@@ -88,6 +88,9 @@ export interface ScorableSignal {
   evidence: string | null;
   url: string | null;
   publishedAt: Date | null;
+  /** True when the post is by someone who works at the account, or by the
+   *  company's own page. Only these can score — see below. */
+  inside: boolean;
 }
 
 export function scoreTriggers(
@@ -106,6 +109,15 @@ export function scoreTriggers(
     let example: TriggerHit["example"] = null;
 
     for (const s of signals) {
+      // A BUYING SIGNAL HAS TO COME FROM THE ACCOUNT.
+      //
+      // Scoring every post that contains the phrase put twenty points on this
+      // account for "high potential" — matched inside a market-research bot's
+      // "Top Companies in Breast Implant Tissue Expander Market" — and gave
+      // further points to a COMPETITOR's event marketing, which is evidence
+      // that somebody else is already selling rather than that this account is
+      // looking. Neither is the account saying anything.
+      if (!s.inside) continue;
       // Title as well as body: a person's headline is where "Leadership
       // Development" most often appears, and a post by that person is exactly
       // the one a seller wants to see.

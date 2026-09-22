@@ -350,6 +350,7 @@ export async function loadL3(
     allLi.map((sg) => ({
       title: sg.title, body: sg.body, evidence: sg.evidence,
       url: sg.url, publishedAt: sg.publishedAt,
+      inside: voiceOf(sg.title, sg.companyName ?? companyName, extraAliases) !== "market",
     })),
     vocab,
   );
