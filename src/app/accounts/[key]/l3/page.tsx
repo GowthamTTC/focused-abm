@@ -103,21 +103,26 @@ export default async function L3Page({ params, searchParams }: {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className={BTN_GHOST}>Last 90 days</span>
-          <span className="inline-flex overflow-hidden rounded-[8px] border border-[#E4E7EC] text-[12.5px]">
-            {[["", "Worldwide"], ["United States", "United States"]].map(([val, label]) => {
-              const qs = new URLSearchParams();
-              if (focusRaw) qs.set("focus", focusRaw);
-              if (sp.alias) qs.set("alias", sp.alias);
-              if (val) qs.set("country", val);
-              const on = country.toLowerCase() === val.toLowerCase();
-              return (
-                <Link key={label} href={`/accounts/${encodeURIComponent(key)}/l3?${qs}`}
-                  className={`px-3 py-2 ${on ? "bg-[#EEF4FF] font-medium text-[#4F46E5]" : "bg-white text-[#475467] hover:bg-[#F9FAFB]"}`}>
-                  {label}
-                </Link>
-              );
-            })}
-          </span>
+          {/* A filter that can never match is worse than no filter: selecting it
+              emptied every band on the page and read as a broken screen. The
+              control only appears once some post carries a location. */}
+          {v.geo.located > 0 && (
+            <span className="inline-flex overflow-hidden rounded-[8px] border border-[#E4E7EC] text-[12.5px]">
+              {[["", "Worldwide"], ["United States", "United States"]].map(([val, label]) => {
+                const qs = new URLSearchParams();
+                if (focusRaw) qs.set("focus", focusRaw);
+                if (sp.alias) qs.set("alias", sp.alias);
+                if (val) qs.set("country", val);
+                const on = country.toLowerCase() === val.toLowerCase();
+                return (
+                  <Link key={label} href={`/accounts/${encodeURIComponent(key)}/l3?${qs}`}
+                    className={`px-3 py-2 ${on ? "bg-[#EEF4FF] font-medium text-[#4F46E5]" : "bg-white text-[#475467] hover:bg-[#F9FAFB]"}`}>
+                    {label}
+                  </Link>
+                );
+              })}
+            </span>
+          )}
           {focus && (
             <form action={refreshFocusSignals}>
               <input type="hidden" name="key" value={key} />
@@ -276,12 +281,29 @@ export default async function L3Page({ params, searchParams }: {
         </section>
 
         <section className={`${CARD} p-5`}>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-[#D9D6FE] bg-[#FAFAFF] px-4 py-3">
+            <div className="min-w-0">
+              <div className="text-[13px] font-semibold text-[#101828]">Buying signals</div>
+              <p className="mt-0.5 text-[11.5px] leading-snug text-[#667085]">
+                {v.triggerScore.fired.length > 0
+                  ? v.triggerScore.fired.slice(0, 3).map((h) => h.trigger.label).join(" · ")
+                  : "Nothing in the vocabulary has been said by this account yet"}
+              </p>
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-[30px] font-semibold leading-none text-[#4F46E5]">{v.triggerScore.points}</span>
+              <span className="text-[11px] text-[#667085]">points</span>
+            </div>
+          </div>
+
           <h2 className="text-[15px] font-semibold">LinkedIn signal sentiment</h2>
           <p className="mt-1 text-[12px] text-[#667085]">
             Sampled public posts — a reading of the conversation, not a measure of the company.
-            {country
-              ? ` Authors in ${country} only; ${v.geo.located} of ${v.geo.total} posts could be placed at all.`
-              : ` ${v.geo.located} of ${v.geo.total} posts carry a location.`}
+            {v.geo.located === 0
+              ? " LinkedIn's post search does not return author location, so this cannot be read by market."
+              : country
+                ? ` Authors in ${country} only; ${v.geo.located} of ${v.geo.total} posts could be placed at all.`
+                : ` ${v.geo.located} of ${v.geo.total} posts carry a location.`}
           </p>
           <div className="mt-3 grid gap-4 sm:grid-cols-[170px_minmax(0,1fr)]">
             <HalfGauge value={v.linkedin.gauge} color={toneColor(v.linkedin.tone.score)}
