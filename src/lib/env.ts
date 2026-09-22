@@ -50,6 +50,10 @@ const schema = z.object({
   /** Items ONE news collection keeps per account. The signal judge batches at
    *  25, so this is also what bounds a refresh to a couple of model calls. */
   PULSE_NEWS_MAX_ITEMS: z.coerce.number().int().positive().default(40),
+  /** Posts ONE intelligence scan keeps for a company. The signal judge batches
+   *  at 25, so 60 is between two and three model calls — enough to read a month
+   *  of chatter without turning a curiosity into a bill. */
+  INTEL_POSTS_MAX: z.coerce.number().int().positive().default(60),
 });
 
 export const env = schema.parse(process.env);

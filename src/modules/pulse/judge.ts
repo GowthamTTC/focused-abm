@@ -60,7 +60,11 @@ export function coerceSignal(
 export async function judgeSignals(
   orgId: string,
   companyKey: string,
-  opts: { limit?: number } = {},
+  /** `kind` scopes a run to one feature's rows. Undefined judges everything
+   *  unjudged for the account, which is what the Pulse refresh wants; the
+   *  Intelligence scan passes "linkedin" so its spend stays its own and a news
+   *  backlog is not silently billed to a LinkedIn scan. */
+  opts: { limit?: number; kind?: string } = {},
 ): Promise<SignalJudgeResult> {
   const services = (await db.select().from(service)
     .where(and(eq(service.orgId, orgId), eq(service.status, "active"))))
@@ -82,6 +86,7 @@ export async function judgeSignals(
       eq(accountSignal.orgId, orgId),
       eq(accountSignal.companyKey, companyKey),
       isNull(accountSignal.judgedAt),
+      ...(opts.kind ? [eq(accountSignal.kind, opts.kind)] : []),
     ))
     .limit(opts.limit ?? SIGNAL_MAX_PER_RUN);
 

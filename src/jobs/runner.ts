@@ -19,6 +19,7 @@ import { runEventExtended } from "@/modules/radar/extended";
 import { storePosts } from "@/modules/posts/store";
 import { judgePosts } from "@/modules/posts/judge";
 import { runAccountPulse } from "@/modules/pulse";
+import { runIntelScan } from "@/modules/intel";
 
 export async function enqueue(orgId: string, kind: string, payload: Record<string, unknown>) {
   const [row] = await db.insert(job).values({ orgId, kind, payloadJson: payload }).returning();
@@ -396,6 +397,28 @@ export async function processNext(): Promise<boolean> {
       // them, since loadPulse only reads back a completed run. The panel reads
       // result.domains and says the news band is empty because nothing was
       // fetched, which is the distinction that matters to whoever is reading it.
+    } else if (next.kind === "intel_scan") {
+      const payload = next.payloadJson as {
+        companyKey?: string; companyName?: string;
+        window?: "past_day" | "past_week" | "past_month"; limit?: number;
+      };
+      if (!payload.companyKey || !payload.companyName) {
+        throw new Error("Intelligence needs a company.");
+      }
+      const result = await runIntelScan(
+        next.orgId,
+        payload.companyKey,
+        payload.companyName,
+        { window: payload.window, limit: payload.limit },
+        (done, total) => setProgress(next.id, done, total),
+      );
+      // Same place Pulse keeps its run summary: the panel reads counts back out
+      // of the job, so "what did the last scan actually find" survives without
+      // a table whose only job is to remember one row per run.
+      await db.update(job).set({
+        payloadJson: { ...payload, result },
+        updatedAt: new Date(),
+      }).where(eq(job.id, next.id));
     } else {
       throw new Error(`Unknown job kind: ${next.kind}`);
     }

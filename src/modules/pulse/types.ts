@@ -29,7 +29,7 @@ export const NETWORK_MIN_PEOPLE = 3;
 export const PULSE_WINDOW_DAYS = 30;
 
 export interface NewsItem {
-  kind: "news" | "filing";
+  kind: "news" | "filing" | "linkedin";
   sourceId: string;      // the canonical URL
   source: string;        // hostname
   title: string;
