@@ -69,19 +69,25 @@ export default async function L3Page({ params, searchParams }: {
   // exists to say, and the grey legend entry never appeared at all. The order
   // is the focus, then everything with no engagement, then the pockets; the cap
   // is high enough that the balance on screen is the balance in the account.
+  // Only units with their own public website. An internal function like
+  // Regulatory Affairs is not a thing an account plan can walk into; an
+  // operating company that kept its own site after acquisition is.
   const TREE_MAX = 26;
+  const siteUnits = v.units.filter((u) => u.unit.website);
   const isFocus = (n: string) => n.toLowerCase() === focus.toLowerCase();
   const ordered = [
-    ...v.units.filter((u) => isFocus(u.unit.name)),
-    ...v.units.filter((u) => !isFocus(u.unit.name) && !u.engaged && u.people === 0),
-    ...v.units.filter((u) => !isFocus(u.unit.name) && (u.engaged || u.people > 0)),
+    ...siteUnits.filter((u) => isFocus(u.unit.name)),
+    ...siteUnits.filter((u) => !isFocus(u.unit.name) && !u.engaged && u.people === 0),
+    ...siteUnits.filter((u) => !isFocus(u.unit.name) && (u.engaged || u.people > 0)),
   ];
   const treeNodes = ordered.slice(0, TREE_MAX).map((u) => ({
     name: u.unit.name,
     state: (u.unit.name.toLowerCase() === focus.toLowerCase()
       ? "focus"
       : u.engaged || u.people > 0 ? "engaged" : "whitespace") as "focus" | "engaged" | "whitespace",
-    sub: u.unit.name.toLowerCase() === focus.toLowerCase() ? "No Ariel engagement" : undefined,
+    sub: u.unit.name.toLowerCase() === focus.toLowerCase()
+      ? "No Ariel engagement"
+      : u.unit.website,
   }));
 
   return (
@@ -184,7 +190,7 @@ export default async function L3Page({ params, searchParams }: {
             <div>
               <h2 className="text-[15px] font-semibold">Org-chart whitespace map</h2>
               <p className="mt-1 text-[12px] text-[#667085]">
-                A first-draft org chart — correct it in the{" "}
+                Entities with their own public website — a first-draft list, correct it in the{" "}
                 <Link href={`/accounts/${encodeURIComponent(key)}`} className="text-[#4F46E5] hover:underline">map editor</Link>.
               </p>
             </div>
@@ -196,8 +202,9 @@ export default async function L3Page({ params, searchParams }: {
           </div>
           <OrgTree root={v.companyName} nodes={treeNodes} />
           <p className="mt-3 text-center text-[11px] text-[#98A2B3]">
-            {v.counts.whitespace} of {v.counts.mapped} mapped functions have no engagement
-            {v.units.length > TREE_MAX && <> · {v.units.length - TREE_MAX} further functions not shown</>}
+            Operating entities with their own website · {siteUnits.length} of{" "}
+            {v.counts.mapped} mapped units · {v.counts.whitespace} of {v.counts.mapped} have
+            no engagement
           </p>
         </section>
       </div>

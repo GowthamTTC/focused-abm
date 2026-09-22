@@ -366,6 +366,10 @@ export interface OrgUnit {
    *  would report that account as untouched, which is both false and the worst
    *  thing to put in front of the client who owns the relationship. */
   engaged?: boolean;
+  /** The unit's own public website, when it has one. An entity with its own
+   *  site is an externally-visible operating company — a thing an account plan
+   *  can actually target — where an internal function is not. */
+  website?: string;
 }
 
 export interface AccountProfile {

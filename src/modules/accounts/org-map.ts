@@ -106,6 +106,7 @@ function cleanUnits(units: OrgUnit[]): OrgUnit[] {
       name: name.slice(0, 120),
       ...(u.aka && u.aka.length ? { aka: dedupe(u.aka).slice(0, 12) } : {}),
       ...(u.note ? { note: u.note.slice(0, 400) } : {}),
+      ...(u.website ? { website: u.website.slice(0, 120) } : {}),
       ...(u.engaged ? { engaged: true } : {}),
     });
   }
@@ -308,18 +309,27 @@ export function parseUnitLines(text: string): OrgUnit[] {
       trimmed = trimmed.slice(1).trim();
       if (!trimmed) continue;
     }
-    const [namePart, akaPart] = trimmed.split("|");
+    // name | aka, aka | website — the middle may be empty ("Name || site.com")
+    const [namePart, akaPart, sitePart] = trimmed.split("|");
     const name = (namePart ?? "").trim();
     if (!name) continue;
     const aka = (akaPart ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-    units.push({ name, ...(aka.length ? { aka } : {}), ...(engaged ? { engaged: true } : {}) });
+    const website = (sitePart ?? "").trim().replace(/^https?:\/\//, "").replace(/\/$/, "");
+    units.push({
+      name,
+      ...(aka.length ? { aka } : {}),
+      ...(website ? { website } : {}),
+      ...(engaged ? { engaged: true } : {}),
+    });
   }
   return cleanUnits(units);
 }
 
 export function formatUnitLines(units: OrgUnit[]): string {
   return units.map((u) => {
-    const body = u.aka?.length ? `${u.name} | ${u.aka.join(", ")}` : u.name;
+    let body = u.name;
+    if (u.aka?.length || u.website) body += ` | ${u.aka?.join(", ") ?? ""}`;
+    if (u.website) body += ` | ${u.website}`;
     return u.engaged ? `* ${body}` : body;
   }).join("\n");
 }

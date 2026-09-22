@@ -35,28 +35,31 @@ Immunology
 Oncology
 Neuroscience
 Eye Care | Allergan Eye Care
-Allergan Aesthetics | Allergan, Botox, Juvederm, SkinMedica, DiamondGlow
+Allergan Aesthetics | Allergan, Botox, Juvederm, DiamondGlow | allerganaesthetics.com
 Established Brands
 Virology
 
 # US subsidiaries and acquired operating companies. Public knowledge, assembled
 # rather than verified against filings, and current only to early 2026 — anything
 # acquired since is missing. Correct it in the map editor.
-Pharmacyclics | Imbruvica
-Cerevel Therapeutics | Cerevel
-ImmunoGen | Elahere
+# The third field is the unit's own public website. Entities that kept a
+# separate site after acquisition are externally-visible operating companies;
+# the ones without were folded into abbvie.com. Unverified — check before use.
+Pharmacyclics | Imbruvica | pharmacyclics.com
+Cerevel Therapeutics | Cerevel | cerevel.com
+ImmunoGen | Elahere | immunogen.com
+Landos Biopharma | Landos | landosbiopharma.com
+Capstan Therapeutics | Capstan | capstantx.com
+Aliada Therapeutics | Aliada | aliadatx.com
+Zeltiq Aesthetics | Zeltiq, CoolSculpting | coolsculpting.com
+SkinMedica || skinmedica.com
+Allergan Medical Institute | AMI | allerganmedicalinstitute.com
+Natrelle || natrelle.com
 Stemcentrx
 Soliton
 Syndesi Therapeutics | Syndesi
 DJS Antibodies
-Landos Biopharma | Landos
-Aliada Therapeutics | Aliada
-Capstan Therapeutics | Capstan
-Zeltiq Aesthetics | Zeltiq, CoolSculpting
-SkinMedica
-Allergan Medical Institute | AMI
 Allergan Eye Care | Refresh, Restasis
-Natrelle
 
 # Functions
 Regulatory Affairs
