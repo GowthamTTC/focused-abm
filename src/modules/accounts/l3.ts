@@ -362,7 +362,7 @@ export async function loadL3(
   // it in SQL binds as a scalar rather than an array. Rather than hand-roll an
   // array literal, take the recent completed runs and pick in JS — there are a
   // handful of them, and the filter is the same either way.
-  const runs = await db.select({ payload: job.payloadJson, at: job.updatedAt }).from(job).where(and(
+  const runs = await db.select({ payload: job.payloadJson, at: job.updatedAt, kind: job.kind }).from(job).where(and(
     eq(job.orgId, orgId),
     inArray(job.kind, ["account_pulse", "intel_scan"]),
     eq(job.status, "done"),
@@ -376,7 +376,12 @@ export async function loadL3(
   // Every search this account has been read with. Shown so the reader can see
   // what was asked as well as what came back — including the phrases that
   // returned nothing, which is itself a finding.
+  const seenQuery = new Set<string>();
   const queries: QueryRun[] = runs
+    // Only searches. A Pulse news refresh has no keywords and no seen/stored,
+    // and listing it as a query that returned nothing would read as a failed
+    // search rather than a different kind of run entirely.
+    .filter((r) => r.kind === "intel_scan")
     .filter((r) => {
       const k = (r.payload as { companyKey?: string })?.companyKey;
       return typeof k === "string" && unitKeys.has(k);
@@ -391,6 +396,18 @@ export async function loadL3(
       };
     })
     .filter((q) => q.keywords)
+    // `runs` is newest first, so the FIRST time a phrase is seen here is its
+    // most recent run — and that is the one to keep. One early job carried a
+    // keywords value the worker of the day ignored, and reported the company
+    // scan's 60/68 under the word "restructuring". Keeping the best yield would
+    // have put that on the page and told a reader restructuring returned sixty
+    // posts, which is the exact opposite of what the search found.
+    .filter((q) => {
+      const k = q.keywords.toLowerCase();
+      if (seenQuery.has(k)) return false;
+      seenQuery.add(k);
+      return true;
+    })
     .sort((a, b) => b.stored - a.stored || b.seen - a.seen);
 
   return {
