@@ -329,13 +329,13 @@ export default async function SettingsPage({ searchParams }: {
       </section>
 
       <section className="mt-6 rounded-[14px] border border-[#DDE2EE] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,.04)]">
-        <h2 className="font-medium">Who is not a prospect</h2>
+        <h2 className="font-medium">Account Pulse</h2>
         <p className="mt-1 max-w-2xl text-sm text-[#475467]">
-          Two lists that run <em>before</em> anyone is matched against your ICPs, so they have the
-          final say. Keep them describing <strong>your</strong> market — the defaults describe a
-          marketing agency&apos;s competitors and will discard good prospects if that is not you.
+          Where Pulse may look for company news. There is no general crawler and no default
+          list, because the trade press for one industry is not the trade press for another —
+          so this stays empty until you fill it, and the news band stays empty with it.
         </p>
-        <form action={savePulseDomains} className="mt-6 border-t border-[#EEF1F8] pt-5">
+        <form action={savePulseDomains} className="mt-4">
           <label className="block text-xs font-semibold uppercase tracking-wide text-[#98A2B3]">
             News domains for Account Pulse
           </label>
@@ -358,6 +358,15 @@ export default async function SettingsPage({ searchParams }: {
           </div>
         </form>
 
+      </section>
+
+      <section className="mt-6 rounded-[14px] border border-[#DDE2EE] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,.04)]">
+        <h2 className="font-medium">Who is not a prospect</h2>
+        <p className="mt-1 max-w-2xl text-sm text-[#475467]">
+          Two lists that run <em>before</em> anyone is matched against your ICPs, so they have the
+          final say. Keep them describing <strong>your</strong> market — the defaults describe a
+          marketing agency&apos;s competitors and will discard good prospects if that is not you.
+        </p>
         <form action={saveSignals} className="mt-4 grid gap-5 md:grid-cols-2">
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wide text-[#98A2B3]">
