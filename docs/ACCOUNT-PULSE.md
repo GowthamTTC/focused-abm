@@ -197,14 +197,46 @@ Stated here so it is not promised in a demo:
   the network band or it will systematically over-report negativity at exactly
   the accounts this module is for.
 
-## 7. Cost
+## 7. Cost — yes, it spends on OpenRouter
 
-Reuses the metered paths. News: ~10–30 items/account/month, one batched judge
-call. Posts: already collected under the shared 100-people/day scan cap; the
-sentiment pass is one extra field on a call the judge already makes. Triggers:
-one `deepdive` call per account per refresh. **Budget: single-digit cents per
-account per refresh** — the constraint is the LinkedIn scan cap, as always, not
-tokens.
+Everything goes through `complete()` in `src/llm/client.ts`, so every judged item
+is billable. At account-level scope it is **two calls per account per refresh**:
+
+| Call | Stage | Model (`.env.example`) | Rate in/out per MTok |
+|---|---|---|---|
+| `account-signal` | `classify` | `anthropic/claude-haiku-4.5` | $1 / $5 |
+| `account-triggers` | `deepdive` | `anthropic/claude-sonnet-4.6` | $3 / $15 |
+
+Worked, for an account with ~30 signals in the window:
+
+- Signal judge — ~10K in, ~1.5K out on Haiku → **~$0.02**
+- Triggers — ~12K in, ~1.5K out on Sonnet → **~$0.06**
+
+**≈ $0.08 per account per refresh.** Twenty shortlisted accounts refreshed weekly
+is **under $7/month**. (Anthropic list rates; OpenRouter passes these through with
+a margin on credit, so treat the figures as a floor.)
+
+Two things keep it there, and both are worth protecting:
+
+- **The services digest is `cache_control`-cached** on the signal call, exactly as
+  `judgePosts` already caches it. Cache reads bill at roughly a tenth of input, so
+  the digest is near-free after the first call of a run — *provided* nothing
+  volatile is prepended to it. A timestamp in that prefix silently multiplies the
+  bill and nothing in the UI would show it. Verify with
+  `usage.cache_read_input_tokens`.
+- **The Network band adds no calls at all.** Sentiment becomes one more field on
+  `post-relevance`, which already runs over these posts. Posts are still collected
+  under the shared 100-people/day scan cap; that cap, not tokens, remains the
+  binding constraint.
+
+**The one real bill is the migration, not the steady state.** Adding a field to
+`post-relevance` means a new prompt version, and a version bump means
+`clearVerdicts()` re-judges *every stored post in the workspace* at 25 posts per
+Haiku call. That is a one-off proportional to the post table, not to accounts, and
+it should be a deliberate decision rather than a side effect of shipping Pulse.
+
+News *fetching* costs nothing here — it is HTTP. It only acquires a bill if the
+allowlist is ever swapped for a paid search API.
 
 ## 8. Acceptance
 
