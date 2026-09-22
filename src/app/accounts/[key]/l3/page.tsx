@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Shell, requirePage } from "@/app/shell";
 import { loadL3 } from "@/modules/accounts/l3";
-import { refreshFocusSignals } from "./actions";
+import { refreshFocusSignals, scanTriggerVocabulary } from "./actions";
 import { CARD, HalfGauge, LegendDot, Meter, OrgTree, VolumeChart } from "./parts";
 
 const BTN = "inline-flex items-center gap-1.5 rounded-[8px] bg-[#4F46E5] px-3.5 py-2 text-[13px] font-medium text-white hover:bg-[#4338CA]";
@@ -331,6 +331,80 @@ export default async function L3Page({ params, searchParams }: {
           )}
         </section>
       </div>
+
+      {/* ── buying signals ── */}
+      <section className={`${CARD} mt-4 p-5`}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-[15px] font-semibold">Buying signals</h2>
+            <p className="mt-1 max-w-2xl text-[12px] text-[#667085]">
+              Phrases that mean this account needs what this workspace sells, counted in
+              its posts. Not distress — a buying moment. Every point below traces to a
+              phrase in a post you can open.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="text-right">
+              <div className="text-[28px] font-semibold leading-none text-[#4F46E5]">
+                {v.triggerScore.points}
+              </div>
+              <div className="text-[11px] text-[#667085]">signal points</div>
+            </div>
+            <form action={scanTriggerVocabulary}>
+              <input type="hidden" name="key" value={key} />
+              <input type="hidden" name="focus" value={focusRaw} />
+              <button className={BTN_GHOST}>↻ Scan vocabulary</button>
+            </form>
+          </div>
+        </div>
+
+        {v.triggerScore.fired.length === 0 ? (
+          <p className="mt-3 text-[13px] text-[#667085]">
+            None of the vocabulary&apos;s phrases appear in the stored posts. Press
+            &ldquo;Scan vocabulary&rdquo; to search LinkedIn for each of them.
+          </p>
+        ) : (
+          <ul className="mt-3.5 grid gap-2.5 lg:grid-cols-2">
+            {v.triggerScore.fired.map((h) => (
+              <li key={h.trigger.phrase} className="rounded-[10px] border border-[#D9D6FE] bg-[#FAFAFF] p-3.5">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <span className="text-[13px] font-semibold text-[#101828]">{h.trigger.label}</span>
+                  <span className="shrink-0 text-[11px] text-[#667085]">
+                    {h.hits} post{h.hits === 1 ? "" : "s"} · weight {h.trigger.weight} ·{" "}
+                    <b className="text-[#4F46E5]">{h.points} pts</b>
+                  </span>
+                </div>
+                {h.example?.line && (
+                  <p className="mt-1.5 text-[11.5px] italic leading-snug text-[#475467]">
+                    &ldquo;{h.example.line.slice(0, 150)}&rdquo;
+                  </p>
+                )}
+                <p className="mt-1.5 text-[10.5px] text-[#98A2B3]">
+                  {h.lastSeenAt ? `last seen ${h.lastSeenAt.toISOString().slice(0, 10)}` : "undated"}
+                  {h.example?.url && (
+                    <> · <a href={h.example.url} target="_blank" rel="noreferrer"
+                      className="text-[#4F46E5] hover:underline">open ↗</a></>
+                  )}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {v.triggerScore.quiet.length > 0 && (
+          <div className="mt-3.5 border-t border-[#F2F4F7] pt-3">
+            <p className="text-[11.5px] text-[#667085]">
+              <b>Quiet this month</b> — searched for, not found:{" "}
+              {v.triggerScore.quiet.map((t) => t.label).join(", ")}.
+            </p>
+          </div>
+        )}
+        <p className="mt-2.5 text-[10.5px] leading-snug text-[#98A2B3]">
+          Points are the phrase&apos;s weight per matching post, at full value inside 30
+          days and tapering to a third at 90. There is no ceiling and no score out of 100 —
+          a number out of 100 would imply one.
+        </p>
+      </section>
 
       {/* ── the evidence ── */}
       <section className={`${CARD} mt-4 p-5`}>

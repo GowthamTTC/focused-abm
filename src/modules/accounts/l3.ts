@@ -18,6 +18,8 @@ import { meanSentiment, type Band, type Trigger } from "@/modules/pulse/types";
 import { loadAccountMap, mapKeys, type AccountMapRow } from "@/modules/accounts/org-map";
 import { voiceOf } from "@/modules/intel/voice";
 import { competitorHits } from "@/modules/pulse/competitors";
+import { getOrgSettings } from "@/modules/settings/org-settings";
+import { DEFAULT_TRIGGERS, scoreTriggers, type TriggerScore } from "@/modules/accounts/trigger-vocab";
 import type { CompetitorHit } from "@/modules/pulse/types";
 import type { OrgUnit } from "@/db";
 import { desc } from "drizzle-orm";
@@ -133,6 +135,9 @@ export interface L3View {
   triggers: Trigger[];
   decisionMakers: DecisionMakerRow[];
   contacts: SignalContact[];
+  /** Which buying-signal phrases this account's posts contain, and what that
+   *  adds up to. Every point traces to a phrase in a post you can open. */
+  triggerScore: TriggerScore;
   /** Leadership and company posts, newest first — the evidence a reader is
    *  asked to look at rather than take on trust. */
   voicePosts: VoicePost[];
@@ -337,6 +342,18 @@ export async function loadL3(
     })
     .sort((a, b) => (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0));
 
+  // Buying signals, scored. The vocabulary is the workspace's own when it has
+  // one; undefined falls back to the built-in list, and [] switches it off.
+  const orgSettings = await getOrgSettings(orgId);
+  const vocab = orgSettings.triggerSignals ?? DEFAULT_TRIGGERS;
+  const triggerScore = scoreTriggers(
+    allLi.map((sg) => ({
+      title: sg.title, body: sg.body, evidence: sg.evidence,
+      url: sg.url, publishedAt: sg.publishedAt,
+    })),
+    vocab,
+  );
+
   // competitorHits reads ONE company key. The signals for an account are spread
   // across the keys its units are tracked under — Allergan Aesthetics is scanned
   // as itself — so asking only about the parent key found nothing while the
@@ -465,6 +482,7 @@ export async function loadL3(
     changeSignals,
     geo,
     contacts,
+    triggerScore,
     voicePosts,
     queries,
     competitors,

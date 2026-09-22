@@ -24,6 +24,11 @@ const settingsSchema = z.object({
   sellerName: z.string().max(120).optional(),
   sellerContext: z.string().max(2000).optional(),
   peerSignals: z.array(z.string().max(60)).max(200).optional(),
+  triggerSignals: z.array(z.object({
+    phrase: z.string().min(2).max(60),
+    label: z.string().min(1).max(80),
+    weight: z.number().int().min(1).max(5),
+  })).max(60).optional(),
   offIcpSignals: z.array(z.string().max(60)).max(200).optional(),
   postScanDailyCap: z.number().int().min(1).max(2000).optional(),
   functionTerms: z.array(z.string().max(60)).max(200).optional(),

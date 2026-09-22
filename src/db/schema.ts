@@ -48,6 +48,10 @@ export interface OrgSettings {
    *  undefined = use the built-in defaults; [] = rule off. */
   peerSignals?: string[];
   offIcpSignals?: string[];
+  /** Phrases that mean "this account needs what we sell" — see
+   *  modules/accounts/trigger-vocab.ts. Undefined uses the built-in
+   *  vocabulary; [] switches the band off. */
+  triggerSignals?: { phrase: string; label: string; weight: number }[];
   /** Max people ONE day of post scanning may touch in this workspace. Lower it
    *  for a fresh or fragile LinkedIn seat without redeploying. */
   postScanDailyCap?: number;
