@@ -45,13 +45,17 @@ async function main() {
   }
 
   const key = companyKey(company);
+  // KEYWORDS searches for something other than the name while the rows stay
+  // filed under the company — "Allergan restructuring" asks a question about
+  // Allergan Aesthetics rather than naming a different account.
+  const keywords = (process.env.KEYWORDS ?? "").trim() || undefined;
   const job = await enqueue(orgId, "intel_scan", {
-    companyKey: key, companyName: company, window,
+    companyKey: key, companyName: company, window, ...(keywords ? { keywords } : {}),
   });
 
   await audit(orgId, "operator:cli", "intel.scan", { key, company, window, via: "queue-intel-scan" });
   console.log(JSON.stringify({
-    workspace: workspace.name, orgId, company, companyKey: key, window,
+    workspace: workspace.name, orgId, company, companyKey: key, window, keywords: keywords ?? company,
     operationalSeats: operational, jobId: (job as { id?: string })?.id ?? null,
   }, null, 2));
   process.exit(0);

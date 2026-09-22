@@ -403,6 +403,7 @@ export async function processNext(): Promise<boolean> {
       const payload = next.payloadJson as {
         companyKey?: string; companyName?: string;
         window?: "past_day" | "past_week" | "past_month"; limit?: number;
+        keywords?: string;
       };
       if (!payload.companyKey || !payload.companyName) {
         throw new Error("Intelligence needs a company.");
@@ -411,7 +412,7 @@ export async function processNext(): Promise<boolean> {
         next.orgId,
         payload.companyKey,
         payload.companyName,
-        { window: payload.window, limit: payload.limit },
+        { window: payload.window, limit: payload.limit, keywords: payload.keywords },
         (done, total) => setProgress(next.id, done, total),
       );
       // Same place Pulse keeps its run summary: the panel reads counts back out

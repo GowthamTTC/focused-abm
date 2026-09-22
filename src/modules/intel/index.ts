@@ -24,7 +24,7 @@ export async function runIntelScan(
   orgId: string,
   companyKey: string,
   companyName: string,
-  opts: { window?: IntelWindow; limit?: number } = {},
+  opts: { window?: IntelWindow; limit?: number; keywords?: string } = {},
   onProgress?: (done: number, total: number) => Promise<void>,
 ): Promise<IntelRunResult> {
   const scan = await scanCompanyPosts(orgId, companyKey, companyName, opts, onProgress);

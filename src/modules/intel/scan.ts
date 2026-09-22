@@ -77,7 +77,11 @@ export async function scanCompanyPosts(
   orgId: string,
   companyKey: string,
   companyName: string,
-  opts: { window?: IntelWindow; limit?: number } = {},
+  /** `keywords` searches for something other than the company name while the
+   *  rows still belong to the company — "Allergan restructuring" is a question
+   *  ABOUT Allergan Aesthetics, not a different account. The mention guard
+   *  keeps using the company name, so a post still has to name the company. */
+  opts: { window?: IntelWindow; limit?: number; keywords?: string } = {},
   onProgress?: (done: number, total: number) => Promise<void>,
 ): Promise<IntelScanResult> {
   const name = companyName.trim();
@@ -90,6 +94,7 @@ export async function scanCompanyPosts(
   if (!seat) throw new Error("Connect a LinkedIn account in Settings first.");
 
   const cap = Math.min(opts.limit ?? env.INTEL_POSTS_MAX, env.INTEL_POSTS_MAX);
+  const query = (opts.keywords ?? "").trim() || name;
   const provider = getChannelProvider();
 
   const items: NewsItem[] = [];
@@ -104,7 +109,7 @@ export async function scanCompanyPosts(
     try {
       page = await provider.searchPosts({
         accountId: seat.unipileAccountId,
-        keywords: name,
+        keywords: query,
         datePosted: opts.window ?? "past_month",
         cursor,
         limit: 25,
