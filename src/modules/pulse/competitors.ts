@@ -29,6 +29,11 @@ export const DEFAULT_PEERS = [
   "Crucial Learning", "VitalSmarts", "Wilson Learning", "BetterUp",
   "RHR International", "Hogan Assessments", "Gallup", "Mercer",
   "Heidrick", "Russell Reynolds", "Spencer Stuart", "Egon Zehnder",
+  // Insights Learning & Development, by its full name and its product. Bare
+  // "Insights" is a word people write constantly and would make every account
+  // look contested — the same trap the note above describes.
+  "Insights Learning", "Insights Discovery", "Insights Live",
+  "Hemsley Fraser", "Duke Corporate Education", "Harvard Business Publishing",
 ];
 
 /** RegExp-special characters in a peer name would otherwise be operators —

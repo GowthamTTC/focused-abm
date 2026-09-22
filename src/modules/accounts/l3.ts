@@ -17,6 +17,8 @@ import { companyKey } from "@/modules/radar/score";
 import { meanSentiment, type Band, type Trigger } from "@/modules/pulse/types";
 import { loadAccountMap, mapKeys, type AccountMapRow } from "@/modules/accounts/org-map";
 import { voiceOf } from "@/modules/intel/voice";
+import { competitorHits } from "@/modules/pulse/competitors";
+import type { CompetitorHit } from "@/modules/pulse/types";
 import type { OrgUnit } from "@/db";
 import { desc } from "drizzle-orm";
 
@@ -64,6 +66,18 @@ export interface TopSignal extends SignalCard {
   evidence: string | null;
 }
 
+/** Someone whose own LinkedIn headline says they work at this account. Named
+ *  because they named themselves, in public, in a post this workspace already
+ *  stored — not inferred, not enriched, not bought. It is the only route that
+ *  has produced actual names at an account nobody here is connected to. */
+export interface SignalContact {
+  name: string;
+  role: string;
+  lastPostAt: Date | null;
+  url: string | null;
+  theme: string | null;
+}
+
 export interface L3View {
   companyKey: string;
   companyName: string;
@@ -92,6 +106,8 @@ export interface L3View {
   geo: { country: string | null; located: number; total: number };
   triggers: Trigger[];
   decisionMakers: DecisionMakerRow[];
+  contacts: SignalContact[];
+  competitors: CompetitorHit[];
   refreshedAt: Date | null;
 }
 
@@ -135,6 +151,7 @@ export async function loadL3(
     sentiment: accountSignal.sentiment,
     evidence: accountSignal.evidence,
     companyName: accountSignal.companyName,
+    signalKey: accountSignal.companyKey,
     authorCountry: accountSignal.authorCountry,
     authorLocation: accountSignal.authorLocation,
   }).from(accountSignal).where(and(
@@ -238,6 +255,54 @@ export async function loadL3(
     };
   });
 
+  // Authors whose headline names the employer. Deduped by person, newest post
+  // kept, so a prolific poster is one row rather than five.
+  const byPerson = new Map<string, SignalContact>();
+  for (const sg of allLi) {
+    if (voiceOf(sg.title, sg.companyName ?? companyName, extraAliases) !== "employee") continue;
+    const [namePart, ...rest] = (sg.title ?? "").split(" \u2014 ");
+    const name = namePart.trim();
+    if (!name) continue;
+    const prev = byPerson.get(name.toLowerCase());
+    if (prev && (prev.lastPostAt?.getTime() ?? 0) >= (sg.publishedAt?.getTime() ?? 0)) continue;
+    byPerson.set(name.toLowerCase(), {
+      name,
+      role: rest.join(" \u2014 ").trim(),
+      lastPostAt: sg.publishedAt,
+      url: sg.url,
+      theme: sg.theme,
+    });
+  }
+  const contacts = [...byPerson.values()]
+    .sort((a, b) => (b.lastPostAt?.getTime() ?? 0) - (a.lastPostAt?.getTime() ?? 0));
+
+  // competitorHits reads ONE company key. The signals for an account are spread
+  // across the keys its units are tracked under — Allergan Aesthetics is scanned
+  // as itself — so asking only about the parent key found nothing while the
+  // incumbent sat in the unit's own feed. Ask about every key that actually
+  // holds signals, then merge.
+  const keysWithSignals = [...new Set(signals.map((sg) => sg.signalKey))];
+  const merged = new Map<string, CompetitorHit>();
+  for (const k of keysWithSignals) {
+    // DEFAULT_PEERS deliberately, not settings.peerSignals. That setting is
+    // tuned for matching COMPANY NAMES during classification and carries
+    // category words — "coaching", "leadership development". Matched against
+    // the text of posts they appear constantly and mean nothing: the first run
+    // of this band returned "coaching" as an incumbent, quoting a consultant's
+    // own job title. The curated named-firm list is the one built for text.
+    for (const hit of await competitorHits(orgId, k, companyName, undefined)) {
+      const prev = merged.get(hit.peer);
+      if (!prev) { merged.set(hit.peer, hit); continue; }
+      merged.set(hit.peer, {
+        ...prev,
+        mentions: prev.mentions + hit.mentions,
+        latestAt: (hit.latestAt?.getTime() ?? 0) > (prev.latestAt?.getTime() ?? 0) ? hit.latestAt : prev.latestAt,
+        snippet: (hit.latestAt?.getTime() ?? 0) > (prev.latestAt?.getTime() ?? 0) ? hit.snippet : prev.snippet,
+      });
+    }
+  }
+  const competitors = [...merged.values()].sort((a, b) => b.mentions - a.mentions);
+
   // The company key lives inside payload_json, and matching a JS array against
   // it in SQL binds as a scalar rather than an array. Rather than hand-roll an
   // array literal, take the recent completed runs and pick in JS — there are a
@@ -270,6 +335,8 @@ export async function loadL3(
     linkedin: { tone, gauge, stored: li.length, themes, volume, volumeChangePct, top, insideTone, marketTone },
     changeSignals: news.concat(li.filter((s) => s.theme === "leadership" || s.theme === "restructuring" || s.theme === "channel")).slice(0, 6),
     geo,
+    contacts,
+    competitors,
     triggers,
     decisionMakers,
     refreshedAt: run?.at ?? null,

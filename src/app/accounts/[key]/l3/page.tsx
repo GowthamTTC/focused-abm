@@ -357,6 +357,37 @@ export default async function L3Page({ params, searchParams }: {
             this account, so any path here would be invented — and one invented path
             discredits every real thing on this page.
           </p>
+
+          {v.contacts.length > 0 && (
+            <div className="mt-4 border-t border-[#F2F4F7] pt-3.5">
+              <h3 className="text-[13px] font-semibold">Named in the signal feed</h3>
+              <p className="mt-1 text-[11px] leading-snug text-[#667085]">
+                People whose own LinkedIn headline says they work here. Not enriched and
+                not bought — they said it in public, in a post already stored. This is the
+                only route that has produced real names at this account.
+              </p>
+              <ul className="mt-2.5 space-y-2">
+                {v.contacts.slice(0, 8).map((c) => (
+                  <li key={c.name} className="text-[12px]">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="font-medium text-[#101828]">{c.name}</span>
+                      <span className="shrink-0 text-[10.5px] text-[#98A2B3]">
+                        {c.lastPostAt ? c.lastPostAt.toISOString().slice(0, 10) : ""}
+                      </span>
+                    </div>
+                    {c.role && <div className="text-[11px] leading-snug text-[#667085]">{c.role.slice(0, 74)}</div>}
+                    {c.url && (
+                      <a href={c.url} target="_blank" rel="noreferrer"
+                        className="text-[10.5px] text-[#4F46E5] hover:underline">open their post ↗</a>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              {v.contacts.length > 8 && (
+                <p className="mt-2 text-[11px] text-[#98A2B3]">+ {v.contacts.length - 8} more</p>
+              )}
+            </div>
+          )}
         </section>
 
         <section className={`${CARD} p-5`}>
@@ -438,6 +469,44 @@ export default async function L3Page({ params, searchParams }: {
           )}
         </section>
       </div>
+
+      {/* ── incumbents ── */}
+      <section className={`${CARD} mt-4 p-5`}>
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-[15px] font-semibold">Who else is selling in here</h2>
+          {v.competitors.length > 0 && (
+            <span className="rounded-full bg-[#FEF3F2] px-2.5 py-1 text-[11px] font-medium text-[#B42318]">
+              {v.competitors.length} incumbent{v.competitors.length === 1 ? "" : "s"} seen
+            </span>
+          )}
+        </div>
+        <p className="mt-1 text-[12px] text-[#667085]">
+          Named competitors appearing in this account&apos;s signals. Walking into an
+          incumbent is worth knowing before the first call rather than during it.
+        </p>
+        {v.competitors.length === 0 ? (
+          <p className="mt-3 text-[13px] text-[#667085]">
+            No named competitor found in the stored signals.
+          </p>
+        ) : (
+          <ul className="mt-3 grid gap-2.5 sm:grid-cols-2">
+            {v.competitors.map((c) => (
+              <li key={c.peer} className="rounded-[10px] border border-[#FEE4E2] bg-[#FFFBFA] p-3">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-[13px] font-semibold text-[#B42318]">{c.peer}</span>
+                  <span className="text-[11px] text-[#98A2B3]">
+                    {c.mentions} mention{c.mentions === 1 ? "" : "s"}
+                    {c.latestAt && ` · ${c.latestAt.toISOString().slice(0, 10)}`}
+                  </span>
+                </div>
+                {c.snippet && (
+                  <p className="mt-1.5 text-[11.5px] italic leading-snug text-[#475467]">“{c.snippet.slice(0, 220)}”</p>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {/* ── the play ── */}
       <section className="mt-4 rounded-[14px] border border-[#E9EAEE] bg-[#FAFBFF] p-5">
