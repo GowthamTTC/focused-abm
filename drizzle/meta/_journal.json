@@ -148,6 +148,13 @@
       "when": 1790067113375,
       "tag": "0020_sharp_tyrannus",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1790069812576,
+      "tag": "0021_sloppy_energizer",
+      "breakpoints": true
     }
   ]
 }

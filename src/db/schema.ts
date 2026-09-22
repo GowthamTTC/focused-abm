@@ -460,6 +460,10 @@ export const accountSignal = pgTable("account_signal", {
    *  claim made from these posts can be traced back to the query behind it.
    *  Null on rows stored before this column existed. */
   capturedBy: text("captured_by"),
+  /** The author's own LinkedIn profile. The scan has always seen it and threw
+   *  it away; an export that names a person and cannot link to them is half an
+   *  export. */
+  authorProfileUrl: text("author_profile_url"),
 
   createdAt: ts("created_at").notNull().defaultNow(),
 }, (t) => [

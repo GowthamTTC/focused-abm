@@ -1,0 +1,1 @@
+ALTER TABLE "account_signal" ADD COLUMN "author_profile_url" text;

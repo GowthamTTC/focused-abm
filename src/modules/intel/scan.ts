@@ -157,6 +157,7 @@ export async function scanCompanyPosts(
         authorLocation: where,
         authorCountry: toCountry(where),
         capturedBy: query,
+        authorProfileUrl: p.author.profileUrl ?? null,
       });
       if (items.length >= cap) {
         capped = true;

@@ -84,6 +84,7 @@ export interface VoicePost {
   body: string | null;
   evidence: string | null;
   url: string | null;
+  profileUrl: string | null;
   capturedBy: string | null;
 }
 
@@ -183,6 +184,7 @@ export async function loadL3(
     companyName: accountSignal.companyName,
     signalKey: accountSignal.companyKey,
     capturedBy: accountSignal.capturedBy,
+    authorProfileUrl: accountSignal.authorProfileUrl,
     authorCountry: accountSignal.authorCountry,
     authorLocation: accountSignal.authorLocation,
   }).from(accountSignal).where(and(
@@ -329,6 +331,7 @@ export async function loadL3(
         body: sg.body,
         evidence: sg.evidence,
         url: sg.url,
+        profileUrl: sg.authorProfileUrl,
         capturedBy: sg.capturedBy,
       };
     })

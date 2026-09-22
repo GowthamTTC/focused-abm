@@ -41,6 +41,7 @@ export interface NewsItem {
   authorCountry?: string | null;
   /** The query that surfaced it, for provenance. */
   capturedBy?: string | null;
+  authorProfileUrl?: string | null;
 }
 
 /** A judged signal, as the panel reads it back. */

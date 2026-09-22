@@ -274,6 +274,7 @@ export async function storeSignals(
       authorLocation: it.authorLocation ?? null,
       authorCountry: it.authorCountry ?? null,
       capturedBy: it.capturedBy ?? null,
+      authorProfileUrl: it.authorProfileUrl ?? null,
     }).onConflictDoUpdate({
       target: [accountSignal.orgId, accountSignal.companyKey, accountSignal.sourceId],
       set: {
@@ -289,6 +290,7 @@ export async function storeSignals(
         // The FIRST query to surface a post is the interesting one, so a later
         // scan fills a blank but never overwrites an answer already recorded.
         ...(it.capturedBy ? { capturedBy: sql`coalesce(${accountSignal.capturedBy}, ${it.capturedBy})` } : {}),
+        ...(it.authorProfileUrl ? { authorProfileUrl: it.authorProfileUrl } : {}),
         publishedAt: it.publishedAt,
         // Only wipe the verdict when the words actually changed.
         sentiment: sql`case when ${accountSignal.body} = ${body} then ${accountSignal.sentiment} else null end`,

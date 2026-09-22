@@ -121,6 +121,8 @@ export default async function L3Page({ params, searchParams }: {
               <button className={BTN_GHOST}>↻ Refresh signals</button>
             </form>
           )}
+          <a href={`/api/account-export/${encodeURIComponent(key)}?focus=${encodeURIComponent(focusRaw)}&alias=${encodeURIComponent(sp.alias ?? "")}`}
+            className={BTN_GHOST}>⤓ Export brief</a>
           <Link href={`/intel?c=${encodeURIComponent(focus ? focus.toLowerCase() : key)}&n=${encodeURIComponent(focusUnit?.unit.name ?? v.companyName)}&alias=${encodeURIComponent(sp.alias ?? "")}`}
             className={BTN}>Open signal detail →</Link>
         </div>
