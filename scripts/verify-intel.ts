@@ -26,6 +26,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { db, accountSignal, connectionBatch, channelAccount, org } from "../src/db";
 import { mentionsCompany, scanCompanyPosts } from "../src/modules/intel/scan";
 import { loadIntel } from "../src/modules/intel/query";
+import { companyAliases, voiceOf } from "../src/modules/intel/voice";
 import { loadPulse } from "../src/modules/pulse";
 
 let failures = 0;
@@ -52,6 +53,54 @@ async function main() {
     !mentionsCompany("the and for", "The And Co"));
   check("punctuation and case do not defeat it",
     mentionsCompany("VERIFYALLERGAN's Q3!", NAME));
+
+  // ── whose voice ───────────────────────────────────────────────────
+  const CO = "Allergan Aesthetics";
+  check("a headline naming the employer is inside",
+    voiceOf("Camila Klein — Gerente Nacional de Vendas - Allergan Aesthetics", CO) === "employee");
+  check("a shortened employer name still counts",
+    voiceOf("Paolo Cuccuru — General Manager Italy and Greece - Allergan", CO) === "employee");
+  check("a parent company counts when it is given as an alias",
+    voiceOf("Constantine Vutsas — Sourcing Lead @ AbbVie", CO, ["AbbVie"]) === "employee");
+  check("and does NOT count when it is not",
+    voiceOf("Constantine Vutsas — Sourcing Lead @ AbbVie", CO) === "market");
+  check("a practitioner is market",
+    voiceOf("Noon Yousif — Aesthetic Doctor | DHA Licensed | Dubai", CO) === "market");
+  check("a product-brand fan is market, not staff",
+    voiceOf("Shaye Van Zee — Esthetician | Passionate About SkinMedica & DiamondGlow", CO) === "market");
+  check("the brand's own page is the company talking",
+    voiceOf("Allergan Aesthetics, an AbbVie Company", CO) === "company");
+  check("a company page under a sibling name is still the company",
+    voiceOf("Allergan Medical Institute", CO) === "company");
+  check("a bare personal name is never guessed into the staff list",
+    voiceOf("Jane Doe", CO) === "market");
+  check("an empty author line is market", voiceOf(null, CO) === "market");
+  // A short word from a multi-word name must not become an alias on its own:
+  // "IRA Strategy" must not file every headline containing "IRA" as staff.
+  // The full name still matches, which is why the first assertion is market
+  // and the second is employee.
+  check("a short token from a multi-word name is not an alias",
+    !companyAliases("IRA Strategy").includes("ira")
+    && voiceOf("Someone — Head of IRA reporting", "IRA Strategy") === "market");
+  check("but the full name still matches",
+    voiceOf("Someone — Lead, IRA Strategy", "IRA Strategy") === "employee");
+  // The known ceiling, pinned so it cannot regress silently into a false
+  // positive: LinkedIn headlines often omit the employer, and this one is a
+  // real Allergan Aesthetics leader who reads as market because her headline
+  // never says so. Precision is chosen over recall deliberately.
+  check("a real employee whose headline omits the employer is MISSED, by design",
+    voiceOf("Anna Gamal — Associate Director Human Resources", CO, ["AbbVie"]) === "market");
+  check("aliases include the distinctive first word",
+    companyAliases(CO).includes("allergan"));
+  // The regression that shipped for ten minutes: every token became an alias,
+  // so "Aesthetics" matched every clinic and conference in the industry and
+  // filed strangers as staff. Only the head word is distinctive.
+  check("a category word from the name is NOT an alias",
+    !companyAliases(CO).includes("aesthetics"));
+  check("an unrelated clinic is not filed as staff",
+    voiceOf("Jane Doe — Founder, Harmony Aesthetics Clinic", CO) === "market");
+  check("an unrelated conference page is not filed as the company",
+    voiceOf("Re Gen. Aesthetics", CO) === "market");
 
   // ── a real scan through the mock provider ─────────────────────────
   const [seat] = await db.insert(channelAccount).values({

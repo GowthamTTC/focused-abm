@@ -6,10 +6,16 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db, accountSignal, job } from "@/db";
 import { meanSentiment, type Band, type SignalRow } from "@/modules/pulse/types";
+import { voiceOf, type Voice } from "@/modules/intel/voice";
 
 /** How many posts the panel quotes back. Enough to read the room, few enough
  *  that each one has to have earned its place. */
 export const TOP_POSTS = 8;
+
+/** A stored post as this feature reads it. The body comes along because an
+ *  Inside post is often a quiet role change with no quotable opinion in it —
+ *  there is nothing for the judge to pull, and the post is still the news. */
+export type IntelPost = SignalRow & { body: string | null };
 
 export interface ThemeRow {
   theme: string;
@@ -18,16 +24,31 @@ export interface ThemeRow {
   score: number | null;
 }
 
+/** One conversation, scored on its own. The counts are reported beside the
+ *  score because a +40 drawn from two posts is a different claim from a +40
+ *  drawn from thirty, and a band that hides that is the one misleading number
+ *  this feature could ship. */
+export interface VoiceBand {
+  voice: Voice;
+  tone: Band;
+  stored: number;
+  scored: number;
+  top: IntelPost[];
+}
+
 export interface IntelView {
   companyKey: string;
   companyName: string;
   /** The headline number: tone across every scorable post, age-decayed. */
   tone: Band;
   /** Everything stored for this company, newest first. */
-  posts: SignalRow[];
+  posts: IntelPost[];
   /** The posts worth reading — strongest opinions, each carrying its quote. */
-  top: SignalRow[];
+  top: IntelPost[];
   themes: ThemeRow[];
+  /** The same posts split by whose voice they are, each scored separately.
+   *  Ordered inside → company → market: the half a seller can act on first. */
+  voices: VoiceBand[];
   stored: number;
   judged: number;
   scored: number;
@@ -38,6 +59,9 @@ export async function loadIntel(
   orgId: string,
   companyKey: string,
   companyName: string,
+  /** Other names that mean this employer in a headline — a parent company, a
+   *  former name. Without them, staff who write "@AbbVie" read as market. */
+  extraAliases: string[] = [],
 ): Promise<IntelView> {
   const [posts, lastRun] = await Promise.all([
     db.select({
@@ -90,6 +114,25 @@ export async function loadIntel(
       || (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0))
     .slice(0, TOP_POSTS);
 
+  const voices: VoiceBand[] = (["employee", "company", "market"] as Voice[]).map((voice) => {
+    const mine = posts.filter((p) => voiceOf(p.title, companyName, extraAliases) === voice);
+    return {
+      voice,
+      tone: meanSentiment(mine.map((p) => ({ sentiment: p.sentiment, at: p.publishedAt }))),
+      stored: mine.length,
+      scored: mine.filter((p) => p.sentiment !== null).length,
+      // Inside voices are ranked by recency, not by strength of feeling: a
+      // quiet "I've moved teams" is the whole point here, and sorting by
+      // loudness would bury it under whoever was most enthusiastic.
+      top: (voice === "employee"
+        ? [...mine].sort((a, b) => (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0))
+        : [...mine]
+            .filter((p) => p.sentiment !== null && p.evidence)
+            .sort((a, b) => Math.abs(b.sentiment ?? 0) - Math.abs(a.sentiment ?? 0))
+      ).slice(0, TOP_POSTS),
+    };
+  });
+
   return {
     companyKey,
     companyName,
@@ -97,6 +140,7 @@ export async function loadIntel(
     posts,
     top,
     themes,
+    voices,
     stored: posts.length,
     judged: posts.filter((p) => p.judgedAt !== null).length,
     scored: posts.filter((p) => p.sentiment !== null).length,

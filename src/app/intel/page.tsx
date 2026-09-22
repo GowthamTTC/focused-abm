@@ -1,5 +1,6 @@
 import { Shell, requirePage } from "@/app/shell";
 import { loadIntel, scannedCompanies } from "@/modules/intel/query";
+import { VOICE_BLURB, VOICE_LABEL } from "@/modules/intel/voice";
 import { startIntelScan } from "./actions";
 
 const CARD = "rounded-[12px] border border-[#E4E7EC] bg-white p-4";
@@ -23,14 +24,18 @@ function toneWord(score: number | null): string {
 }
 
 export default async function IntelPage({ searchParams }: {
-  searchParams: Promise<{ c?: string; n?: string; queued?: string; err?: string }>;
+  searchParams: Promise<{ c?: string; n?: string; queued?: string; err?: string; alias?: string }>;
 }) {
   const user = await requirePage();
   const sp = await searchParams;
   const companies = await scannedCompanies(user.orgId);
   const key = (sp.c ?? companies[0]?.key ?? "").trim();
   const name = (sp.n ?? companies.find((c) => c.key === key)?.name ?? "").trim();
-  const view = key ? await loadIntel(user.orgId, key, name || key) : null;
+  // Parent and former names, comma separated. Staff who write "@AbbVie" rather
+  // than the BU read as market without this, and which names count is a fact
+  // about the account that only the person looking at it knows.
+  const aliases = (sp.alias ?? "").split(",").map((a) => a.trim()).filter(Boolean);
+  const view = key ? await loadIntel(user.orgId, key, name || key, aliases) : null;
 
   return (
     <Shell user={user} active="intel">
@@ -87,6 +92,82 @@ export default async function IntelPage({ searchParams }: {
           </p>
         </section>
       ) : (
+        <>
+        <section className="mt-5 grid gap-3 sm:grid-cols-3">
+          {view.voices.map((v) => (
+            <div key={v.voice} className={CARD}>
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-[13px] font-medium">{VOICE_LABEL[v.voice]}</span>
+                <span className="text-[22px] font-semibold leading-none" style={{ color: toneColor(v.tone.score) }}>
+                  {v.tone.score === null ? "—" : v.tone.score > 0 ? `+${v.tone.score}` : v.tone.score}
+                </span>
+              </div>
+              <p className="mt-1 text-[11px] text-[#667085]">{VOICE_BLURB[v.voice]}</p>
+              <p className="mt-2 text-[12px] text-[#475467]">
+                {v.stored} post{v.stored === 1 ? "" : "s"} · {v.scored} scored
+              </p>
+            </div>
+          ))}
+        </section>
+
+        {(() => {
+          const inside = view.voices.find((v) => v.voice === "employee");
+          if (!inside || inside.stored === 0) {
+            return (
+              <section className={`${CARD} mt-5`}>
+                <h2 className="text-[15px] font-semibold">Inside the company</h2>
+                <p className="mt-2 text-[13px] text-[#667085]">
+                  Nobody in this scan wrote a headline naming the company. Staff
+                  often leave the employer out of a headline, so add parent or
+                  former names with <code>?alias=</code> and reload before
+                  concluding they are quiet.
+                </p>
+              </section>
+            );
+          }
+          return (
+            <section className={`${CARD} mt-5`}>
+              <h2 className="text-[15px] font-semibold">
+                Inside the company
+                <span className="ml-2 text-[12px] font-normal text-[#667085]">
+                  newest first — a quiet role change is the point, so this is not ranked by loudness
+                </span>
+              </h2>
+              <ul className="mt-3 space-y-3">
+                {inside.top.map((p) => (
+                  <li key={p.id} className="rounded-[10px] border border-[#EAECF0] p-3">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <span className="text-[13px] font-medium">{p.title ?? "LinkedIn post"}</span>
+                      <span className="shrink-0 text-[12px]">
+                        {p.theme && <span className="capitalize text-[#98A2B3]">{p.theme}</span>}
+                        {p.sentiment !== null && (
+                          <span className="ml-2 font-medium" style={{ color: toneColor(p.sentiment) }}>
+                            {p.sentiment > 0 ? `+${p.sentiment}` : p.sentiment}
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                    <p className="mt-1.5 text-[13px] text-[#344054]">
+                      {p.evidence ? <span className="italic">“{p.evidence}”</span> : (p.body ?? "").slice(0, 260)}
+                    </p>
+                    <p className="mt-1.5 text-[11px] text-[#98A2B3]">
+                      {p.publishedAt ? p.publishedAt.toISOString().slice(0, 10) : "undated"}
+                      {p.url && (
+                        <>
+                          {" · "}
+                          <a href={p.url} target="_blank" rel="noreferrer" className="text-[#263BAA] hover:underline">
+                            open on LinkedIn
+                          </a>
+                        </>
+                      )}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          );
+        })()}
+
         <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_1.4fr]">
           <div className="space-y-5">
             <section className={CARD}>
@@ -182,6 +263,7 @@ export default async function IntelPage({ searchParams }: {
             )}
           </section>
         </div>
+        </>
       )}
     </Shell>
   );
