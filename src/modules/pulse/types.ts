@@ -39,6 +39,8 @@ export interface NewsItem {
   /** Only LinkedIn items carry this: where the author says they are. */
   authorLocation?: string | null;
   authorCountry?: string | null;
+  /** The query that surfaced it, for provenance. */
+  capturedBy?: string | null;
 }
 
 /** A judged signal, as the panel reads it back. */

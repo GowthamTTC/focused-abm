@@ -70,6 +70,31 @@ export interface TopSignal extends SignalCard {
  *  because they named themselves, in public, in a post this workspace already
  *  stored — not inferred, not enriched, not bought. It is the only route that
  *  has produced actual names at an account nobody here is connected to. */
+/** A post by someone at the account or by the company itself, with the search
+ *  phrase that surfaced it. The provenance is the point: a claim made from
+ *  these posts can be traced back to how they were looked for. */
+export interface VoicePost {
+  id: string;
+  who: string;
+  role: string;
+  voice: "employee" | "company";
+  publishedAt: Date | null;
+  theme: string | null;
+  sentiment: number | null;
+  body: string | null;
+  evidence: string | null;
+  url: string | null;
+  capturedBy: string | null;
+}
+
+/** One search this account has been read with, and what it returned. */
+export interface QueryRun {
+  keywords: string;
+  seen: number;
+  stored: number;
+  at: Date | null;
+}
+
 export interface SignalContact {
   name: string;
   role: string;
@@ -107,6 +132,11 @@ export interface L3View {
   triggers: Trigger[];
   decisionMakers: DecisionMakerRow[];
   contacts: SignalContact[];
+  /** Leadership and company posts, newest first — the evidence a reader is
+   *  asked to look at rather than take on trust. */
+  voicePosts: VoicePost[];
+  /** Every phrase this account has been searched with, and its yield. */
+  queries: QueryRun[];
   competitors: CompetitorHit[];
   refreshedAt: Date | null;
 }
@@ -152,6 +182,7 @@ export async function loadL3(
     evidence: accountSignal.evidence,
     companyName: accountSignal.companyName,
     signalKey: accountSignal.companyKey,
+    capturedBy: accountSignal.capturedBy,
     authorCountry: accountSignal.authorCountry,
     authorLocation: accountSignal.authorLocation,
   }).from(accountSignal).where(and(
@@ -276,6 +307,30 @@ export async function loadL3(
   const contacts = [...byPerson.values()]
     .sort((a, b) => (b.lastPostAt?.getTime() ?? 0) - (a.lastPostAt?.getTime() ?? 0));
 
+  // Leadership and company voices only. The market half of the feed is
+  // practitioners talking about products, and it is not what an account plan
+  // is arguing from.
+  const voicePosts: VoicePost[] = allLi
+    .map((sg) => ({ sg, voice: voiceOf(sg.title, sg.companyName ?? companyName, extraAliases) }))
+    .filter((x) => x.voice === "employee" || x.voice === "company")
+    .map(({ sg, voice }) => {
+      const [namePart, ...rest] = (sg.title ?? "").split(" \u2014 ");
+      return {
+        id: sg.id,
+        who: namePart.trim(),
+        role: rest.join(" \u2014 ").trim(),
+        voice: voice as "employee" | "company",
+        publishedAt: sg.publishedAt,
+        theme: sg.theme,
+        sentiment: sg.sentiment,
+        body: sg.body,
+        evidence: sg.evidence,
+        url: sg.url,
+        capturedBy: sg.capturedBy,
+      };
+    })
+    .sort((a, b) => (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0));
+
   // competitorHits reads ONE company key. The signals for an account are spread
   // across the keys its units are tracked under — Allergan Aesthetics is scanned
   // as itself — so asking only about the parent key found nothing while the
@@ -318,6 +373,26 @@ export async function loadL3(
   });
   const triggers = ((run?.payload as { result?: { triggers?: Trigger[] } })?.result?.triggers) ?? [];
 
+  // Every search this account has been read with. Shown so the reader can see
+  // what was asked as well as what came back — including the phrases that
+  // returned nothing, which is itself a finding.
+  const queries: QueryRun[] = runs
+    .filter((r) => {
+      const k = (r.payload as { companyKey?: string })?.companyKey;
+      return typeof k === "string" && unitKeys.has(k);
+    })
+    .map((r) => {
+      const pl = r.payload as { keywords?: string; companyName?: string; result?: { seen?: string | number; stored?: string | number } };
+      return {
+        keywords: pl.keywords ?? pl.companyName ?? "",
+        seen: Number(pl.result?.seen ?? 0),
+        stored: Number(pl.result?.stored ?? 0),
+        at: r.at,
+      };
+    })
+    .filter((q) => q.keywords)
+    .sort((a, b) => b.stored - a.stored || b.seen - a.seen);
+
   return {
     companyKey: key,
     companyName,
@@ -336,6 +411,8 @@ export async function loadL3(
     changeSignals: news.concat(li.filter((s) => s.theme === "leadership" || s.theme === "restructuring" || s.theme === "channel")).slice(0, 6),
     geo,
     contacts,
+    voicePosts,
+    queries,
     competitors,
     triggers,
     decisionMakers,

@@ -313,6 +313,92 @@ export default async function L3Page({ params, searchParams }: {
         </section>
       </div>
 
+      {/* ── the evidence ── */}
+      <section className={`${CARD} mt-4 p-5`}>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <div>
+            <h2 className="text-[15px] font-semibold">Leadership &amp; company posts</h2>
+            <p className="mt-1 text-[12px] text-[#667085]">
+              Posts by people who say they work here, and by the company&apos;s own pages —
+              the market half of the feed is left out. Each one carries the phrase that
+              surfaced it, so any claim made from it can be traced back to the search.
+            </p>
+          </div>
+          <span className="rounded-full bg-[#EEF4FF] px-2.5 py-1 text-[11px] font-medium text-[#4F46E5]">
+            {v.voicePosts.length} posts
+          </span>
+        </div>
+        {v.voicePosts.length === 0 ? (
+          <p className="mt-3 text-[13px] text-[#667085]">Nothing stored from inside the company yet.</p>
+        ) : (
+          <ul className="mt-3.5 grid gap-2.5 lg:grid-cols-2">
+            {v.voicePosts.slice(0, 12).map((p) => (
+              <li key={p.id} className="rounded-[10px] border border-[#EDEFF3] p-3.5">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <span className="text-[13px] font-semibold text-[#101828]">{p.who}</span>
+                  <span className="shrink-0 text-[10.5px] text-[#98A2B3]">
+                    {p.voice === "company" ? "Company page" : "Employee"}
+                    {p.publishedAt && ` · ${p.publishedAt.toISOString().slice(0, 10)}`}
+                  </span>
+                </div>
+                {p.role && <div className="text-[11px] leading-snug text-[#667085]">{p.role.slice(0, 78)}</div>}
+                <p className="mt-2 text-[12px] leading-relaxed text-[#344054]">
+                  {p.evidence ? <span className="italic">&ldquo;{p.evidence.slice(0, 210)}&rdquo;</span> : (p.body ?? "").slice(0, 210)}
+                </p>
+                <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                  {p.theme && (
+                    <span className="rounded bg-[#F2F4F7] px-1.5 py-0.5 text-[10px] capitalize text-[#475467]">{p.theme}</span>
+                  )}
+                  {p.sentiment !== null && (
+                    <span className="text-[10.5px] font-medium" style={{ color: toneColor(p.sentiment) }}>
+                      {p.sentiment > 0 ? `+${p.sentiment}` : p.sentiment}
+                    </span>
+                  )}
+                  <span className="rounded border border-[#E4E7EC] px-1.5 py-0.5 text-[10px] text-[#667085]">
+                    found via: {p.capturedBy ?? "company name scan"}
+                  </span>
+                  {p.url && (
+                    <a href={p.url} target="_blank" rel="noreferrer"
+                      className="text-[10.5px] text-[#4F46E5] hover:underline">open on LinkedIn ↗</a>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+        {v.voicePosts.length > 12 && (
+          <p className="mt-2.5 text-[11px] text-[#98A2B3]">+ {v.voicePosts.length - 12} more stored</p>
+        )}
+
+        {v.queries.length > 0 && (
+          <div className="mt-4 border-t border-[#F2F4F7] pt-3.5">
+            <h3 className="text-[13px] font-semibold">How these were found</h3>
+            <p className="mt-1 text-[11.5px] text-[#667085]">
+              Every phrase this account has been searched with. The ones that returned
+              nothing are listed too — a search that finds no restructuring is a finding,
+              not a gap.
+            </p>
+            <ul className="mt-2.5 flex flex-wrap gap-1.5">
+              {v.queries.map((q) => (
+                <li key={q.keywords + String(q.at)}
+                  className={`rounded-[7px] border px-2 py-1 text-[11px] ${
+                    q.stored > 0
+                      ? "border-[#ABEFC6] bg-[#F6FEF9] text-[#027A48]"
+                      : "border-[#E4E7EC] bg-[#FAFBFC] text-[#98A2B3]"
+                  }`}>
+                  {q.keywords}
+                  <span className="ml-1.5 opacity-70">{q.stored}/{q.seen}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-[10.5px] text-[#98A2B3]">
+              kept / returned. A post is kept only when it names the company, so a large
+              gap between the two is the guard doing its job.
+            </p>
+          </div>
+        )}
+      </section>
+
       {/* ── people · posts · triggers ── */}
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
         <section className={`${CARD} p-5`}>

@@ -156,6 +156,7 @@ export async function scanCompanyPosts(
         publishedAt: when && !Number.isNaN(when.getTime()) ? when : null,
         authorLocation: where,
         authorCountry: toCountry(where),
+        capturedBy: query,
       });
       if (items.length >= cap) {
         capped = true;

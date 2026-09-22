@@ -455,6 +455,11 @@ export const accountSignal = pgTable("account_signal", {
    *  that the tool cannot tell. */
   authorLocation: text("author_location"),
   authorCountry: text("author_country"),
+  /** The search phrase that first surfaced this row. Provenance, so a reader
+   *  can be told not just what was found but how it was looked for — and so a
+   *  claim made from these posts can be traced back to the query behind it.
+   *  Null on rows stored before this column existed. */
+  capturedBy: text("captured_by"),
 
   createdAt: ts("created_at").notNull().defaultNow(),
 }, (t) => [
