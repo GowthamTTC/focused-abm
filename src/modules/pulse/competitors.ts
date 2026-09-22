@@ -44,6 +44,19 @@ function mentions(text: string, peer: string): boolean {
   return new RegExp(`\\b${escapeRe(peer)}\\b`, "i").test(text);
 }
 
+/** The sentence the peer name sits in, collapsed and trimmed.
+ *
+ *  Deliberately the sentence rather than radar's flat 180 characters from the
+ *  start of the post: that band quotes the whole opening, which here would
+ *  often be about something else entirely and would not show the match. */
+function sentenceAround(text: string, peer: string): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  const re = new RegExp(`[^.!?]*\\b${escapeRe(peer)}\\b[^.!?]*`, "i");
+  const m = flat.match(re);
+  const out = (m?.[0] ?? flat).trim();
+  return out.length > 200 ? `${out.slice(0, 197)}…` : out;
+}
+
 export async function competitorHits(
   orgId: string,
   key: string,
@@ -71,17 +84,21 @@ export async function competitorHits(
     accountPosts(orgId, key, since),
   ]);
 
-  const hits = new Map<string, { n: number; latest: Date | null }>();
-  const record = (peer: string, at: Date | null) => {
-    const cur = hits.get(peer) ?? { n: 0, latest: null };
+  const hits = new Map<string, { n: number; latest: Date | null; snippet: string }>();
+  const record = (peer: string, at: Date | null, text: string) => {
+    const cur = hits.get(peer) ?? { n: 0, latest: null, snippet: "" };
     cur.n += 1;
+    // Keep the NEWEST hit's snippet, matching how radar/mentions.ts picks its
+    // best hit: the current evidence is what a reader wants to see, not the
+    // first thing ever found.
+    if (!cur.snippet || (at && (!cur.latest || at > cur.latest))) cur.snippet = sentenceAround(text, peer);
     if (at && (!cur.latest || at > cur.latest)) cur.latest = at;
     hits.set(peer, cur);
   };
 
   for (const s of signals) {
     const text = `${s.title ?? ""}\n${s.body ?? ""}`;
-    for (const peer of list) if (mentions(text, peer)) record(peer, s.at);
+    for (const peer of list) if (mentions(text, peer)) record(peer, s.at, text);
   }
   for (const p of posts) {
     // No test that the post names the employer. It was there at first, and it
@@ -91,11 +108,11 @@ export async function competitorHits(
     // they talk about their week. Requiring it meant an incumbent could run a
     // session with the leadership team, someone could post about it, and the
     // band would still read "none".
-    for (const peer of list) if (mentions(p.text, peer)) record(peer, p.at);
+    for (const peer of list) if (mentions(p.text, peer)) record(peer, p.at, p.text);
   }
 
   return [...hits.entries()]
-    .map(([peer, v]) => ({ peer, mentions: v.n, latestAt: v.latest }))
+    .map(([peer, v]) => ({ peer, mentions: v.n, latestAt: v.latest, snippet: v.snippet }))
     .sort((a, b) => b.mentions - a.mentions);
 }
 

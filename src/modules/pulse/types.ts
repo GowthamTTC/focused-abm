@@ -75,6 +75,18 @@ export interface CompetitorHit {
   peer: string;
   mentions: number;
   latestAt: Date | null;
+  /** The sentence the match was found in.
+   *
+   *  "Korn Ferry (1)" with nothing behind it is exactly the black box the daily
+   *  invariant forbids — the reader cannot tell a real incumbent from the word
+   *  turning up in an unrelated sentence, and has no way to check. Radar's
+   *  MentionHit has carried a snippet for this reason since it shipped; this
+   *  band went out without one and should not have.
+   *
+   *  A quote from a post is the author's own words, not an identification of
+   *  them, so it stays inside §0 — but keep it to the sentence, since a longer
+   *  excerpt starts carrying enough context to say who wrote it. */
+  snippet: string;
 }
 
 /** A trigger is a theme at a company and the offer it opens. There is

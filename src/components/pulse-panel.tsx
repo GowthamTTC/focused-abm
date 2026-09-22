@@ -114,9 +114,23 @@ export function PulsePanel({ pulse, domains }: { pulse: AccountPulse; domains: n
       {pulse.competitors.length > 0 && (
         <div className="mt-4">
           <p className="text-[11px] uppercase tracking-wider text-[#98A2B3]">Also seen here</p>
-          <p className="mt-1 text-[12px] text-[#475467]">
-            {pulse.competitors.map((c) => `${c.peer} (${c.mentions})`).join(" · ")}
-          </p>
+          {/* The quote, not just the count. A bare "Korn Ferry (1)" cannot be
+              checked, and an incumbent is too consequential a claim to make
+              without showing the sentence it rests on. */}
+          <ul className="mt-1 space-y-1.5">
+            {pulse.competitors.map((c) => (
+              <li key={c.peer} className="text-[12px] leading-5">
+                <span className="font-medium text-[#101828]">{c.peer}</span>
+                <span className={MUTED}>
+                  {" "}· {c.mentions} mention{c.mentions === 1 ? "" : "s"}
+                  {c.latestAt ? ` · ${ago(c.latestAt)}` : ""}
+                </span>
+                {c.snippet && (
+                  <p className="mt-0.5 text-[#475467]">&ldquo;{c.snippet}&rdquo;</p>
+                )}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
