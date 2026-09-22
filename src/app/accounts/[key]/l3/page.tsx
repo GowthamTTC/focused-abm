@@ -61,7 +61,16 @@ export default async function L3Page({ params, searchParams }: {
     );
   }
 
-  const treeNodes = v.units.slice(0, 9).map((u) => ({
+  // The focused unit is the point of the diagram, so it is placed first and can
+  // never be cut by the cap. Units are stored engaged-first, so without this the
+  // tree showed eight pockets and left the whitespace unit being investigated
+  // off the chart entirely.
+  const TREE_MAX = 8;
+  const focusFirst = [
+    ...v.units.filter((u) => u.unit.name.toLowerCase() === focus.toLowerCase()),
+    ...v.units.filter((u) => u.unit.name.toLowerCase() !== focus.toLowerCase()),
+  ];
+  const treeNodes = focusFirst.slice(0, TREE_MAX).map((u) => ({
     name: u.unit.name,
     state: (u.unit.name.toLowerCase() === focus.toLowerCase()
       ? "focus"
@@ -182,9 +191,9 @@ export default async function L3Page({ params, searchParams }: {
             </div>
           </div>
           <OrgTree root={v.companyName} nodes={treeNodes} />
-          {v.units.length > 9 && (
+          {v.units.length > TREE_MAX && (
             <p className="mt-3 text-center text-[11px] text-[#98A2B3]">
-              + {v.units.length - 9} further functions mapped, {v.counts.whitespace} of {v.counts.mapped} with no engagement
+              + {v.units.length - TREE_MAX} further functions mapped, {v.counts.whitespace} of {v.counts.mapped} with no engagement
             </p>
           )}
         </section>

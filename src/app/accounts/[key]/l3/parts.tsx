@@ -13,14 +13,18 @@ export function HalfGauge({ value, color, big, small }: {
   const pct = value === null ? 0 : Math.max(0, Math.min(100, value));
   const a = Math.PI * (1 - pct / 100);
   const x = cx + r * Math.cos(a), y = cy - r * Math.sin(a);
-  const arc = (sx: number, sy: number, ex: number, ey: number, large = 0) =>
-    `M ${sx} ${sy} A ${r} ${r} 0 ${large} 1 ${ex} ${ey}`;
+  // large-arc-flag is ALWAYS 0 here: the track is exactly 180 degrees and the
+  // value arc is never more, so asking for the large arc makes SVG draw the
+  // complement — the dial then renders as disconnected slivers on the wrong
+  // side, which is what it did.
+  const arc = (sx: number, sy: number, ex: number, ey: number) =>
+    `M ${sx} ${sy} A ${r} ${r} 0 0 1 ${ex} ${ey}`;
   return (
     <div className="flex flex-col items-center">
       <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden>
-        <path d={arc(cx - r, cy, cx + r, cy, 1)} fill="none" stroke="#EDEFF3" strokeWidth="14" strokeLinecap="round" />
+        <path d={arc(cx - r, cy, cx + r, cy)} fill="none" stroke="#EDEFF3" strokeWidth="14" strokeLinecap="round" />
         {value !== null && (
-          <path d={arc(cx - r, cy, x, y, pct > 50 ? 1 : 0)} fill="none" stroke={color} strokeWidth="14" strokeLinecap="round" />
+          <path d={arc(cx - r, cy, x, y)} fill="none" stroke={color} strokeWidth="14" strokeLinecap="round" />
         )}
         <text x={cx} y={cy - 24} textAnchor="middle" style={{ fontSize: 30, fontWeight: 600 }} className="fill-[#101828]">
           {value === null ? "—" : value}
