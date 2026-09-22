@@ -39,6 +39,25 @@ Allergan Aesthetics | Allergan, Botox, Juvederm, SkinMedica, DiamondGlow
 Established Brands
 Virology
 
+# US subsidiaries and acquired operating companies. Public knowledge, assembled
+# rather than verified against filings, and current only to early 2026 — anything
+# acquired since is missing. Correct it in the map editor.
+Pharmacyclics | Imbruvica
+Cerevel Therapeutics | Cerevel
+ImmunoGen | Elahere
+Stemcentrx
+Soliton
+Syndesi Therapeutics | Syndesi
+DJS Antibodies
+Landos Biopharma | Landos
+Aliada Therapeutics | Aliada
+Capstan Therapeutics | Capstan
+Zeltiq Aesthetics | Zeltiq, CoolSculpting
+SkinMedica
+Allergan Medical Institute | AMI
+Allergan Eye Care | Refresh, Restasis
+Natrelle
+
 # Functions
 Regulatory Affairs
 Quality Assurance

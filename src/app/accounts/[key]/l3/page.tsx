@@ -69,7 +69,7 @@ export default async function L3Page({ params, searchParams }: {
   // exists to say, and the grey legend entry never appeared at all. The order
   // is the focus, then everything with no engagement, then the pockets; the cap
   // is high enough that the balance on screen is the balance in the account.
-  const TREE_MAX = 18;
+  const TREE_MAX = 26;
   const isFocus = (n: string) => n.toLowerCase() === focus.toLowerCase();
   const ordered = [
     ...v.units.filter((u) => isFocus(u.unit.name)),
@@ -177,32 +177,8 @@ export default async function L3Page({ params, searchParams }: {
         </div>
       </section>
 
-      {/* ── footprint + org tree ── */}
-      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_1.45fr]">
-        <section className={`${CARD} p-5`}>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-[15px] font-semibold">Ariel footprint inside {v.companyName}</h2>
-            <span className="rounded-full bg-[#ECFDF3] px-2.5 py-1 text-[11px] font-medium text-[#027A48]">
-              {v.counts.pockets} active pockets
-            </span>
-          </div>
-          <p className="mt-1 text-[12px] text-[#667085]">
-            Organically landed business areas — asserted by the team, not evidenced by
-            anyone in this workspace&apos;s network.
-          </p>
-          <ul className="mt-3.5 flex flex-wrap gap-2">
-            {v.footprint.map((u) => (
-              <li key={u.name}
-                className="rounded-[8px] border border-[#D3F8DF] bg-[#F6FEF9] px-2.5 py-2 text-[12px] font-medium text-[#027A48]">
-                ✓ {u.name}
-              </li>
-            ))}
-            {v.footprint.length === 0 && (
-              <li className="text-[13px] text-[#667085]">None marked — star units with <code>*</code> in the map editor.</li>
-            )}
-          </ul>
-        </section>
-
+      {/* ── org tree ── */}
+      <div className="mt-4">
         <section className={`${CARD} p-5`}>
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
@@ -497,7 +473,7 @@ export default async function L3Page({ params, searchParams }: {
       </section>
 
       {/* ── people · posts · triggers ── */}
-      <div className="mt-4 grid gap-4 lg:grid-cols-3">
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <section className={`${CARD} p-5`}>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-[15px] font-semibold">Target decision-makers</h2>
@@ -615,42 +591,6 @@ export default async function L3Page({ params, searchParams }: {
           )}
         </section>
 
-        <section className={`${CARD} p-5`}>
-          <h2 className="text-[15px] font-semibold">Recommended pitch triggers</h2>
-          {v.triggers.length === 0 ? (
-            <div className="mt-3 rounded-[10px] border border-[#FEDF89] bg-[#FFFCF5] p-3.5">
-              <p className="text-[13px] font-semibold text-[#B54708]">No trigger qualified.</p>
-              <p className="mt-1.5 text-[11.5px] leading-relaxed text-[#667085]">
-                The model read every stored signal against this workspace&apos;s six offers
-                and returned nothing — twice, once on all 61 posts and once on the 11 by
-                people who work there. Its test is whether the same sentence could be
-                written about any company in the industry; “new leaders, so they need
-                communication support” fails it.
-              </p>
-              <p className="mt-2 text-[11.5px] leading-relaxed text-[#667085]">
-                Nothing is shown rather than something generic. A padded list is believed
-                once, and then the real trigger is not believed at all.
-              </p>
-            </div>
-          ) : (
-            <ul className="mt-3 space-y-3">
-              {v.triggers.map((t, i) => (
-                <li key={i} className="border-b border-[#F2F4F7] pb-3 last:border-0 last:pb-0">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-[12.5px] font-semibold capitalize">{t.theme}</span>
-                    <Meter value={t.confidence} color="#12B76A" />
-                  </div>
-                  <p className="mt-1 text-[11.5px] leading-snug text-[#475467]">{t.why}</p>
-                  {t.serviceSlug && (
-                    <span className="mt-1.5 inline-block rounded bg-[#EEF4FF] px-1.5 py-0.5 text-[10.5px] text-[#4F46E5]">
-                      {t.serviceSlug}
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
       </div>
 
       {/* ── incumbents ── */}
