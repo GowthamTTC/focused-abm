@@ -44,6 +44,7 @@ export const KIND_LABEL: Record<string, string> = {
   event_scan: "Event scan",
   post_judge: "Reading posts",
   event_extended: "Event search",
+  account_pulse: "Reading an account",
 };
 
 const NAV: { section: string; items: [key: string, href: string, label: string, tip: string][] }[] = [

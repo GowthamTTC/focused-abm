@@ -8,6 +8,9 @@ import {
   toggleShortlist,
 } from "@/modules/accounts/shortlist";
 import { audit } from "@/lib/security/audit";
+import { enqueue } from "@/jobs/runner";
+import { db, job } from "@/db";
+import { and, eq, inArray } from "drizzle-orm";
 
 function accountsReturn(opts: { view?: string; a?: string; extra?: Record<string, string> }) {
   const qs = new URLSearchParams();
@@ -68,4 +71,26 @@ export async function enrichThisPerson(connId: string, key: string, view: string
     a: key,
     extra: { enriched: ok ? "1" : "0", p: connId },
   }));
+}
+
+/** Queue a Pulse refresh for one account.
+ *
+ *  Shortlisting first is not a convenience: a refresh fetches the web and makes
+ *  two model calls, so it should follow a deliberate act rather than a stray
+ *  click on a list of several thousand companies. Starring is that act, and
+ *  enrichThisAccount above already sets the same precedent.
+ */
+export async function refreshAccountPulse(key: string, name: string, view: string) {
+  const user = await requireUser();
+  await toggleShortlist(user.orgId, key, name, true);
+  // One at a time, workspace-wide. The queue is shared and a Pulse run is short,
+  // so a queue of them would mostly be a way to spend the model budget by
+  // holding down a button.
+  const [busy] = await db.select({ id: job.id }).from(job)
+    .where(and(eq(job.orgId, user.orgId), inArray(job.status, ["queued", "running", "stopping"])))
+    .limit(1);
+  if (busy) redirect(accountsReturn({ view, a: key, extra: { pulse: "busy" } }));
+  await enqueue(user.orgId, "account_pulse", { companyKey: key, companyName: name });
+  await audit(user.orgId, user.email, "pulse.refresh", { key });
+  redirect(accountsReturn({ view, a: key, extra: { pulse: "queued" } }));
 }

@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db, channelAccount, service } from "@/db";
 import { unipileConfigured } from "@/lib/env";
 import { Shell, requirePage } from "@/app/shell";
-import { claimLinkedInSeats, disconnect, linkUnipileAccountId, refreshStatus, saveClassifyCap, saveEnrichLimit, saveCatchAll, savePostScanCap, saveRanking, saveSeller, saveSignals, scanVoice, startConnect } from "./actions";
+import { claimLinkedInSeats, disconnect, linkUnipileAccountId, refreshStatus, saveClassifyCap, saveEnrichLimit, saveCatchAll, savePostScanCap, savePulseDomains, saveRanking, saveSeller, saveSignals, scanVoice, startConnect } from "./actions";
 import { DEFAULT_OFF_ICP_TITLE_SIGNALS, DEFAULT_PEER_COMPANY_SIGNALS } from "@/modules/matching/rule-pass";
 import { DEFAULT_FUNCTION_TERMS } from "@/modules/scoring/rank";
 import { CLASSIFY_CAP_OPTIONS, ENRICH_LIMIT_OPTIONS, getOrgSettings } from "@/modules/settings/org-settings";
@@ -335,6 +335,29 @@ export default async function SettingsPage({ searchParams }: {
           final say. Keep them describing <strong>your</strong> market — the defaults describe a
           marketing agency&apos;s competitors and will discard good prospects if that is not you.
         </p>
+        <form action={savePulseDomains} className="mt-6 border-t border-[#EEF1F8] pt-5">
+          <label className="block text-xs font-semibold uppercase tracking-wide text-[#98A2B3]">
+            News domains for Account Pulse
+          </label>
+          <p className="mt-1 text-xs text-[#98A2B3]">
+            One hostname per line. Pulse fetches company news only from these — there is no
+            general crawler and no default list, because the trade press for one industry is
+            not the trade press for another. Leave it empty and the news band stays empty.
+          </p>
+          <textarea name="pulseDomains" rows={5}
+            defaultValue={(settings.pulseDomains ?? []).join("\n")}
+            placeholder={"news.abbvie.com\nfiercepharma.com\nbiospace.com"}
+            className="mt-2 w-full rounded-[10px] border border-[#DDE2EE] bg-white px-3 py-2 font-mono text-xs" />
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <button className="rounded-[10px] bg-[#263BAA] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#1D2E86]">
+              Save domains
+            </button>
+            {saved === "pulse" && (
+              <span className="text-sm text-[#067647]">Saved.</span>
+            )}
+          </div>
+        </form>
+
         <form action={saveSignals} className="mt-4 grid gap-5 md:grid-cols-2">
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wide text-[#98A2B3]">

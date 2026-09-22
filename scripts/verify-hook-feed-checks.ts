@@ -35,7 +35,7 @@ import "./require-mock-provider";
 import { and, eq, gte, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
 import { db, connection, channelAccount, connectionBatch, job, org, post, service } from "../src/db";
 import { buildFixture } from "./verify-hook-feed";
-import { novaHidden, socialHidden } from "../src/lib/feature-access";
+import { novaHidden, pulseNetworkHidden, socialHidden } from "../src/lib/feature-access";
 import { DEAD_AFTER_SECONDS, sweepDeadJobs } from "../src/jobs/reap";
 import { HOOK_DECAY_DAYS, HOOK_MIN_RELEVANCE, coerce } from "../src/modules/posts/judge";
 import { markStopped } from "../src/jobs/runner";
@@ -520,6 +520,11 @@ async function main() {
     // and separate functions, so this asserts the pairing rather than assuming it.
     check(`nova   ${hidden ? "hidden" : "shown "} for ${who.email ?? "(no email)"}`,
       novaHidden(who) === hidden);
+    // Pulse's Network band is the Social feed rolled up by employer, so it
+    // tracks Social rather than being free to drift away from it — a seat could
+    // otherwise lose the feed and keep the same posts as a score.
+    check(`pulse  ${hidden ? "hidden" : "shown "} for ${who.email ?? "(no email)"}`,
+      pulseNetworkHidden(who) === hidden);
   }
 
   // THE BUG THAT MADE THIS CHANGE NECESSARY, now pinned. coerce() decides

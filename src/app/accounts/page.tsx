@@ -3,7 +3,11 @@ import { Shell, requirePage } from "@/app/shell";
 import { ActivityBadge, ago } from "@/components/dash-bits";
 import { accountCompanies, accountCountries, accountServices, loadAccounts, pitchableTotals } from "@/modules/accounts/query";
 import { listShortlistedKeys, shortlistCount } from "@/modules/accounts/shortlist";
-import { enrichThisAccount, enrichThisPerson, setAccountShortlistState, startEnrichShortlist } from "./actions";
+import { enrichThisAccount, enrichThisPerson, refreshAccountPulse, setAccountShortlistState, startEnrichShortlist } from "./actions";
+import { PulsePanel } from "@/components/pulse-panel";
+import { loadPulse } from "@/modules/pulse";
+import { pulseNetworkHidden } from "@/lib/feature-access";
+import { getOrgSettings } from "@/modules/settings/org-settings";
 import { ShortlistStar, ShortlistTextButton } from "@/components/shortlist-star";
 import { AccountEnrichButton, EnrichRowButton } from "@/components/enrich-button";
 
@@ -11,6 +15,7 @@ export default async function AccountsPage({ searchParams }: {
   searchParams: Promise<{
     q?: string; svc?: string; min?: string; a?: string; page?: string; size?: string;
     view?: string; enriched?: string; minScore?: string; country?: string; company?: string;
+    pulse?: string;
   }>;
 }) {
   const user = await requirePage();
@@ -50,6 +55,14 @@ export default async function AccountsPage({ searchParams }: {
   const safePage = Math.min(page, pages);
   const paged = accounts.slice((safePage - 1) * size, safePage * size);
   const selected = accounts.find((a) => a.key === sp.a) ?? paged[0] ?? null;
+
+  // Read AFTER `selected` is known: Pulse is a panel about one account, and
+  // loading it for every row on the page would turn a cheap list into a
+  // per-row fan-out for something only one of them displays.
+  const settings = await getOrgSettings(user.orgId);
+  const pulse = selected
+    ? await loadPulse(user.orgId, selected.key, selected.name, pulseNetworkHidden(user))
+    : null;
 
   const baseParams: Record<string, string> = {
     min: String(min),
@@ -246,7 +259,28 @@ export default async function AccountsPage({ searchParams }: {
               {selected.lastActivity && (
                 <p className="mt-1 text-[11px] text-[#98A2B3]">Latest activity {ago(selected.lastActivity)}</p>
               )}
-              <ul className="mt-4 divide-y divide-[#EEF1F8]">
+              {pulse && (
+                <>
+                  <PulsePanel pulse={pulse} domains={(settings.pulseDomains ?? []).length} />
+                  <form action={refreshAccountPulse.bind(null, selected.key, selected.name, view)}
+                    className="mt-3">
+                    <button className="rounded-[8px] border border-[#DDE2EE] px-3 py-1.5 text-[12px] text-[#263BAA] hover:bg-[#F4F6FB]">
+                      Refresh pulse
+                    </button>
+                    {sp.pulse === "queued" && (
+                      <span className="ml-2 text-[12px] text-[#067647]">Queued — the panel fills as it runs.</span>
+                    )}
+                    {sp.pulse === "busy" && (
+                      <span className="ml-2 text-[12px] text-[#B54708]">A run is already going. Give it a moment.</span>
+                    )}
+                  </form>
+                </>
+              )}
+
+              <p className="mt-5 border-t border-[#EEF1F8] pt-4 text-[11px] uppercase tracking-wider text-[#98A2B3]">
+                Who is here
+              </p>
+              <ul className="mt-2 divide-y divide-[#EEF1F8]">
                 {selected.people.map((p) => (
                   <li key={p.id} className="py-2.5">
                     <div className="flex items-baseline justify-between gap-2">

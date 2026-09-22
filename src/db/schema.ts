@@ -61,6 +61,11 @@ export interface OrgSettings {
    *  injected into every drafted message so outreach sounds like THEM. */
   voiceProfile?: string;
   voiceSampledAt?: string;
+  /** Domains Pulse's news collector may fetch. There is no general crawler and
+   *  no default list: the trade press for aesthetics is not the trade press for
+   *  IT services, so an empty list means the news band stays empty rather than
+   *  a guess being made on the workspace's behalf. */
+  pulseDomains?: string[];
   /** Last-used research sentence — the picker reopens where you left it
    *  instead of snapping back to 30 after every run. */
   pickN?: number;
@@ -281,6 +286,12 @@ export const post = pgTable("post", {
   category: text("category"),   // substantive | congrats | promo | reshare | personal
   /** One line a human could actually open with, quoting their words. */
   hook: text("hook"),
+  /** −100..100, how this post SOUNDS about the author's employer. Independent
+   *  of relevance: a furious post about a restructure is highly negative and
+   *  may be entirely irrelevant to what this workspace sells. Null until a
+   *  prompt version that fills it has judged the row, so every post stored
+   *  before post-relevance v2 reads null rather than a misleading zero. */
+  sentiment: integer("sentiment"),
   judgedAt: ts("judged_at"),
 
   createdAt: ts("created_at").notNull().defaultNow(),
@@ -327,6 +338,48 @@ export const accountShortlist = pgTable("account_shortlist", {
 }, (t) => [
   index("account_shortlist_org_idx").on(t.orgId),
   index("account_shortlist_org_key_idx").on(t.orgId, t.companyKey),
+]);
+
+/** One observed signal ABOUT a company — never about a person (docs/ACCOUNT-PULSE.md §0).
+ *
+ *  Four kinds share one table because they are judged by one pass and read by
+ *  one panel: "news" and "filing" are fetched from the allowlisted web, while
+ *  "post" and "mention" REFERENCE a row in `post` by its id in sourceId rather
+ *  than copying its text. That reference is deliberate — the post table stays
+ *  the single source of truth for what someone said, so re-judging a post
+ *  cannot leave a stale duplicate of it sitting in here disagreeing.
+ *
+ *  Idempotent by (org, companyKey, sourceId): re-running a scan updates rather
+ *  than duplicating, exactly as storePosts does for posts.
+ */
+export const accountSignal = pgTable("account_signal", {
+  id: id(),
+  orgId: text("org_id").notNull().references(() => org.id),
+  /** Shares companyKey() with radar/score.ts — never a raw company name. */
+  companyKey: text("company_key").notNull(),
+  companyName: text("company_name").notNull(),
+  kind: text("kind").notNull(),          // news | filing | post | mention
+  /** URL for fetched items, post.id for referenced ones. The dedupe key. */
+  sourceId: text("source_id").notNull(),
+  source: text("source"),                // the domain, or "linkedin"
+  title: text("title"),
+  url: text("url"),
+  body: text("body"),
+  publishedAt: ts("published_at"),
+
+  // ── Filled by the signal pass; null until it runs ──
+  /** −100..100. Null means "not judged", which is not the same as neutral and
+   *  must never be averaged in as a zero. */
+  sentiment: integer("sentiment"),
+  theme: text("theme"),
+  /** The quoted span the score rests on — no score without its evidence. */
+  evidence: text("evidence"),
+  judgedAt: ts("judged_at"),
+
+  createdAt: ts("created_at").notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("account_signal_src_uq").on(t.orgId, t.companyKey, t.sourceId),
+  index("account_signal_org_key_idx").on(t.orgId, t.companyKey, t.publishedAt),
 ]);
 
 export const networkSnapshot = pgTable("network_snapshot", {

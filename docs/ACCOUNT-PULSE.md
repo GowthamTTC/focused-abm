@@ -1,6 +1,8 @@
 # Account Pulse — design note (not built)
 
-**Status:** design only. Nothing in `src/` implements this yet.
+**Status:** tasks 1–11 built (see §9). Tasks 12–13 — prompt tuning against real
+accounts and the acceptance run — are deliberately not done: both need real data
+and a human read, which is what "everything that does not involve review" left out.
 **Worked example:** the **Ariel Group** seat (leadership development, executive
 coaching, presence & storytelling — buyers are HR/Talent/L&D) opening
 **Allergan Aesthetics**, an AbbVie BU in restructuring. Scanned 22 Sep 2026.
@@ -301,6 +303,26 @@ account".
 | 9 | Network rollup + coverage line | `src/modules/pulse/network.ts` | Suppresses the score below 6 posts / 3 people; prints the denominator whenever it does show one |
 | 10 | `pulseNetworkHidden` gate | `src/lib/feature-access.ts`, `scripts/verify-hook-feed-checks.ts` | Own exported predicate, not a shared one; the Arielle false-positive case still passes |
 | 11 | Competitors band | `src/modules/pulse/competitors.ts` | Reads the peer list, does not hardcode one |
+
+### Built
+
+Tasks 1–11 are in the tree. What landed, beyond the table above:
+
+- `scripts/verify-pulse-pure.ts` — 32 checks that need no database, so the two
+  that matter most can actually be run: the allowlist cannot be fooled by a
+  look-alike domain, and a "cannot say" is never written or averaged as a 0.
+  `verify-hook-feed-checks.ts` builds a fixture and therefore needs Postgres,
+  which would have put both behind a database nobody has handy.
+- The band guard. `post-relevance` v2 is what loads by default, `RELEVANCE_BANDS`
+  quotes its wording back to the user, and `HOOK_MIN_RELEVANCE` is pinned to its
+  edges — so v2 is generated from v1 and the two are diffed, rather than a
+  reviewer being trusted to notice a retuned band.
+- `fetchAllowed` re-checks `res.url` after the response. Redirects are followed
+  by default, so a newsroom link landing on a syndication partner would have
+  walked off the allowlist with nobody deciding it should.
+- The no-domains case is a successful run, not a failed one. Failing it would
+  mark the job failed, and `loadPulse` only reads back completed runs — so
+  triggers derived from already-stored signals would have been silently discarded.
 
 ### Phase 3 — the part that decides whether it is any good (2–3 days)
 

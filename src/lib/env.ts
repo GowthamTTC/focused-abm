@@ -14,6 +14,12 @@ const schema = z.object({
    *  Railway variable that nobody sets must not silently pin the old prompt. */
   CLASSIFY_PROMPT_VERSION: z.string().default("v4"),
   LLM_MODEL_DEEPDIVE: z.string().default("anthropic/claude-sonnet-4.6"),
+  /** Same reasoning as CLASSIFY_PROMPT_VERSION: production reads this schema, so
+   *  the default has to be the version we actually want running. v2 adds the
+   *  sentiment field the Pulse Network band reads and changes nothing else —
+   *  the relevance bands are byte-identical, because HOOK_MIN_RELEVANCE is
+   *  pinned to their exact wording. */
+  POST_RELEVANCE_PROMPT_VERSION: z.string().default("v2"),
 
   UNIPILE_API_KEY: z.string().optional().or(z.literal("")),
   UNIPILE_DSN: z.string().optional().or(z.literal("")),
@@ -29,6 +35,13 @@ const schema = z.object({
   EVENT_SCAN_MIN_GAP_SECONDS: z.coerce.number().int().min(0).default(0),
   EVENT_SCAN_SKIP_HOURS: z.coerce.number().int().min(0).default(6),
   EVENT_EXTENDED_CAP: z.coerce.number().int().positive().default(100),
+  /** Pulse's outbound news fetch. Defaults here, not only in .env.example:
+   *  production reads this schema, so an unset Railway variable must not mean
+   *  "no timeout". */
+  PULSE_FETCH_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),
+  /** Items ONE news collection keeps per account. The signal judge batches at
+   *  25, so this is also what bounds a refresh to a couple of model calls. */
+  PULSE_NEWS_MAX_ITEMS: z.coerce.number().int().positive().default(40),
 });
 
 export const env = schema.parse(process.env);

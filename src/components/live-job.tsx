@@ -19,6 +19,13 @@ function stageOf(j: LiveJobState): string {
   if (j.kind === "classify") return "Classifying";
   if (j.kind === "sync") return "Syncing connections";
   if (j.kind === "deep_enrich") return "Researching";
+  // Four coarse steps rather than a count of anything: a Pulse refresh fetches,
+  // stores, judges and then derives, and the only number a reader could act on
+  // is which of those it is stuck on.
+  if (j.kind === "account_pulse") {
+    const step = ["Starting", "Fetching news", "Reading what was found", "Working out the triggers", "Finishing"];
+    return step[Math.min(j.progress ?? 0, 4)] ?? "Running";
+  }
   return "Running";
 }
 
