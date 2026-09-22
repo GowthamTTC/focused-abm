@@ -1,7 +1,9 @@
 # Account Pulse — design note (not built)
 
 **Status:** design only. Nothing in `src/` implements this yet.
-**Worked example:** Allergan Aesthetics (an AbbVie BU), scanned 22 Sep 2026.
+**Worked example:** the **Ariel Group** seat (leadership development, executive
+coaching, presence & storytelling — buyers are HR/Talent/L&D) opening
+**Allergan Aesthetics**, an AbbVie BU in restructuring. Scanned 22 Sep 2026.
 
 One question, asked of one account: *what has changed at this company lately, what
 are the people around it actually saying, and which of our offers does that make
@@ -104,6 +106,49 @@ Cheapest honest version, in order:
 A per-org allowlist of domains, stored as org settings, beats a general crawler:
 the trade press for aesthetics is not the trade press for IT services.
 
+## 5a. Seat gating — decide this before writing code
+
+`src/lib/feature-access.ts` switches **Nova and Social off for the Ariel seat**.
+Social is the unfiltered 1st-degree post feed; Pulse's Network band is that same
+data, rolled up by employer. So Pulse cannot ship without answering: does the
+Network band inherit `socialHidden`?
+
+The recommendation is **yes, and Pulse still ships for that seat** — News,
+Competitor presence and Triggers stand on their own, and a seat that has decided
+it does not want a post feed has not thereby decided it does not want to know its
+target account is being restructured. Give the band the same honest empty state
+the coverage line already uses, naming *why* it is empty. Do not silently drop
+the band: a missing band reads as "nothing happening", which is the one thing it
+must never mean.
+
+Follow the file's existing convention — a separate exported predicate
+(`pulseNetworkHidden`) delegating to `arielSeat`, not a shared `isHiddenSeat` at
+the call site, so the three features can diverge with an edit rather than a
+rewrite.
+
+## 5b. Competitor presence is a band, not a footnote
+
+For a leadership-development seat, "who else is already selling into this
+account" is first-class intelligence, not colour. `scripts/propose-signals.ts`
+already carries the peer list — Korn Ferry, CCL, FranklinCovey, DDI, Dale
+Carnegie, Blanchard, Crucial Learning, BetterUp, RHR, Heidrick — and
+`PEER_COMPANY_SIGNALS` runs before title matching in the rule pass.
+
+A mention-scan for *peer name + account name in the same post* is the same query
+shape as the account mention-scan, over a list the workspace already maintains.
+It answers "are we walking into an incumbent" before the first call, which no
+other screen in the product can.
+
+### Hazard: the trigger band will name the wrong person
+
+The Triggers band names *who to open with*, which means it ranks. `rank.ts`
+documents the trap directly (line 21): `DEFAULT_FUNCTION_TERMS` are Toss the
+Coin's marketing words, and measured on this very workspace **only 8 of the top
+50 held an HR/Talent/L&D title while 180 such people sat in the pool**. Pulse
+must rank through the org's `functionTerms` override, never the defaults. If
+that override is unset on a seat, Pulse should refuse to name a person rather
+than confidently name a marketer at a company whose buyer is the CLO.
+
 ## 6. What it cannot do
 
 Stated here so it is not promised in a demo:
@@ -139,5 +184,8 @@ Pulse blind, and score:
 1. Did the news band surface the event a human would have led with?
 2. Does the Network score's sign match a human read of the same posts?
 3. Are the triggers **specific to this account**, or would they read the same for
-   any company in the sector? (This is the one that fails.)
+   any company in the sector? (This is the one that fails.) For a
+   leadership-development seat the failure mode is concrete: "they had layoffs,
+   so they need change-communication training" is true of every restructuring
+   company on earth and is not a trigger.
 4. Does it say "not enough read yet" when it has not read enough?
