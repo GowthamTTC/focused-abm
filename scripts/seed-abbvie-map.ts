@@ -72,6 +72,14 @@ async function main() {
     name: "AbbVie",
     aliases: ["Allergan Aesthetics", "Allergan", "AbbVie Pharmaceuticals"],
     units,
+    // Public facts, editable, and none of them inferred by this tool.
+    profile: {
+      badge: "Largest Ariel account",
+      description: "A global biopharmaceutical company with a diverse portfolio across immunology, oncology, neuroscience, eye care and aesthetics.",
+      website: "abbvie.com",
+      employees: "~50,000 employees",
+      location: "Global",
+    },
     source: "drafted",
   });
 

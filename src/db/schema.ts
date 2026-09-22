@@ -364,6 +364,14 @@ export interface OrgUnit {
   engaged?: boolean;
 }
 
+export interface AccountProfile {
+  badge?: string;
+  description?: string;
+  website?: string;
+  employees?: string;
+  location?: string;
+}
+
 /** The org chart we are mapping an account against.
  *
  *  This is the one thing the connection list cannot produce. A network shows
@@ -382,6 +390,10 @@ export const accountMap = pgTable("account_map", {
   name: text("name").notNull(),
   aliases: jsonb("aliases").$type<string[]>().notNull().default([]),
   units: jsonb("units").$type<OrgUnit[]>().notNull().default([]),
+  /** Public facts about the account, for the header card. Editable, because
+   *  they are claims a human should own rather than numbers this tool can
+   *  derive — nothing here is inferred from the network. */
+  profileJson: jsonb("profile_json").$type<AccountProfile>(),
   source: text("source").notNull().default("manual"),  // manual | drafted
   createdAt: ts("created_at").notNull().defaultNow(),
   updatedAt: ts("updated_at").notNull().defaultNow(),

@@ -12,7 +12,7 @@
  * This file is the rule pass; the model fallback is the map_units job.
  */
 import { and, eq, inArray, isNotNull, ne } from "drizzle-orm";
-import { db, accountMap, connection, type OrgUnit } from "@/db";
+import { db, accountMap, connection, type AccountProfile, type OrgUnit } from "@/db";
 import { companyKey } from "@/modules/radar/score";
 
 export interface AccountMapRow {
@@ -20,6 +20,7 @@ export interface AccountMapRow {
   name: string;
   aliases: string[];
   units: OrgUnit[];
+  profile: AccountProfile;
   source: string;
   updatedAt: Date;
 }
@@ -33,6 +34,7 @@ export async function loadAccountMap(orgId: string, key: string): Promise<Accoun
     name: row.name,
     aliases: row.aliases ?? [],
     units: row.units ?? [],
+    profile: row.profileJson ?? {},
     source: row.source,
     updatedAt: row.updatedAt,
   };
@@ -45,6 +47,7 @@ export async function listAccountMaps(orgId: string): Promise<AccountMapRow[]> {
     name: row.name,
     aliases: row.aliases ?? [],
     units: row.units ?? [],
+    profile: row.profileJson ?? {},
     source: row.source,
     updatedAt: row.updatedAt,
   })).sort((a, b) => a.name.localeCompare(b.name));
@@ -52,7 +55,10 @@ export async function listAccountMaps(orgId: string): Promise<AccountMapRow[]> {
 
 export async function saveAccountMap(
   orgId: string,
-  input: { companyKey: string; name: string; aliases?: string[]; units?: OrgUnit[]; source?: string },
+  input: {
+    companyKey: string; name: string; aliases?: string[]; units?: OrgUnit[];
+    profile?: AccountProfile; source?: string;
+  },
 ): Promise<void> {
   const key = input.companyKey || companyKey(input.name);
   if (!key || key === "_none") return;
@@ -60,6 +66,7 @@ export async function saveAccountMap(
     name: input.name.slice(0, 200) || key,
     aliases: dedupe(input.aliases ?? []),
     units: cleanUnits(input.units ?? []),
+    ...(input.profile ? { profileJson: input.profile } : {}),
     source: input.source ?? "manual",
     updatedAt: new Date(),
   };

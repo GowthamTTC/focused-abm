@@ -127,6 +127,13 @@
       "when": 1790061728950,
       "tag": "0017_wandering_sauron",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1790064516375,
+      "tag": "0018_curly_betty_ross",
+      "breakpoints": true
     }
   ]
 }

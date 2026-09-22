@@ -1,0 +1,1 @@
+ALTER TABLE "account_map" ADD COLUMN "profile_json" jsonb;
