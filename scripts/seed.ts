@@ -34,6 +34,10 @@ async function main() {
         email: env.ADMIN_EMAIL.toLowerCase(),
         passwordHash: await bcrypt.hash(env.ADMIN_PASSWORD, 10),
         name: "Admin",
+        // The founding org is already configured by this script — the setup
+        // wizard is for self-serve signups, not for the seeded admin.
+        onboardingStep: 8,
+        onboardingCompletedAt: new Date(),
       });
       console.log("admin user created:", env.ADMIN_EMAIL);
     }

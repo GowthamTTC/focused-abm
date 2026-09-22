@@ -31,6 +31,7 @@ import {
 import { getOrgSettings } from "@/modules/settings/org-settings";
 import { draftFromHook, flagVerdict, markSent, readStoredPosts, rerunDraft, researchPick, scanForHooks } from "./actions";
 import { startConnect } from "@/app/settings/actions";
+import { novaHidden } from "@/lib/feature-access";
 
 const CARD = "bg-white border border-[#DDE2EE] rounded-[14px] shadow-[0_1px_2px_rgba(16,24,40,.04)]";
 const PILL = "rounded-[8px] border border-[#DDE2EE] px-3 py-1.5 text-[12px] text-[#475467] hover:bg-[#F4F6FB]";
@@ -60,6 +61,9 @@ export default async function DashboardPage({ searchParams }: {
   }>;
 }) {
   const user = await requirePage();
+  // The Ariel seat has Nova switched off (feature-access.ts) — a door that
+  // redirects straight back is worse than no door.
+  const hideNova = novaHidden(user);
   const sp = await searchParams;
   const { batch, batches } = await resolveBatch(user.orgId, sp.c);
   if (!batch) return <Shell user={user} active="dashboard"><NoCampaign /></Shell>;
@@ -217,7 +221,7 @@ export default async function DashboardPage({ searchParams }: {
       <div className={EMPTY}>
         <p className="tnum text-[#101828]">No posts looked at in this campaign yet — {cov.pitchable.toLocaleString()} matched people, none scanned. Nobody here is quiet; nobody here has been checked.</p>
         <div className="mt-3 flex justify-center">
-          {seatOk ? scanForm(true) : <form action={startConnect}><button className={PILL_PRIMARY}>Connect a seat</button></form>}
+          {seatOk ? scanForm(true) : <form action={startConnect.bind(null, "/settings")}><button className={PILL_PRIMARY}>Connect a seat</button></form>}
         </div>
         <p className="tnum mt-1.5 text-[11px] text-[#98A2B3]">
           {seatOk
@@ -310,6 +314,26 @@ export default async function DashboardPage({ searchParams }: {
           <p className="mt-1 max-w-xl text-sm text-[#475467]">
             People who said something you can open with — strongest and freshest first.
           </p>
+          {/* The one-line answer to "what happened since I last looked" —
+              built entirely from counts this page already fetches, so it is
+              never a second source of truth for the same numbers below. */}
+          <p className="tnum mt-1.5 text-[12.5px] text-[#98A2B3]">
+            {feedPeople} fresh {feedPeople === 1 ? "reason" : "reasons"} today
+            {" · "}{pipe.ready} ready to send
+            {pipe.decisions > 0 && ` · ${pipe.decisions} need a decision`}
+            {" · "}{cov.scannedEver} of {cov.pitchable} matched people scanned so far
+          </p>
+          {!hideNova && (
+            /* The one thing this page cannot do is answer a question it was not
+               built to ask — "who at Cobalt is matched", "shortlist everyone in
+               Bengaluru". That is Nova's job, and until now the only door to it
+               was the sidebar. */
+            <p className="mt-1.5 text-[12.5px] text-[#98A2B3]">
+              Need a cut this page does not offer?{" "}
+              <Link href="/nova" className="text-[#263BAA] underline underline-offset-2">Ask Nova</Link>
+              {" "}— counts, shortlists and runs, in one sentence.
+            </p>
+          )}
           {note && (
             <p className={`mt-1 text-sm ${note[0] === "amber" ? "text-[#B54708]" : "text-[#067647]"}`}>
               {note[1]}
@@ -329,7 +353,7 @@ export default async function DashboardPage({ searchParams }: {
       ) : !seatOk ? (
         <div className="mt-4 flex flex-wrap items-center gap-3 rounded-[14px] border border-[#E7CE96] bg-[#FEFBF3] p-4 text-sm text-[#B54708]">
           <span>Posts cannot be collected — the LinkedIn seat {seats.length ? "needs reconnecting" : "is not connected"}.</span>
-          <form action={startConnect}>
+          <form action={startConnect.bind(null, "/settings")}>
             <button className="rounded-[8px] border border-[#E7CE96] bg-white px-3 py-1.5 text-[12px] text-[#B54708] hover:bg-[#FDF6E7]">
               {seats.length ? "Reconnect" : "Connect a seat"}
             </button>

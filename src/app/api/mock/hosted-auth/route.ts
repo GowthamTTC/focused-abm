@@ -5,9 +5,10 @@ import { db, channelAccount } from "@/db";
 import { env } from "@/lib/env";
 import { currentUser } from "@/auth/session";
 
-export async function GET() {
+export async function GET(req: Request) {
   const user = await currentUser();
   if (!user) return NextResponse.redirect(`${env.APP_URL}/login`);
+  const success = new URL(req.url).searchParams.get("success") ?? `${env.APP_URL}/settings?connected=1`;
   const mockId = "mock-account-1";
   const existing = await db.select().from(channelAccount)
     .where(eq(channelAccount.unipileAccountId, mockId));
@@ -17,5 +18,5 @@ export async function GET() {
       displayName: "Mock LinkedIn (demo)", status: "operational",
     });
   }
-  return NextResponse.redirect(`${env.APP_URL}/settings?connected=1`);
+  return NextResponse.redirect(success);
 }

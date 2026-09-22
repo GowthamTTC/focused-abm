@@ -22,8 +22,12 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         <button className="mt-6 w-full rounded-[10px] bg-[#263BAA] py-3 text-sm font-semibold text-white hover:bg-[#1D2E86]">
           Sign in
         </button>
-        <a href="/change-password"
+        <a href="/signup"
           className="mt-4 block text-center text-sm text-[#475467] underline decoration-[#DDE2EE] hover:text-[#101828]">
+          Create a workspace
+        </a>
+        <a href="/change-password"
+          className="mt-2 block text-center text-sm text-[#475467] underline decoration-[#DDE2EE] hover:text-[#101828]">
           Change password
         </a>
       </form>

@@ -3,11 +3,20 @@ import { and, eq, gte, ilike, or, sql } from "drizzle-orm";
 import { db, connection } from "@/db";
 import { Shell, requirePage } from "@/app/shell";
 import { isLikelyCountry, resolveCountry } from "@/lib/geo-parse";
+import { SelectRows } from "@/components/select-rows";
+import { EnrichRowButton } from "@/components/enrich-button";
+import { EnrichStatusChip } from "@/components/enrich-status-chip";
+import { enrichStateOf, isEnrichable } from "@/modules/enrich/status";
+import { resetsIn } from "@/modules/enrich/usage";
+import { enrichAllowance } from "@/modules/enrich/queue";
+import { UsageMeter } from "@/components/usage-meter";
+import { enrichPerson, enrichSelectedPeople } from "./actions";
 
 export default async function PeoplePage(props: {
   searchParams: Promise<{
     q?: string; svc?: string; page?: string; view?: string;
     country?: string; minScore?: string; fit?: string;
+    run?: string; held?: string; kept?: string;
   }>;
 }) {
   const user = await requirePage();
@@ -78,17 +87,57 @@ export default async function PeoplePage(props: {
     avgScore: sql<number>`coalesce(round(avg(score)), 0)::int`,
   }).from(connection).where(and(eq(connection.orgId, user.orgId), eq(connection.bucket, "pitchable")));
   const pages = Math.max(1, Math.ceil(totalN / PAGE));
-  const qs = (over: Record<string, string | number>) =>
-    "/people?" + Object.entries({
+  const params = (over: Record<string, string | number> = {}) =>
+    Object.entries({
       q, svc, view, country, minScore: minScore || "", fit, page: pg, ...over,
     }).filter(([, v]) => v !== "" && v !== 0).map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`).join("&");
+  const qs = (over: Record<string, string | number>) => "/people?" + params(over);
+  // Where a row action returns to: these filters, this page, no stale run notice.
+  const back = params();
+
+  // One number for the ticking limit and the server clamp — see enrichAllowance.
+  const { allowance, room, ...usage } = await enrichAllowance(user.orgId);
+  const selectable = allowance > 0;
+  const queued = Number(sp.run ?? 0) || 0;
+  const held = Number(sp.held ?? 0) || 0;
+  const kept = Number(sp.kept ?? 0) || 0;
 
   return (
     <Shell user={user} active="people">
-      <h1 className="text-2xl font-semibold">People</h1>
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <h1 className="text-2xl font-semibold">People</h1>
+        <UsageMeter used={usage.used} cap={usage.cap} resetsAt={usage.resetsAt} bar />
+      </div>
       <p className="mt-1 text-sm text-[#98A2B3]">
-        Fit people from Stage A. Open someone to land on their batch card — research there, or press Enrich and wait.
+        Everyone your ICPs matched. Tick the people you want researched and run them together, or open a
+        name for their full profile — pain points, and a draft you can copy into LinkedIn.
       </p>
+
+      {(queued > 0 || held > 0 || kept > 0 || sp.run === "0") && (
+        <div className={`mt-4 rounded-[10px] border p-3 text-sm ${held > 0 || queued === 0
+          ? "border-[#E7CE96] bg-[#FEFBF3] text-[#B54708]"
+          : "border-[#DDE2EE] bg-[#F6F7FB] text-[#475467]"}`}>
+          {queued > 0 && (
+            <p>
+              Researching {queued} {queued === 1 ? "person" : "people"} now — watch the top bar. Each row
+              flips to <span className="font-medium">enriched</span> as it lands.
+            </p>
+          )}
+          {held > 0 && (
+            <p className={queued > 0 ? "mt-1" : ""}>
+              {held} {held === 1 ? "person was" : "people were"} not queued — that would pass today&apos;s
+              ceiling of {usage.cap}. Tick them again after the reset.
+            </p>
+          )}
+          {kept > 0 && (
+            <p className={queued > 0 || held > 0 ? "mt-1" : ""}>
+              {kept} already researched or in flight, so {kept === 1 ? "it was" : "they were"} left alone —
+              nothing was spent twice.
+            </p>
+          )}
+          {queued === 0 && held === 0 && kept === 0 && <p>Nobody was queued — those rows are already researched or in flight.</p>}
+        </div>
+      )}
 
       <div className="mt-4 flex flex-wrap gap-1.5">
         {([["", "All fit"], ["t1", "Tier 1"], ["quiet", "Going quiet"], ["week", "Posted this week"], ["sent", "Sent"]] as const).map(([v, label]) => (
@@ -136,30 +185,50 @@ export default async function PeoplePage(props: {
           {" · "}<span className="tnum">{totalN.toLocaleString()}</span> in this filter
         </p>
 
+        {room === 0 && (
+          <p className="mt-3 rounded-[10px] border border-[#E7CE96] bg-[#FEFBF3] p-3 text-[12.5px] text-[#B54708]">
+            Today&apos;s {usage.cap} researched — the ceiling resets in {resetsIn(usage.resetsAt)}. Everyone
+            already researched still opens below.
+          </p>
+        )}
+
+        <SelectRows enabled={selectable} max={allowance} action={enrichSelectedPeople.bind(null, back)}>
         <div className="pane-scroll mt-4 max-h-[52vh]"><table className="w-full text-left text-sm">
           <thead className="text-xs uppercase tracking-wide text-[#98A2B3]">
             <tr>
+              {selectable && <th className="w-9 py-2 pr-3"><span className="sr-only">Select</span></th>}
               <th className="py-2 pr-3">Rank</th>
               <th className="py-2 pr-3">Name</th>
               <th className="py-2 pr-3">Company</th>
+              <th className="py-2 pr-3">Title</th>
               <th className="py-2 pr-3">Country</th>
               <th className="py-2 pr-3">Fit</th>
               <th className="py-2 pr-3">Score</th>
               <th className="py-2 pr-3">Tier</th>
               <th className="py-2 pr-3">Last post</th>
+              <th className="py-2 pr-3">Status</th>
               <th className="py-2" />
             </tr>
           </thead>
           <tbody className="divide-y divide-[#EEF1F8]">
             {rows.map((p) => {
               const rowCountry = resolveCountry(p.country, p.location);
+              const state = enrichStateOf(p);
+              const enrichable = isEnrichable(state);
+              const href = `/batches/${p.batchId}?view=${state === "enriched" ? "enriched" : "pitchable"}&p=${p.id}`;
               return (
                 <tr key={p.id} className="hover:bg-[#F4F6FB]">
+                  {selectable && (
+                    <td className="py-2.5 pr-3">
+                      <input type="checkbox" name="ids" value={p.id} disabled={!enrichable}
+                        title={enrichable ? "Include in the next research run" : `Already ${state === "researching" ? "in flight" : "researched"}`}
+                        className="h-3.5 w-3.5 accent-[#263BAA] disabled:opacity-30" />
+                    </td>
+                  )}
                   <td className="tnum py-2.5 pr-3 text-[#475467]">#{p.rank ?? "—"}</td>
                   <td className="py-2.5 pr-3 font-medium">
                     {p.batchId ? (
-                      <Link href={`/batches/${p.batchId}?view=${p.enrichStatus === "done" ? "enriched" : "pitchable"}&p=${p.id}`}
-                        className="text-[#101828] hover:text-[#263BAA]">
+                      <Link href={href} className="text-[#101828] hover:text-[#263BAA]">
                         {p.firstName} {p.lastName}
                       </Link>
                     ) : (
@@ -167,9 +236,13 @@ export default async function PeoplePage(props: {
                     )}
                   </td>
                   <td className="max-w-[180px] truncate py-2.5 pr-3 text-[#475467]">{p.companyRaw ?? "—"}</td>
+                  <td className="max-w-[170px] truncate py-2.5 pr-3 text-[#475467]" title={p.positionRaw ?? undefined}>
+                    {p.positionRaw ?? "—"}
+                  </td>
                   <td className="max-w-[120px] truncate py-2.5 pr-3 text-[#475467]">{rowCountry ?? "—"}</td>
                   <td className="py-2.5 pr-3">
-                    <span className={`rounded px-1.5 py-0.5 text-[11px] ${
+                    <span title={p.matchWhy ?? undefined}
+                      className={`rounded px-1.5 py-0.5 text-[11px] ${
                       p.bucket === "pitchable" ? "bg-[#ECFDF3] text-[#067647]" : "bg-[#F4F6FB] text-[#475467]"
                     }`}>
                       {p.bucket === "pitchable"
@@ -184,19 +257,23 @@ export default async function PeoplePage(props: {
                   <td className="tnum py-2.5 pr-3 text-xs text-[#98A2B3]">
                     {p.lastPostAt ? p.lastPostAt.toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "—"}
                   </td>
+                  <td className="py-2.5 pr-3">
+                    <EnrichStatusChip status={p.enrichStatus} enrichedAt={p.enrichedAt} />
+                  </td>
                   <td className="py-2.5 text-right">
-                    {p.batchId ? (
-                      <Link href={`/batches/${p.batchId}?view=${p.enrichStatus === "done" ? "enriched" : "pitchable"}&p=${p.id}`}
-                        className="text-xs text-[#263BAA] underline">
-                        {p.enrichStatus === "done" ? "research" : "open"}
-                      </Link>
-                    ) : "—"}
+                    {!p.batchId ? "—" : enrichable && selectable ? (
+                      <EnrichRowButton failed={state === "failed"}
+                        action={enrichPerson.bind(null, p.id, back)} />
+                    ) : (
+                      <Link href={href} className="text-xs text-[#263BAA] underline">profile</Link>
+                    )}
                   </td>
                 </tr>
               );
             })}
           </tbody>
         </table></div>
+        </SelectRows>
         <div className="mt-3 flex items-center justify-between text-sm text-[#98A2B3]">
           <span className="tnum">{totalN.toLocaleString()} people · page {pg}/{pages}</span>
           <span className="flex gap-2">

@@ -16,7 +16,9 @@ export async function retryJob(jobId: string) {
 
   if (j.kind === "classify") {
     const batchId = String(j.payloadJson.batchId);
-    await enqueue(user.orgId, "classify", { batchId });
+    // Payload carried forward, not rebuilt: a setup-step classify runs with
+    // fullPool set, and dropping it here would silently re-cap the retry.
+    await enqueue(user.orgId, "classify", { ...j.payloadJson, batchId });
     redirect(`/batches/${batchId}`);
   }
 

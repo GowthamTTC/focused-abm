@@ -1078,10 +1078,22 @@ async function main() {
   // By public_identifier, NOT by the `people` id map: check 109's cleanup
   // rebuilt the fixture, which mints fresh row ids, so every id captured at the
   // top of this run is stale from here on.
-  const [tenId] = await db.update(connection).set({ memberId: "mock-10", country: "United States" })
+  // last_scan_at is cleared along with the re-point, and that is the fixture's
+  // precondition rather than a convenience: these two checks were written when
+  // scan 1 reported "scanned 10", and everything added to this suite since that
+  // touches a 1st-degree person (the Social scan, layer 05) stamps last_scan_at
+  // on them first. By the time this check ran, seven of the ten were inside the
+  // freshness window and the two targets were among them — so the scan skipped
+  // the very people it was pointed at, and with no posts on file from the
+  // earlier pass (their identifier then was the unparseable "three_posts") the
+  // stored-post path had nothing to answer from either. The product was right
+  // both times; the fixture had drifted out from under the assertion.
+  const [tenId] = await db.update(connection)
+    .set({ memberId: "mock-10", country: "United States", lastScanAt: null })
     .where(and(eq(connection.orgId, orgA), eq(connection.publicIdentifier, "three_posts")))
     .returning({ id: connection.id });
-  const [fourId] = await db.update(connection).set({ memberId: "mock-4", country: "United States" })
+  const [fourId] = await db.update(connection)
+    .set({ memberId: "mock-4", country: "United States", lastScanAt: null })
     .where(and(eq(connection.orgId, orgA), eq(connection.publicIdentifier, "drafted")))
     .returning({ id: connection.id });
   check("the 1st-degree fixture targets resolve after the rebuild",

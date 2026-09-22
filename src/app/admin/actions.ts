@@ -69,6 +69,9 @@ export async function addUser(formData: FormData) {
     name,
     passwordHash: await bcrypt.hash(password, BCRYPT_ROUNDS),
     mustChangePassword: true,
+    // Admin-provisioned seats skip the self-serve setup wizard.
+    onboardingStep: 8,
+    onboardingCompletedAt: new Date(),
   });
   redirect(`${back}?ok=1`);
 }

@@ -34,6 +34,21 @@ export function socialHidden(user: { email?: string | null; name?: string | null
   return arielSeat(user);
 }
 
+/**
+ * Self-serve /signup is a private beta of one seat while the onboarding
+ * wizard is shaken out — everyone else still gets an admin-provisioned
+ * account. Domain-first like the Ariel gate, so any address on the
+ * allowed domain gets in rather than one exact inbox.
+ */
+const SIGNUP_ALLOWED_DOMAINS = ["tossthe.co.in"];
+const SIGNUP_ALLOWED_EMAILS = ["gowtham@tossthe.co.in"];
+
+export function signupAllowed(email: string): boolean {
+  const e = email.toLowerCase().trim();
+  const domain = e.split("@")[1] ?? "";
+  return SIGNUP_ALLOWED_EMAILS.includes(e) || SIGNUP_ALLOWED_DOMAINS.includes(domain);
+}
+
 /** Account Pulse's Network band is the Social feed rolled up by employer, so a
  *  seat that does not get Social does not get it here under another name.
  *

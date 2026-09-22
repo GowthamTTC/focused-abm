@@ -21,6 +21,9 @@ export interface AccountPerson {
   sentAt: Date | null;
   country: string | null;
   enrichStatus: string;
+  /** Dates the last success; enrichStateOf needs it to tell an untouched row
+   *  from one whose status was reset after being researched. */
+  enrichedAt: Date | null;
   batchId: string;
 }
 
@@ -66,6 +69,7 @@ export async function loadAccounts(
     country: connection.country,
     location: connection.location,
     enrichStatus: connection.enrichStatus,
+    enrichedAt: connection.enrichedAt,
     batchId: connection.batchId,
   }).from(connection).where(and(
     eq(connection.orgId, orgId),
@@ -138,6 +142,7 @@ export async function loadAccounts(
       sentAt: r.sentAt,
       country: r.country,
       enrichStatus: r.enrichStatus,
+      enrichedAt: r.enrichedAt,
       batchId: r.batchId,
     });
   }

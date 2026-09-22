@@ -140,7 +140,7 @@ const fitArray = z.array(z.object({
   why: z.string().min(1),
 }));
 
-type Verdict = { bucket: string; slug: string | null; conf: number };
+type Verdict = { bucket: string; slug: string | null; conf: number; why: string };
 
 async function runVersion(version: string, people: Person[], digest: string) {
   const slices: Person[][] = [];
@@ -167,7 +167,7 @@ async function runVersion(version: string, people: Person[], digest: string) {
         const byId = new Map(out.map((o) => [o.id, o]));
         slice.forEach((p, j) => {
           const o = byId.get(`${i}-${j}`);
-          if (o) verdicts.set(p.key, { bucket: o.bucket, slug: o.service_slug, conf: o.confidence });
+          if (o) verdicts.set(p.key, { bucket: o.bucket, slug: o.service_slug, conf: o.confidence, why: o.why });
         });
       } catch {
         failed += 1;
@@ -185,6 +185,11 @@ function score(people: Person[], verdicts: Map<string, Verdict>, slugs: Set<stri
   const matrix = new Map<string, Map<string, number>>();
   let correct = 0, judged = 0, unknownSlug = 0, svcJudged = 0, svcAgree = 0;
   const svcDist = new Map<string, number>();
+  // Every disagreement, kept for MISSES=1. A confusion matrix says a fifth of
+  // the target pool is being thrown away; only the rows themselves say what
+  // they have in common, which is the difference between writing the next
+  // prompt version and guessing at it.
+  const misses: { truth: string; pred: string; person: Person; why: string; conf: number }[] = [];
 
   for (const p of people) {
     const v = verdicts.get(p.key);
@@ -195,6 +200,7 @@ function score(people: Person[], verdicts: Map<string, Verdict>, slugs: Set<stri
     const row = matrix.get(p.bucket)!;
     row.set(pred, (row.get(pred) ?? 0) + 1);
     if (pred === p.bucket) correct += 1;
+    else misses.push({ truth: p.bucket, pred, person: p, why: v.why, conf: v.conf });
 
     if (pred === "pitchable") {
       const k = v.slug ?? "(null)";
@@ -206,7 +212,7 @@ function score(people: Person[], verdicts: Map<string, Verdict>, slugs: Set<stri
       if (v.slug === p.service) svcAgree += 1;
     }
   }
-  return { matrix, correct, judged, unknownSlug, svcJudged, svcAgree, svcDist };
+  return { matrix, correct, judged, unknownSlug, svcJudged, svcAgree, svcDist, misses };
 }
 
 function pct(n: number, d: number) { return d ? `${((n / d) * 100).toFixed(1)}%` : "n/a"; }
@@ -268,6 +274,27 @@ async function main() {
     for (const [k, n] of dist) console.log(`     ${String(n).padStart(4)}  ${pct(n, distTotal).padStart(6)}  ${k}`);
   }
   console.log("\n" + "=".repeat(72));
+
+  // MISSES=1 prints the disagreements themselves — the only way to see whether
+  // a class is lost to one repeated pattern or to a hundred one-offs.
+  if (process.env.MISSES) {
+    const limit = Number(process.env.MISSES_LIMIT ?? 40);
+    for (const v of versions) {
+      console.log(`\n${"=".repeat(72)}\nWHAT ${v} GOT WRONG\n${"=".repeat(72)}`);
+      const byPair = new Map<string, typeof results[string]["misses"]>();
+      for (const m of results[v]!.misses) {
+        const k = `${m.truth} -> ${m.pred}`;
+        byPair.set(k, [...(byPair.get(k) ?? []), m]);
+      }
+      for (const [pair, rows] of [...byPair].sort((a, b) => b[1].length - a[1].length)) {
+        console.log(`\n${pair}  (${rows.length})`);
+        for (const m of rows.slice(0, limit)) {
+          console.log(`   ${m.person.position.slice(0, 44).padEnd(46)} @ ${m.person.company.slice(0, 30).padEnd(32)} c${m.conf} ${m.why.slice(0, 90)}`);
+        }
+        if (rows.length > limit) console.log(`   … ${rows.length - limit} more`);
+      }
+    }
+  }
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });
