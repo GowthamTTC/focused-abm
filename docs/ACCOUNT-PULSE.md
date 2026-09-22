@@ -10,21 +10,51 @@ are the people around it actually saying, and which of our offers does that make
 openable this month.* Today the product answers that for a **person** (Today /
 `/dashboard`: a post, a hook, a message). It cannot answer it for an **account**.
 
+## 0. Scope — account level, and nothing below it
+
+**Pulse outputs facts about a company. It never outputs a person, a rank or a
+message.** That is the whole boundary, and it is deliberate rather than a first
+increment to be grown out of.
+
+Out of scope, explicitly: naming who to contact, ordering people within the
+account, drafting an opener, anything touching `voiceProfile` or the
+`outreach-message` prompt. The product already does person-level work well and
+does it on `/dashboard`; a second surface guessing at the same thing in a
+different way is how the two start disagreeing in front of a client.
+
+Three things fall out of that boundary, all good:
+
+- **The ranking hazard disappears.** §5b's trap — `DEFAULT_FUNCTION_TERMS` being
+  marketing words on a seat whose buyer is the CLO — only bites something that
+  ranks people. Pulse doesn't, so it cannot inherit the bug.
+- **No prompt needs the voice profile or the person's posts**, so the trigger
+  call is one `deepdive` per account rather than one per person.
+- **The Network band becomes a number, not a feed.** It contributes account
+  sentiment and coverage; it never lists individuals. Which also makes the
+  Social gate in §5a a much smaller loss for the seat it applies to.
+
+When a trigger lands and someone asks "so who do I call", the answer is the
+account's existing people list on `/accounts/[key]`, unchanged. Pulse says the
+account is open; the roll-up that already exists says who is in it.
+
 ---
 
 ## 1. What it is
 
-A per-account panel — `/accounts/[key]/pulse` — with four bands:
+A panel on the existing account page — `/accounts/[key]`, not a new route — with
+five bands. Every one of them is a statement about the company:
 
-| Band | Source | Already exists? |
-|---|---|---|
-| **News** | public web: newsroom, trade press, WARN filings, earnings | ❌ new |
-| **Network voice** | posts by connections who work there | ✅ `posts/*`, `radar/scan.ts` |
-| **Mentions** | posts by anyone in the network that *name* the account | ⚠️ extension of `radar/mentions.ts` |
-| **Triggers** | LLM join of the three above against the org's offers | ❌ new prompt |
+| Band | Output | Source | Already exists? |
+|---|---|---|---|
+| **News** | dated events | newsroom, trade press, WARN filings, earnings | ❌ new |
+| **Narrative** | one score + N | the news band, judged | ❌ new prompt |
+| **Network** | one score + coverage | posts by connections who work there | ✅ `posts/*`, `radar/scan.ts` |
+| **Competitors** | which peers are visible there | peer-name mentions | ⚠️ extension of `radar/mentions.ts` |
+| **Triggers** | theme → which offer it opens | LLM join of the above against the org's offers | ❌ new prompt |
 
-Only the first and last are genuinely new infrastructure. The middle two are the
-existing post pipeline pointed at a company instead of a metro.
+Only News, and the two prompts, are genuinely new infrastructure. Network and
+Competitors are the existing post pipeline pointed at a company instead of a
+metro.
 
 ## 2. Two sentiment numbers, never one
 
@@ -87,9 +117,9 @@ Posts are *referenced*, not copied — `kind: "post"` rows carry the `post.id` i
   Refuses to score an item that does not name the account; returns `null` instead
   of guessing. Same batch-of-25 + `cache_control` digest shape as `post-relevance`.
 - `prompts/account-triggers/v1.md` — the whole signal set + the org's services
-  digest + `sellerContext` + `voiceProfile` → ranked triggers, each with the
-  offer it opens, the person to open with, and the line to open with.
-  **Must be allowed to return "no credible trigger".**
+  digest + `sellerContext` → ranked triggers, each being *a theme at this company*
+  and *the offer it opens*. No person, no opener — see §0. **Must be allowed to
+  return "no credible trigger"**, and on most accounts most months it should.
 
 ## 5. Where news comes from
 
@@ -139,15 +169,15 @@ shape as the account mention-scan, over a list the workspace already maintains.
 It answers "are we walking into an incumbent" before the first call, which no
 other screen in the product can.
 
-### Hazard: the trigger band will name the wrong person
+### Hazard avoided, recorded so it is not reintroduced
 
-The Triggers band names *who to open with*, which means it ranks. `rank.ts`
-documents the trap directly (line 21): `DEFAULT_FUNCTION_TERMS` are Toss the
-Coin's marketing words, and measured on this very workspace **only 8 of the top
-50 held an HR/Talent/L&D title while 180 such people sat in the pool**. Pulse
-must rank through the org's `functionTerms` override, never the defaults. If
-that override is unset on a seat, Pulse should refuse to name a person rather
-than confidently name a marketer at a company whose buyer is the CLO.
+An earlier draft had the Triggers band name *who to open with*, which means it
+ranks — and `rank.ts` line 21 documents the trap on this exact workspace:
+`DEFAULT_FUNCTION_TERMS` are Toss the Coin's marketing words, and **only 8 of the
+top 50 held an HR/Talent/L&D title while 180 such people sat in the pool**.
+
+§0 removes the exposure by keeping Pulse above the person level. If anyone later
+proposes naming a contact here, that override is the precondition, not a detail.
 
 ## 6. What it cannot do
 
@@ -188,4 +218,7 @@ Pulse blind, and score:
    leadership-development seat the failure mode is concrete: "they had layoffs,
    so they need change-communication training" is true of every restructuring
    company on earth and is not a trigger.
+5. Did anything person-shaped leak into the output? A name, an ordering, a
+   drafted line — any of them means §0 was breached and the surface has started
+   duplicating `/dashboard`.
 4. Does it say "not enough read yet" when it has not read enough?
