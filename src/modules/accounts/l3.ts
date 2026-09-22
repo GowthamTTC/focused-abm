@@ -379,6 +379,37 @@ export async function loadL3(
   });
   const triggers = ((run?.payload as { result?: { triggers?: Trigger[] } })?.result?.triggers) ?? [];
 
+  // WHAT CHANGED, not what was published.
+  //
+  // This band was news-first, and an investor-relations feed is mostly
+  // calendar: "AbbVie to Present at the Morgan Stanley Conference", "AbbVie to
+  // Host Second-Quarter Earnings Call". Seven of those filled a panel headed
+  // "change signals" while eleven posts about people moving in and out of the
+  // account sat underneath, unseen.
+  //
+  // The discriminator is already in the data. The judge is required to quote
+  // the line a score rests on, and it could not quote ONE of those notices —
+  // there is nothing in them to quote. So an item earns this band by naming a
+  // change (people moving, restructuring, leadership) or by having survived
+  // the judge with a quotable line. Scheduling boilerplate does neither.
+  // Voice matters as much as theme. Dropping the calendar notices let the
+  // market back in — dermatologists with a well-quoted line about a product
+  // launch, which is not a change AT the company either. A change signal comes
+  // from inside: someone who works there, or the company itself.
+  const CHANGE_THEMES = new Set(["restructuring", "leadership", "channel"]);
+  const changeSignals: SignalCard[] = [
+    ...li.filter((sg) => {
+      const voice = voiceOf(sg.title, sg.companyName ?? companyName, extraAliases);
+      if (voice === "market") return false;
+      return CHANGE_THEMES.has(sg.theme ?? "") || Boolean(sg.evidence);
+    }),
+    // News and filings still count when the judge could quote them: a real
+    // announcement has something in it to quote, and a scheduling notice does not.
+    ...news.filter((sg) => Boolean(sg.evidence)),
+  ]
+    .sort((a, b) => (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0))
+    .slice(0, 8);
+
   // Every search this account has been read with. Shown so the reader can see
   // what was asked as well as what came back — including the phrases that
   // returned nothing, which is itself a finding.
@@ -427,11 +458,11 @@ export async function loadL3(
       pockets: units.filter((u) => u.engaged).length,
       mapped,
       whitespace: whitespace.length,
-      changeSignals: news.length + li.filter((s) => s.theme === "restructuring" || s.theme === "leadership").length,
+      changeSignals: changeSignals.length,
     },
     whitespacePct,
     linkedin: { tone, gauge, stored: li.length, themes, volume, volumeChangePct, top, insideTone, marketTone },
-    changeSignals: news.concat(li.filter((s) => s.theme === "leadership" || s.theme === "restructuring" || s.theme === "channel")).slice(0, 6),
+    changeSignals,
     geo,
     contacts,
     voicePosts,
