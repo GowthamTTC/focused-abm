@@ -81,7 +81,7 @@ async function main() {
 
   let n = 0;
   for (const r of csv) {
-    const [kind, companyKey, companyName, sourceId, source, title, url, body, publishedAt, sentiment, theme, evidence, judgedAt] = r;
+    const [kind, companyKey, companyName, sourceId, source, title, url, body, publishedAt, sentiment, theme, evidence, judgedAt, authorLocation, authorCountry, capturedBy] = r;
     if (!sourceId) continue;
     await db.insert(accountSignal).values({
       orgId, companyKey, companyName, kind, sourceId,
@@ -90,6 +90,9 @@ async function main() {
       sentiment: sentiment ? Number(sentiment) : null,
       theme: theme || null, evidence: evidence || null,
       judgedAt: judgedAt ? new Date(judgedAt) : null,
+      authorLocation: authorLocation || null,
+      authorCountry: authorCountry || null,
+      capturedBy: capturedBy || null,
     }).onConflictDoNothing();
     n += 1;
   }

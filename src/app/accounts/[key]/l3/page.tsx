@@ -273,7 +273,7 @@ export default async function L3Page({ params, searchParams }: {
               big={toneWord(v.linkedin.tone.score)} small={`${v.linkedin.tone.n} scored posts`} />
             <div>
               <div className="flex items-baseline justify-between">
-                <span className="text-[12px] font-medium text-[#344054]">Post volume, last 90 days</span>
+                <span className="text-[12px] font-medium text-[#344054]">Posts stored, by week</span>
                 {v.linkedin.volumeChangePct !== null && (
                   <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
                     v.linkedin.volumeChangePct >= 0 ? "bg-[#ECFDF3] text-[#027A48]" : "bg-[#FEF3F2] text-[#B42318]"}`}>
@@ -282,6 +282,10 @@ export default async function L3Page({ params, searchParams }: {
                 )}
               </div>
               <VolumeChart points={v.linkedin.volume} />
+              <p className="text-[10.5px] leading-snug text-[#98A2B3]">
+                What this workspace has collected per week, not how much the company
+                posted — the shape follows when a scan was run.
+              </p>
             </div>
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2">

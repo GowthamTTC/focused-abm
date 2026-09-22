@@ -225,10 +225,13 @@ export async function loadL3(
     weeks.set(k, (weeks.get(k) ?? 0) + 1);
   }
   const volume = [...weeks.entries()].map(([week, n]) => ({ week, n })).sort((a, b) => a.week.localeCompare(b.week));
-  const half = Math.floor(volume.length / 2);
-  const early = volume.slice(0, half).reduce((a, b) => a + b.n, 0);
-  const late = volume.slice(half).reduce((a, b) => a + b.n, 0);
-  const volumeChangePct = half > 0 && early > 0 ? Math.round(((late - early) / early) * 100) : null;
+  // No trend percentage, deliberately. This series counts posts WE HAVE STORED
+  // per week, and what we hold is decided by when a scan was run and which
+  // phrase it used — not by how much the company posted. Early weeks are thin
+  // because nobody had searched yet, so a first-half against second-half
+  // comparison reported +650% on an account that had simply been scanned
+  // twice. A growth figure on a client-facing page has to mean growth.
+  const volumeChangePct = null;
 
   const insideTone = meanSentiment(li
     .filter((s) => voiceOf(s.title, s.companyName ?? companyName, extraAliases) === "employee")
