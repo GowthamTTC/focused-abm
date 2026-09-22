@@ -250,7 +250,72 @@ Pulse blind, and score:
    leadership-development seat the failure mode is concrete: "they had layoffs,
    so they need change-communication training" is true of every restructuring
    company on earth and is not a trigger.
+4. Does it say "not enough read yet" when it has not read enough?
 5. Did anything person-shaped leak into the output? A name, an ordering, a
    drafted line — any of them means §0 was breached and the surface has started
    duplicating `/dashboard`.
-4. Does it say "not enough read yet" when it has not read enough?
+
+---
+
+## 9. Build order
+
+Estimated at one developer working with Claude, at the cadence this repo already
+runs. **Roughly 3 of the 9 days are genuinely novel code** — the schema, the job
+kind, the judge module and the panel all have something in-repo to copy. The two
+line items with nothing to copy are the news collector and the triggers prompt,
+and they are also where the whole estimate can move.
+
+### Two decisions that gate the work
+
+Neither needs code, both change what gets built:
+
+- **Which accounts does Pulse run on?** Shortlist-only (`account_shortlist`, cheap
+  and deliberate) or every account over a people-count threshold. Recommendation:
+  shortlist-only — triggers on an account nobody is working are triggers nobody
+  reads.
+- **How does the sentiment field reach existing posts?** A `post-relevance` version
+  bump re-judges the whole post table (§7), or a scoped pass judges only posts
+  belonging to shortlisted accounts. The first is simpler and bills once in
+  proportion to the table; the second is more code and bills in proportion to use.
+
+### Phase 1 — thin slice: News + Triggers (2–3 days)
+
+Demoable on its own, and the half that answers "what is happening at this
+account".
+
+| # | Task | Files | Done when |
+|---|---|---|---|
+| 1 | `account_signal` table + migration | `src/db/schema.ts`, `drizzle/` | `npm run db:generate && db:migrate` clean; unique index on (org, companyKey, sourceId) holds against a re-run |
+| 2 | Outbound fetch helper + per-org domain allowlist | `src/modules/pulse/fetch.ts`, `OrgSettings` | A blocked domain is refused, not silently skipped; timeout and one retry |
+| 3 | News collector | `src/modules/pulse/news.ts` | Re-running an account writes zero duplicate rows |
+| 4 | `account-signal` prompt + judge | `prompts/account-signal/v1.md`, `src/modules/pulse/judge.ts` | Scores every item including the noise; an item not naming the account returns null, not a guess |
+| 5 | `account-triggers` prompt + module | `prompts/account-triggers/v1.md`, `src/modules/pulse/triggers.ts` | Returns "no credible trigger" on an account that has none |
+| 6 | `account_pulse` job kind | `src/jobs/runner.ts`, `worker.ts` | Progress reports; a deploy mid-run closes the job (cf. v2.12.0) |
+| 7 | Panel on `/accounts/[key]` | `src/app/accounts/page.tsx` | News + Narrative + Triggers render; refresh enqueues; empty states say *why* |
+
+### Phase 2 — the remaining bands (2.5 days)
+
+| # | Task | Files | Done when |
+|---|---|---|---|
+| 8 | Sentiment on `post-relevance` v2 | `prompts/post-relevance/v2.md`, `posts/judge.ts` | v1 left untouched on disk; `coerce()` clamps sentiment as it clamps relevance |
+| 9 | Network rollup + coverage line | `src/modules/pulse/network.ts` | Suppresses the score below 6 posts / 3 people; prints the denominator whenever it does show one |
+| 10 | `pulseNetworkHidden` gate | `src/lib/feature-access.ts`, `scripts/verify-hook-feed-checks.ts` | Own exported predicate, not a shared one; the Arielle false-positive case still passes |
+| 11 | Competitors band | `src/modules/pulse/competitors.ts` | Reads the peer list, does not hardcode one |
+
+### Phase 3 — the part that decides whether it is any good (2–3 days)
+
+| # | Task | Done when |
+|---|---|---|
+| 12 | Tune `account-triggers` against real accounts | Triggers survive §8's third check — they read as *this* account, not any company in the sector. Prompt versions, not code edits |
+| 13 | Acceptance run, 3 accounts, blind | Scored and logged per §8, all five checks |
+
+### Where the estimate moves
+
+- **The news collector is the schedule risk.** Trade press does not uniformly
+  publish clean RSS. The estimate assumes ~5 sources with 3 usable feeds; if they
+  all need HTML parsing, add two days and expect ongoing breakage. Buying a news
+  API collapses task 3 to nearly nothing and moves the cost from build time into
+  the per-account bill (§7).
+- **Task 12 is the real work, not polish.** "They had layoffs, so they need
+  change-communication training" passes code review and fails the product. Budget
+  the days and expect prompt versions rather than commits to `src/`.
