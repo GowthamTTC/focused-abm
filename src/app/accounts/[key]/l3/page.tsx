@@ -32,15 +32,17 @@ function Tile({ label, value, sub, tone }: { label: string; value: string | numb
 
 export default async function L3Page({ params, searchParams }: {
   params: Promise<{ key: string }>;
-  searchParams: Promise<{ focus?: string; alias?: string; queued?: string }>;
+  searchParams: Promise<{ focus?: string; alias?: string; queued?: string; country?: string }>;
 }) {
   const user = await requirePage();
   const { key: rawKey } = await params;
   const key = decodeURIComponent(rawKey);
   const sp = await searchParams;
   const aliases = (sp.alias ?? "").split(",").map((a) => a.trim()).filter(Boolean);
-  const v = await loadL3(user.orgId, key, key, aliases);
-  const focus = (sp.focus ?? "").trim();
+  const country = (sp.country ?? "").trim();
+  const v = await loadL3(user.orgId, key, key, aliases, country || undefined);
+  const focusRaw = (sp.focus ?? "").trim();
+  const focus = focusRaw;
   const focusUnit = v.units.find((u) => u.unit.name.toLowerCase() === focus.toLowerCase());
   const p = v.map?.profile ?? {};
 
@@ -97,6 +99,21 @@ export default async function L3Page({ params, searchParams }: {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className={BTN_GHOST}>Last 90 days</span>
+          <span className="inline-flex overflow-hidden rounded-[8px] border border-[#E4E7EC] text-[12.5px]">
+            {[["", "Worldwide"], ["United States", "United States"]].map(([val, label]) => {
+              const qs = new URLSearchParams();
+              if (focusRaw) qs.set("focus", focusRaw);
+              if (sp.alias) qs.set("alias", sp.alias);
+              if (val) qs.set("country", val);
+              const on = country.toLowerCase() === val.toLowerCase();
+              return (
+                <Link key={label} href={`/accounts/${encodeURIComponent(key)}/l3?${qs}`}
+                  className={`px-3 py-2 ${on ? "bg-[#EEF4FF] font-medium text-[#4F46E5]" : "bg-white text-[#475467] hover:bg-[#F9FAFB]"}`}>
+                  {label}
+                </Link>
+              );
+            })}
+          </span>
           {focus && (
             <form action={refreshFocusSignals}>
               <input type="hidden" name="key" value={key} />
@@ -247,6 +264,9 @@ export default async function L3Page({ params, searchParams }: {
           <h2 className="text-[15px] font-semibold">LinkedIn signal sentiment</h2>
           <p className="mt-1 text-[12px] text-[#667085]">
             Sampled public posts — a reading of the conversation, not a measure of the company.
+            {country
+              ? ` Authors in ${country} only; ${v.geo.located} of ${v.geo.total} posts could be placed at all.`
+              : ` ${v.geo.located} of ${v.geo.total} posts carry a location.`}
           </p>
           <div className="mt-3 grid gap-4 sm:grid-cols-[170px_minmax(0,1fr)]">
             <HalfGauge value={v.linkedin.gauge} color={toneColor(v.linkedin.tone.score)}

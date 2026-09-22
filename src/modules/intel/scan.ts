@@ -22,6 +22,7 @@ import { db, channelAccount } from "@/db";
 import { env } from "@/lib/env";
 import { getChannelProvider } from "@/providers/channel";
 import { storeSignals } from "@/modules/pulse/news";
+import { toCountry } from "@/modules/connections/country";
 import type { NewsItem } from "@/modules/pulse/types";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -144,6 +145,7 @@ export async function scanCompanyPosts(
             .filter(Boolean).join(" — ");
 
       const when = p.postedAt ? new Date(p.postedAt) : null;
+      const where = (p.author.location ?? "").trim() || null;
       items.push({
         kind: "linkedin",
         sourceId,
@@ -152,6 +154,8 @@ export async function scanCompanyPosts(
         url: p.url ?? "",
         body: text,
         publishedAt: when && !Number.isNaN(when.getTime()) ? when : null,
+        authorLocation: where,
+        authorCountry: toCountry(where),
       });
       if (items.length >= cap) {
         capped = true;

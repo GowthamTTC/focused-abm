@@ -87,6 +87,9 @@ export interface L3View {
     marketTone: Band;
   };
   changeSignals: SignalCard[];
+  /** Null country = the whole feed. `located` says how many rows could be
+   *  placed at all, which a reader needs before trusting a country split. */
+  geo: { country: string | null; located: number; total: number };
   triggers: Trigger[];
   decisionMakers: DecisionMakerRow[];
   refreshedAt: Date | null;
@@ -105,6 +108,10 @@ export async function loadL3(
   key: string,
   nameHint: string,
   extraAliases: string[] = [],
+  /** Restrict every LinkedIn number to authors in this country. Rows stored
+   *  before author_country existed are null and are EXCLUDED rather than
+   *  assumed — "we do not know where they are" is not "they are here". */
+  country?: string,
 ): Promise<L3View> {
   const map = await loadAccountMap(orgId, key);
   const companyName = map?.name ?? nameHint ?? key;
@@ -128,12 +135,24 @@ export async function loadL3(
     sentiment: accountSignal.sentiment,
     evidence: accountSignal.evidence,
     companyName: accountSignal.companyName,
+    authorCountry: accountSignal.authorCountry,
+    authorLocation: accountSignal.authorLocation,
   }).from(accountSignal).where(and(
     eq(accountSignal.orgId, orgId),
     inArray(accountSignal.companyKey, [...unitKeys]),
   )).orderBy(desc(accountSignal.publishedAt)).limit(400);
 
-  const li = signals.filter((s) => s.kind === "linkedin");
+  const allLi = signals.filter((s) => s.kind === "linkedin");
+  const li = country
+    ? allLi.filter((s) => (s.authorCountry ?? "").toLowerCase() === country.toLowerCase())
+    : allLi;
+  /** How much of the feed could be placed at all — the coverage line, so a
+   *  small country number is not mistaken for a quiet country. */
+  const geo = {
+    country: country ?? null,
+    located: allLi.filter((s) => s.authorCountry).length,
+    total: allLi.length,
+  };
   const news = signals.filter((s) => s.kind === "news" || s.kind === "filing");
 
   const tone = meanSentiment(li.map((s) => ({ sentiment: s.sentiment, at: s.publishedAt })));
@@ -249,7 +268,8 @@ export async function loadL3(
     },
     whitespacePct,
     linkedin: { tone, gauge, stored: li.length, themes, volume, volumeChangePct, top, insideTone, marketTone },
-    changeSignals: news.concat(li.filter((s) => s.theme === "leadership" || s.theme === "restructuring")).slice(0, 6),
+    changeSignals: news.concat(li.filter((s) => s.theme === "leadership" || s.theme === "restructuring" || s.theme === "channel")).slice(0, 6),
+    geo,
     triggers,
     decisionMakers,
     refreshedAt: run?.at ?? null,

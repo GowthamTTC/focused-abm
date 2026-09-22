@@ -36,6 +36,9 @@ export interface NewsItem {
   url: string;
   body: string;
   publishedAt: Date | null;
+  /** Only LinkedIn items carry this: where the author says they are. */
+  authorLocation?: string | null;
+  authorCountry?: string | null;
 }
 
 /** A judged signal, as the panel reads it back. */

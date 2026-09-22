@@ -449,6 +449,13 @@ export const accountSignal = pgTable("account_signal", {
   evidence: text("evidence"),
   judgedAt: ts("judged_at"),
 
+  /** Where the author says they are, verbatim from LinkedIn, plus the country
+   *  parsed out of it. An account read is almost always asked of one market
+   *  next — "and what about the US" — and without this the honest answer is
+   *  that the tool cannot tell. */
+  authorLocation: text("author_location"),
+  authorCountry: text("author_country"),
+
   createdAt: ts("created_at").notNull().defaultNow(),
 }, (t) => [
   uniqueIndex("account_signal_src_uq").on(t.orgId, t.companyKey, t.sourceId),

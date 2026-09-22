@@ -271,12 +271,20 @@ export async function storeSignals(
       url: it.url,
       body,
       publishedAt: it.publishedAt,
+      authorLocation: it.authorLocation ?? null,
+      authorCountry: it.authorCountry ?? null,
     }).onConflictDoUpdate({
       target: [accountSignal.orgId, accountSignal.companyKey, accountSignal.sourceId],
       set: {
         title: it.title,
         url: it.url,
         body,
+        // Backfilled on re-scan: rows stored before this column existed have
+        // null here, and a re-run is the only chance to learn it. Left alone
+        // when the new value is null so a provider that omits it cannot erase
+        // a location already known.
+        ...(it.authorLocation ? { authorLocation: it.authorLocation } : {}),
+        ...(it.authorCountry ? { authorCountry: it.authorCountry } : {}),
         publishedAt: it.publishedAt,
         // Only wipe the verdict when the words actually changed.
         sentiment: sql`case when ${accountSignal.body} = ${body} then ${accountSignal.sentiment} else null end`,

@@ -134,6 +134,13 @@
       "when": 1790064516375,
       "tag": "0018_curly_betty_ross",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1790065698372,
+      "tag": "0019_cheerful_hex",
+      "breakpoints": true
     }
   ]
 }
