@@ -994,26 +994,11 @@ export async function loadL3(
   // research landed on for named people. Nothing here is a claim the sections
   // below cannot support.
   const pains: L3View["overview"]["pains"] = [];
-  // The unit's own filings first, decided by the key the row is stored under —
-  // not by reading the text. Newest-first put AbbVie's EYE CARE notice at the
-  // top of an Allergan Aesthetics page, and a text test kept it there, because
-  // the body of that notice says the words "Allergan Aesthetics" in the course
-  // of explaining that it is not about Allergan Aesthetics.
-  const painFilings = pressRows
-    .filter((r) => r.kind === "filing" && r.theme === "restructuring")
-    .sort((a, b) => {
-      const mine = (x: typeof a) => (focusKey && x.signalKey === focusKey ? 0 : 1);
-      return mine(a) - mine(b)
-        || (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0);
-    });
-  for (const f of painFilings.slice(0, 2)) {
-    pains.push({
-      title: (f.title ?? "").replace(/ \(WARN notice\)$/, ""),
-      detail: (f.body ?? "").replace(/\s+/g, " ").slice(0, 200),
-      source: f.publishedAt ? `filed ${f.publishedAt.toISOString().slice(0, 10)}` : "filing",
-    });
-  }
-  for (const hit of triggerScore.fired.slice(0, 3)) {
+  // Filings are no longer listed here. A WARN notice from last year is the
+  // background to this account, not what a seller opens on today, and two of
+  // them took half the slots in a four-line summary. The rows are still stored
+  // and still score the restructuring triggers below.
+  for (const hit of triggerScore.fired.slice(0, 4)) {
     pains.push({
       title: hit.trigger.label,
       detail: hit.trigger.why ?? "",

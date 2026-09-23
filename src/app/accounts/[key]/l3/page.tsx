@@ -407,49 +407,6 @@ export default async function L3Page({ params, searchParams }: {
         </div>
       )}
 
-      {/* ── workforce movement ── */}
-      <section className={`${CARD} mt-4 p-5`}>
-        <h2 className="text-[15px] font-semibold">Workforce movement</h2>
-        <p className="mt-1 max-w-3xl text-[12px] text-[#667085]">
-          What the company had to file. Official, dated, and complete for the sites it
-          covers — a WARN notice is the one record of a reorganisation that does not depend
-          on anyone choosing to talk about it.
-        </p>
-
-        <div className="mt-3.5">
-          <div className="rounded-[10px] border border-[#FEE4E2] bg-[#FFFBFA] p-4">
-            <div className="text-[11px] font-medium uppercase tracking-wide text-[#B42318]">
-              Filed layoffs · WARN notices
-            </div>
-            {v.workforce.filings.length === 0 ? (
-              <p className="mt-2 text-[13px] text-[#667085]">No restructuring filing recorded.</p>
-            ) : (
-              <ul className="mt-2.5 space-y-2.5">
-                {v.workforce.filings.map((f) => (
-                  <li key={f.id}>
-                    <div className="flex flex-wrap items-baseline justify-between gap-2">
-                      <span className="text-[13px] font-semibold text-[#101828]">
-                        {(f.title ?? "").replace(/ \(WARN notice\)$/, "")}
-                      </span>
-                      <span className="shrink-0 text-[11px] text-[#98A2B3]">
-                        {f.publishedAt ? f.publishedAt.toISOString().slice(0, 10) : ""}
-                      </span>
-                    </div>
-                    <p className="mt-0.5 text-[11.5px] leading-snug text-[#475467]">
-                      {(f.body ?? "").slice(0, 190)}…
-                    </p>
-                    {f.url && (
-                      <a href={f.url} target="_blank" rel="noreferrer"
-                        className="text-[11px] text-[#4F46E5] hover:underline">source ↗</a>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-      </section>
-
       {/* ── people ── */}
       <div className="mt-4">
         <section className={`${CARD} p-5`}>
