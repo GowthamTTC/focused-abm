@@ -235,6 +235,24 @@ export interface L3View {
    *  newsroom publishes investor calendar; its LinkedIn page publishes what the
    *  business is actually doing, which is the thing a seller wants. */
   companyUpdates: VoicePost[];
+  /** Two or three sentences a reader can repeat, and the one thing to do next.
+   *  Assembled from the strongest signal, the offer the research kept landing
+   *  on and the most senior researched name — never written by hand, so it
+   *  cannot go stale against the sections under it. */
+  exec: { summary: string; nextAction: string } | null;
+  /** Commercial opportunities, each standing on more than one thing: the
+   *  signals that fired for it, and the people it fits. */
+  opportunities: {
+    offer: string;
+    /** The signals whose vocabulary entry points at this offer. */
+    signals: { label: string; hits: number; points: number }[];
+    people: { name: string; url: string | null }[];
+    why: string | null;
+    whyFor: string | null;
+    whyForUrl: string | null;
+  }[];
+  /** Everything the page rests on, with a link out to each. */
+  sources: { kind: string; title: string; source: string | null; url: string | null; when: Date | null }[];
   /** The stored posts sorted by what kind of post they are, with how each
    *  kind reads. Sentiment is averaged over the JUDGED posts only and the row
    *  says how many that was — an unjudged post is not a neutral one. */
@@ -1093,6 +1111,58 @@ export async function loadL3(
 
   const overview = { pains: pains.slice(0, 4), pitch, entry };
 
+  // ── Opportunities ───────────────────────────────────────────────────────
+  // An offer plus the signals that argue for it plus the people it fits. One
+  // of the three on its own is a guess; together they are an opportunity, and
+  // the page shows all three so a reader can take it apart.
+  const opportunities = pitch.map((o) => ({
+    offer: o.offer,
+    signals: triggerScore.fired
+      .filter((h) => h.trigger.offer === o.offer)
+      .map((h) => ({ label: h.trigger.label, hits: h.hits, points: Math.round(h.points) })),
+    people: o.people,
+    why: o.why,
+    whyFor: o.whyFor,
+    whyForUrl: o.whyForUrl,
+  })).sort((a, b) => (b.signals.length - a.signals.length) || (b.people.length - a.people.length));
+
+  // ── The executive line ──────────────────────────────────────────────────
+  const topSignal = triggerScore.fired[0] ?? null;
+  const topOpp = opportunities[0] ?? null;
+  const topPerson = entry[0] ?? null;
+  const exec = topSignal || topOpp
+    ? {
+        summary: [
+          topSignal
+            ? `The strongest thing happening at ${busiest ?? companyName} is ${topSignal.trigger.label.toLowerCase()}: ${topSignal.hits} post${topSignal.hits === 1 ? "" : "s"} in the window, ${Math.round(topSignal.points)} points after age decay.`
+            : "",
+          announcements[0]?.title ? `The most recent thing on the record is "${announcements[0].title}".` : "",
+          topOpp
+            ? `Across ${contacts.length} researched ${contacts.length === 1 ? "person" : "people"}, the research kept landing on ${topOpp.offer}, which fits ${topOpp.people.length}.`
+            : "",
+        ].filter(Boolean).join(" "),
+        nextAction: topPerson
+          ? `Open on ${topPerson.name}${topPerson.role ? ` (${topPerson.role.split("|")[0].trim()})` : ""}${topSignal ? `, about ${topSignal.trigger.label.toLowerCase()}` : ""}.`
+          : "Research the people before opening — nobody here has been read yet.",
+      }
+    : null;
+
+  // ── Sources ─────────────────────────────────────────────────────────────
+  // Everything the page rests on that has a link: the filings, the press, the
+  // recorded events. The posts are not listed here one by one — they are in
+  // the signal band, under the category they belong to, which is where a
+  // reader looking for "the posts" is already standing.
+  const sources = pressRows
+    .filter((r) => !focusKey || r.signalKey === focusKey || r.kind === "filing")
+    .map((r) => ({
+      kind: r.kind,
+      title: r.title ?? "(untitled)",
+      source: r.source,
+      url: r.url,
+      when: r.publishedAt,
+    }))
+    .sort((a, b) => (b.when?.getTime() ?? 0) - (a.when?.getTime() ?? 0));
+
   // ── The post mix ────────────────────────────────────────────────────────
   // Every stored post for the unit in focus, sorted by what kind of post it is
   // and how it reads. Market voices are counted separately from employees
@@ -1157,6 +1227,9 @@ export async function loadL3(
     companyUpdates,
     announcements,
     overview,
+    exec,
+    opportunities,
+    sources,
     postMix,
     postMixTotal: mixSource.length,
     focusApplied: busiest,

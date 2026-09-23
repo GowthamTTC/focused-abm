@@ -123,135 +123,154 @@ export default async function L3Page({ params, searchParams }: {
         </p>
       )}
 
-      {/* ── account card ── */}
-      <section className={`${CARD} mt-4 p-5`}>
-        <div className="grid gap-6 lg:grid-cols-[minmax(280px,1fr)_1.5fr]">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[26px] font-semibold tracking-[-.02em] text-[#101828]">{v.companyName}</span>
-              {p.badge && (
-                <span className="rounded-full bg-[#EEF4FF] px-2.5 py-1 text-[11px] font-medium text-[#4F46E5]">{p.badge}</span>
-              )}
-            </div>
-            {p.description && (
-              <p className="mt-2 max-w-sm text-[12.5px] leading-relaxed text-[#475467]">{p.description}</p>
-            )}
-            <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[12px] text-[#667085]">
-              {p.location && <span>◍ {p.location}</span>}
-              {p.employees && <span>◌ {p.employees}</span>}
-              {p.website && (
-                <a href={`https://${p.website.replace(/^https?:\/\//, "")}`} target="_blank" rel="noreferrer"
-                  className="text-[#4F46E5] hover:underline">{p.website}</a>
-              )}
-            </div>
-          </div>
-
-          <div className="lg:border-l lg:border-[#EDEFF3] lg:pl-6">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <h2 className="text-[13px] font-semibold">Org-chart whitespace map</h2>
-            </div>
-            <OrgTree root={v.companyName} nodes={treeNodes} />
-          </div>
-        </div>
-      </section>
-
-      {/* ── intelligence overview ── */}
-      {(v.overview.pains.length > 0 || v.overview.pitch.length > 0) && (
-        <section className="ai-glow mt-4 rounded-[14px] bg-gradient-to-br from-[#F6F4FF] via-white to-[#EEF4FF] p-5">
-          <h2 className="text-[15px] font-semibold">Intelligence overview</h2>
-          <div className="mt-3.5 grid gap-4 lg:grid-cols-2">
-            <div>
-              <div className="text-[10.5px] font-medium uppercase tracking-wide text-[#B42318]">
-                Signals
-              </div>
-              {v.overview.pains.length === 0 ? (
-                <p className="mt-2 text-[12px] text-[#667085]">
-                  Nothing filed and no signal fired in the window.
-                </p>
-              ) : (
-                <ul className="mt-2 space-y-2.5">
-                  {v.overview.pains.map((p) => (
-                    <li key={p.title} className="rounded-[8px] border border-white/70 bg-white/70 p-2.5 backdrop-blur-[2px]">
-                      <div className="flex flex-wrap items-baseline justify-between gap-2">
-                        <span className="text-[12.5px] font-medium text-[#101828]">{p.title}</span>
-                        <span className="shrink-0 text-[10.5px] text-[#98A2B3]">{p.source}</span>
-                      </div>
-                      {p.detail && (
-                        <p className="mt-1 text-[11.5px] leading-relaxed text-[#475467]">
-                          {p.detail.length > 260 ? `${p.detail.slice(0, 260)}…` : p.detail}
-                        </p>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            <div>
-              <div className="text-[10.5px] font-medium uppercase tracking-wide text-[#027A48]">
-                How to pitch it
-              </div>
-              {v.overview.pitch.length === 0 ? (
-                <p className="mt-2 text-[12px] text-[#667085]">
-                  No offer has been landed on yet — research the people first.
-                </p>
-              ) : (
-                <ul className="mt-2 space-y-2.5">
-                  {v.overview.pitch.map((o) => (
-                    <li key={o.offer} className="rounded-[8px] border border-white/70 bg-white/70 p-2.5 backdrop-blur-[2px]">
-                      <div className="flex flex-wrap items-baseline justify-between gap-2">
-                        <span className="text-[12.5px] font-medium text-[#101828]">{o.offer}</span>
-                        <span className="shrink-0 text-[10.5px] text-[#98A2B3]">
-                          fits {o.people.length} {o.people.length === 1 ? "person" : "people"}
-                        </span>
-                      </div>
-                      {o.why && (
-                        <p className="mt-1 text-[11.5px] leading-relaxed text-[#475467]">
-                          {o.whyFor && (
-                            <span className="text-[#98A2B3]">
-                              why, for{" "}
-                              {o.whyForUrl ? (
-                                <a href={o.whyForUrl} target="_blank" rel="noreferrer"
-                                  className="font-medium text-[#6941C6] hover:underline">{o.whyFor}</a>
-                              ) : (
-                                <span className="font-medium text-[#475467]">{o.whyFor}</span>
-                              )}
-                              {": "}
-                            </span>
-                          )}
-                          {o.why.length > 240 ? `${o.why.slice(0, 240)}…` : o.why}
-                        </p>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {v.overview.entry.length > 0 && (
-                <div className="mt-3">
-                  <div className="text-[10.5px] font-medium uppercase tracking-wide text-[#475467]">
-                    Open on
-                  </div>
-                  <ul className="mt-1.5 space-y-1">
-                    {v.overview.entry.map((e) => (
-                      <li key={e.name} className="text-[11.5px] leading-snug text-[#475467]">
-                        {e.url ? (
-                          <a href={e.url} target="_blank" rel="noreferrer"
-                            className="font-medium text-[#101828] hover:text-[#6941C6] hover:underline">
-                            {e.name} ↗
-                          </a>
-                        ) : (
-                          <span className="font-medium text-[#101828]">{e.name}</span>
-                        )}
-                        {e.role ? ` — ${e.role.slice(0, 70)}` : ""}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          </div>
+      {/* ── Overview ── */}
+      <div id="overview" className="mt-5 flex items-baseline gap-2.5">
+        <h2 className="rounded-[6px] bg-[#F2F4F7] px-2 py-0.5 font-mono text-[12px] font-medium text-[#344054]">Overview</h2>
+        <p className="text-[12px] text-[#667085]">Executive summary and recommended next action.</p>
+      </div>
+      {v.exec ? (
+        <section className="ai-glow mt-2 rounded-[14px] bg-gradient-to-br from-[#F6F4FF] via-white to-[#EEF4FF] p-5">
+          <p className="max-w-4xl text-[13.5px] leading-relaxed text-[#344054]">{v.exec.summary}</p>
+          <p className="mt-3 flex flex-wrap items-baseline gap-2 text-[13px]">
+            <span className="rounded-[6px] bg-[#4F46E5] px-2 py-0.5 text-[10.5px] font-medium uppercase tracking-wide text-white">
+              Next action
+            </span>
+            <span className="font-medium text-[#101828]">{v.exec.nextAction}</span>
+          </p>
         </section>
+      ) : (
+        <section className={`${CARD} mt-2 p-5`}>
+          <p className="text-[13px] text-[#667085]">
+            Nothing has fired yet on this account. Scan it, then research the people.
+          </p>
+        </section>
+      )}
+
+
+      {/* ── Opportunities ── */}
+      {v.opportunities.length > 0 && (
+        <>
+          <div id="opportunities" className="mt-6 flex items-baseline gap-2.5">
+            <h2 className="rounded-[6px] bg-[#F2F4F7] px-2 py-0.5 font-mono text-[12px] font-medium text-[#344054]">Opportunities</h2>
+            <p className="text-[12px] text-[#667085]">Commercial opportunities standing on more than one signal.</p>
+          </div>
+          <div className="mt-2 grid gap-3 lg:grid-cols-2">
+            {v.opportunities.map((o) => (
+              <section key={o.offer} className={`${CARD} p-4`}>
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <span className="text-[13px] font-semibold text-[#101828]">{o.offer}</span>
+                  <span className="text-[11px] text-[#98A2B3]">
+                    fits {o.people.length} {o.people.length === 1 ? "person" : "people"}
+                  </span>
+                </div>
+                {o.signals.length > 0 ? (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {o.signals.map((sig) => (
+                      <span key={sig.label}
+                        className="rounded-[6px] border border-[#D9D6FE] bg-[#FAFAFF] px-1.5 py-0.5 text-[10.5px] font-medium text-[#4F46E5]">
+                        {sig.label} · {sig.hits} post{sig.hits === 1 ? "" : "s"} · {sig.points} pts
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-[11px] text-[#98A2B3]">
+                    No signal fired for this one — it rests on the people alone.
+                  </p>
+                )}
+                {o.why && (
+                  <p className="mt-2 text-[11.5px] leading-relaxed text-[#475467]">
+                    {o.whyFor && (
+                      <span className="text-[#98A2B3]">
+                        why, for{" "}
+                        {o.whyForUrl ? (
+                          <a href={o.whyForUrl} target="_blank" rel="noreferrer"
+                            className="font-medium text-[#6941C6] hover:underline">{o.whyFor}</a>
+                        ) : o.whyFor}
+                        {": "}
+                      </span>
+                    )}
+                    {o.why.length > 260 ? `${o.why.slice(0, 260)}…` : o.why}
+                  </p>
+                )}
+              </section>
+            ))}
+          </div>
+        </>
+      )}
+
+
+      {/* ── signals ── */}
+      <div id="signals" className="mt-6 flex items-baseline gap-2.5">
+        <h2 className="rounded-[6px] bg-[#F2F4F7] px-2 py-0.5 font-mono text-[12px] font-medium text-[#344054]">Signals</h2>
+        <p className="text-[12px] text-[#667085]">News, LinkedIn, hiring, leadership changes, events, restructuring.</p>
+      </div>
+
+      {/* ── announcements ── */}
+      {v.announcements.length > 0 && (
+        <div className="mt-4">
+          <section className={`${CARD} p-5`}>
+            <div className="flex items-baseline justify-between gap-2">
+              <div>
+                <h2 className="text-[13px] font-semibold">What the business announced</h2>
+                <p className="mt-0.5 text-[11.5px] text-[#667085]">
+                  Press the unit&apos;s LinkedIn page does not publish and its newsroom files
+                  under the parent — kept where it carries something to open on.
+                </p>
+              </div>
+              <span className="text-[11px] text-[#98A2B3]">
+                {v.announcements.length} item{v.announcements.length === 1 ? "" : "s"}
+              </span>
+            </div>
+            <ul className="mt-2.5 divide-y divide-[#F2F4F7]">
+              {v.announcements.map((n) => (
+                <li key={n.id} className="grid gap-4 py-3 first:pt-0 lg:grid-cols-[1.35fr_1fr]">
+                  <div>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-[12.5px] font-medium leading-snug text-[#101828]">
+                        {n.title}
+                      </span>
+                      <span className="shrink-0 text-[10.5px] text-[#98A2B3]">
+                        {n.publishedAt ? n.publishedAt.toISOString().slice(0, 10) : ""}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[11.5px] leading-snug text-[#475467]">
+                      {(n.body ?? "").replace(/\s+/g, " ").slice(0, 320)}…
+                    </p>
+                    <p className="mt-1 text-[11px] text-[#667085]">
+                      {n.source}
+                      {n.url && (
+                        <> · <a href={n.url} target="_blank" rel="noreferrer"
+                          className="text-[#4F46E5] hover:underline">source ↗</a></>
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="lg:border-l lg:border-[#F2F4F7] lg:pl-4">
+                    <div className="space-y-1.5">
+                        {n.matchedTriggers.map((t) => (
+                          <div key={t.phrase}>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="rounded-[6px] border border-[#D9D6FE] bg-[#FAFAFF] px-1.5 py-0.5 text-[10.5px] font-medium text-[#4F46E5]">
+                                {t.label} · {t.weight} pts
+                              </span>
+                              {t.offer && (
+                                <span className="rounded-[6px] bg-[#ECFDF3] px-1.5 py-0.5 text-[10.5px] font-medium text-[#027A48]">
+                                  {t.offer}
+                                </span>
+                              )}
+                            </div>
+                            {t.why && (
+                              <p className="mt-1 text-[11.5px] leading-snug text-[#475467]">{t.why}</p>
+                            )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </div>
       )}
 
       {/* ── company news ── */}
@@ -331,74 +350,6 @@ export default async function L3Page({ params, searchParams }: {
         </section>
       </div>
 
-      {/* ── announcements ── */}
-      {v.announcements.length > 0 && (
-        <div className="mt-4">
-          <section className={`${CARD} p-5`}>
-            <div className="flex items-baseline justify-between gap-2">
-              <div>
-                <h2 className="text-[13px] font-semibold">What the business announced</h2>
-                <p className="mt-0.5 text-[11.5px] text-[#667085]">
-                  Press the unit&apos;s LinkedIn page does not publish and its newsroom files
-                  under the parent — kept where it carries something to open on.
-                </p>
-              </div>
-              <span className="text-[11px] text-[#98A2B3]">
-                {v.announcements.length} item{v.announcements.length === 1 ? "" : "s"}
-              </span>
-            </div>
-            <ul className="mt-2.5 divide-y divide-[#F2F4F7]">
-              {v.announcements.map((n) => (
-                <li key={n.id} className="grid gap-4 py-3 first:pt-0 lg:grid-cols-[1.35fr_1fr]">
-                  <div>
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="text-[12.5px] font-medium leading-snug text-[#101828]">
-                        {n.title}
-                      </span>
-                      <span className="shrink-0 text-[10.5px] text-[#98A2B3]">
-                        {n.publishedAt ? n.publishedAt.toISOString().slice(0, 10) : ""}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-[11.5px] leading-snug text-[#475467]">
-                      {(n.body ?? "").replace(/\s+/g, " ").slice(0, 320)}…
-                    </p>
-                    <p className="mt-1 text-[11px] text-[#667085]">
-                      {n.source}
-                      {n.url && (
-                        <> · <a href={n.url} target="_blank" rel="noreferrer"
-                          className="text-[#4F46E5] hover:underline">source ↗</a></>
-                      )}
-                    </p>
-                  </div>
-
-                  <div className="lg:border-l lg:border-[#F2F4F7] lg:pl-4">
-                    <div className="space-y-1.5">
-                        {n.matchedTriggers.map((t) => (
-                          <div key={t.phrase}>
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              <span className="rounded-[6px] border border-[#D9D6FE] bg-[#FAFAFF] px-1.5 py-0.5 text-[10.5px] font-medium text-[#4F46E5]">
-                                {t.label} · {t.weight} pts
-                              </span>
-                              {t.offer && (
-                                <span className="rounded-[6px] bg-[#ECFDF3] px-1.5 py-0.5 text-[10.5px] font-medium text-[#027A48]">
-                                  {t.offer}
-                                </span>
-                              )}
-                            </div>
-                            {t.why && (
-                              <p className="mt-1 text-[11.5px] leading-snug text-[#475467]">{t.why}</p>
-                            )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </section>
-        </div>
-      )}
-
       {/* ── post mix ── */}
       {v.postMix.length > 0 && (
         <section className={`${CARD} mt-4 p-5`}>
@@ -477,6 +428,50 @@ export default async function L3Page({ params, searchParams }: {
           </ul>
         </section>
       )}
+
+      {/* ── org-map ── */}
+      <div id="org-map" className="mt-6 flex items-baseline gap-2.5">
+        <h2 className="rounded-[6px] bg-[#F2F4F7] px-2 py-0.5 font-mono text-[12px] font-medium text-[#344054]">Org Map</h2>
+        <p className="text-[12px] text-[#667085]">Business units, whitespace and existing Ariel relationships.</p>
+      </div>
+
+      {/* ── account card ── */}
+      <section className={`${CARD} mt-4 p-5`}>
+        <div className="grid gap-6 lg:grid-cols-[minmax(280px,1fr)_1.5fr]">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[26px] font-semibold tracking-[-.02em] text-[#101828]">{v.companyName}</span>
+              {p.badge && (
+                <span className="rounded-full bg-[#EEF4FF] px-2.5 py-1 text-[11px] font-medium text-[#4F46E5]">{p.badge}</span>
+              )}
+            </div>
+            {p.description && (
+              <p className="mt-2 max-w-sm text-[12.5px] leading-relaxed text-[#475467]">{p.description}</p>
+            )}
+            <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[12px] text-[#667085]">
+              {p.location && <span>◍ {p.location}</span>}
+              {p.employees && <span>◌ {p.employees}</span>}
+              {p.website && (
+                <a href={`https://${p.website.replace(/^https?:\/\//, "")}`} target="_blank" rel="noreferrer"
+                  className="text-[#4F46E5] hover:underline">{p.website}</a>
+              )}
+            </div>
+          </div>
+
+          <div className="lg:border-l lg:border-[#EDEFF3] lg:pl-6">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <h2 className="text-[13px] font-semibold">Org-chart whitespace map</h2>
+            </div>
+            <OrgTree root={v.companyName} nodes={treeNodes} />
+          </div>
+        </div>
+      </section>
+
+      {/* ── people-band ── */}
+      <div id="people-band" className="mt-6 flex items-baseline gap-2.5">
+        <h2 className="rounded-[6px] bg-[#F2F4F7] px-2 py-0.5 font-mono text-[12px] font-medium text-[#344054]">People</h2>
+        <p className="text-[12px] text-[#667085]">ICP contacts ranked by relevance to the signals.</p>
+      </div>
 
       {/* ── people ── */}
       <div className="mt-4">
@@ -691,6 +686,88 @@ export default async function L3Page({ params, searchParams }: {
           </p>
         </section>
       </div>
+
+      {/* ── Plays ── */}
+      {v.overview.pitch.length > 0 && (
+        <>
+          <div id="plays" className="mt-6 flex items-baseline gap-2.5">
+            <h2 className="rounded-[6px] bg-[#F2F4F7] px-2 py-0.5 font-mono text-[12px] font-medium text-[#344054]">Plays</h2>
+            <p className="text-[12px] text-[#667085]">Ariel offerings mapped against the people who own the problem.</p>
+          </div>
+          <section className={`${CARD} mt-2 p-5`}>
+            <ul className="space-y-3">
+              {v.overview.pitch.map((o) => (
+                <li key={o.offer} className="rounded-[10px] border border-[#EDEFF3] p-3">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span className="text-[13px] font-semibold text-[#101828]">{o.offer}</span>
+                    <span className="text-[11px] text-[#98A2B3]">
+                      fits {o.people.length} {o.people.length === 1 ? "person" : "people"}
+                    </span>
+                  </div>
+                  <p className="mt-1.5 flex flex-wrap gap-x-2 gap-y-1 text-[11.5px] text-[#475467]">
+                    {o.people.map((pp) => (
+                      pp.url ? (
+                        <a key={pp.name} href={pp.url} target="_blank" rel="noreferrer"
+                          className="rounded-[6px] bg-[#F9FAFB] px-1.5 py-0.5 text-[#6941C6] hover:underline">
+                          {pp.name}
+                        </a>
+                      ) : (
+                        <span key={pp.name} className="rounded-[6px] bg-[#F9FAFB] px-1.5 py-0.5">{pp.name}</span>
+                      )
+                    ))}
+                  </p>
+                </li>
+              ))}
+            </ul>
+            {v.overview.entry.length > 0 && (
+              <p className="mt-3 border-t border-[#F2F4F7] pt-2.5 text-[11.5px] leading-snug text-[#475467]">
+                <span className="text-[#98A2B3]">Open on: </span>
+                {v.overview.entry.map((e, i) => (
+                  <span key={e.name}>
+                    {i > 0 ? " · " : ""}
+                    {e.url ? (
+                      <a href={e.url} target="_blank" rel="noreferrer"
+                        className="font-medium text-[#101828] hover:text-[#6941C6] hover:underline">{e.name}</a>
+                    ) : <span className="font-medium text-[#101828]">{e.name}</span>}
+                  </span>
+                ))}
+              </p>
+            )}
+          </section>
+        </>
+      )}
+
+
+      {/* ── Sources ── */}
+      {v.sources.length > 0 && (
+        <>
+          <div id="sources" className="mt-6 flex items-baseline gap-2.5">
+            <h2 className="rounded-[6px] bg-[#F2F4F7] px-2 py-0.5 font-mono text-[12px] font-medium text-[#344054]">Sources</h2>
+            <p className="text-[12px] text-[#667085]">Articles, filings and recorded events behind the page.</p>
+          </div>
+          <section className={`${CARD} mt-2 p-5`}>
+            <ul className="divide-y divide-[#F2F4F7]">
+              {v.sources.map((s2, i) => (
+                <li key={`${s2.title}-${i}`} className="flex flex-wrap items-baseline gap-2 py-2 first:pt-0 last:pb-0">
+                  <span className="rounded-[5px] bg-[#F2F4F7] px-1.5 py-0.5 text-[9.5px] uppercase tracking-wide text-[#667085]">
+                    {s2.kind}
+                  </span>
+                  <span className="text-[12px] text-[#101828]">{s2.title}</span>
+                  <span className="text-[11px] text-[#98A2B3]">{s2.source}</span>
+                  {s2.url && (
+                    <a href={s2.url} target="_blank" rel="noreferrer"
+                      className="text-[11px] text-[#4F46E5] hover:underline">open ↗</a>
+                  )}
+                  <span className="ml-auto shrink-0 text-[10.5px] text-[#98A2B3]">
+                    {s2.when ? s2.when.toISOString().slice(0, 10) : ""}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </>
+      )}
+
 
     </Shell>
   );
