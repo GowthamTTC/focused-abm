@@ -17,6 +17,7 @@ import { companyKey } from "@/modules/radar/score";
 import { meanSentiment, type Band, type Trigger } from "@/modules/pulse/types";
 import { loadAccountMap, mapKeys, type AccountMapRow } from "@/modules/accounts/org-map";
 import { voiceOf } from "@/modules/intel/voice";
+import { isUsPost } from "@/modules/accounts/us-filter";
 import { competitorHits } from "@/modules/pulse/competitors";
 import { getOrgSettings } from "@/modules/settings/org-settings";
 import { DEFAULT_TRIGGERS, scoreTriggers, type TriggerScore } from "@/modules/accounts/trigger-vocab";
@@ -359,6 +360,11 @@ export async function loadL3(
   const companyUpdates = voicePosts
     .filter((p) => p.voice === "company")
     .filter((p) => !p.publishedAt || p.publishedAt.getTime() >= updateCutoff)
+    // US only. There is no location field on a post, so this excludes what it
+    // can show is elsewhere — a page that names another market, or a post
+    // written in another language — rather than demanding proof of US-ness the
+    // parent page never offers.
+    .filter((p) => isUsPost(p.who, p.body))
     .slice(0, 6);
 
   // Buying signals, scored. The vocabulary is the workspace's own when it has

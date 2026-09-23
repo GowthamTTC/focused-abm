@@ -164,7 +164,7 @@ export default async function L3Page({ params, searchParams }: {
 
           <div className="lg:border-l lg:border-[#EDEFF3] lg:pl-6">
             <div className="flex items-baseline justify-between gap-2">
-              <h2 className="text-[13px] font-semibold">From their LinkedIn page · 30 days</h2>
+              <h2 className="text-[13px] font-semibold">From their US LinkedIn pages · 30 days</h2>
               <span className="text-[11px] text-[#98A2B3]">
                 {v.companyUpdates.length > 0
                   ? `${v.companyUpdates.length} post${v.companyUpdates.length === 1 ? "" : "s"}`
@@ -173,8 +173,8 @@ export default async function L3Page({ params, searchParams }: {
             </div>
             {v.companyUpdates.length === 0 ? (
               <p className="mt-2 text-[12px] leading-snug text-[#667085]">
-                Nothing posted by the company&apos;s own LinkedIn pages in the last 30 days,
-                among the posts stored. Scan the vocabulary or refresh signals to collect more.
+                No US company-page posts in the last 30 days among those stored. Pages that
+                name another market, and posts written in another language, are left out.
               </p>
             ) : (
               <ul className="mt-2.5 divide-y divide-[#F2F4F7]">
