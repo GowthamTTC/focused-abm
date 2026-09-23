@@ -130,10 +130,27 @@ export default async function L3Page({ params, searchParams }: {
       </div>
       {v.exec ? (
         <section className="ai-glow mt-2 rounded-[14px] bg-gradient-to-br from-[#F6F4FF] via-white to-[#EEF4FF] p-5">
-          <p className="max-w-4xl text-[13.5px] leading-relaxed text-[#344054]">{v.exec.summary}</p>
-          <p className="mt-3 flex flex-wrap items-baseline gap-2 text-[13px]">
+          <dl className="space-y-2.5">
+            {([
+              ["What changed", v.exec.summary],
+              ["What it means", v.narratives.length > 0
+                ? `${v.narratives.map((n) => n.title.toLowerCase()).slice(0, 3).join("; ")} — ${v.narratives.length} narrative${v.narratives.length === 1 ? "" : "s"} across ${v.narratives.reduce((t, n) => t + n.strands, 0)} independent sources.`
+                : "Not enough converging evidence to call a narrative yet."],
+              ["Where Ariel may fit", v.opportunities.length > 0
+                ? `${v.opportunities.length} opportunit${v.opportunities.length === 1 ? "y" : "ies"}, strongest ${v.opportunities[0].offer} at ${v.opportunities[0].strength.total}/100.`
+                : "No opportunity has enough behind it yet."],
+              ["Who matters", `${v.contacts.length} stakeholder${v.contacts.length === 1 ? "" : "s"} · ${v.contacts.filter((c) => c.research).length} researched · ${v.contacts.filter((c) => c.connected).length} already known to this workspace.`],
+              ["What we don't know", `${v.unknowns.length} open question${v.unknowns.length === 1 ? "" : "s"} — ${v.unknowns[0] ?? ""}`],
+            ] as const).map(([label, body]) => (
+              <div key={label} className="grid gap-1 sm:grid-cols-[150px_1fr]">
+                <dt className="text-[10.5px] font-medium uppercase tracking-wide text-[#6941C6]">{label}</dt>
+                <dd className="text-[12.5px] leading-relaxed text-[#344054]">{body}</dd>
+              </div>
+            ))}
+          </dl>
+          <p className="mt-3 flex flex-wrap items-baseline gap-2 border-t border-[#E9D7FE] pt-3 text-[13px]">
             <span className="rounded-[6px] bg-[#4F46E5] px-2 py-0.5 text-[10.5px] font-medium uppercase tracking-wide text-white">
-              Next action
+              Next step
             </span>
             <span className="font-medium text-[#101828]">{v.exec.nextAction}</span>
           </p>
@@ -145,7 +162,6 @@ export default async function L3Page({ params, searchParams }: {
           </p>
         </section>
       )}
-
 
       {/* ── Opportunities ── */}
       {v.opportunities.length > 0 && (
@@ -163,6 +179,25 @@ export default async function L3Page({ params, searchParams }: {
                     fits {o.people.length} {o.people.length === 1 ? "person" : "people"}
                   </span>
                 </div>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className="rounded-[6px] bg-[#101828] px-2 py-0.5 text-[11px] font-semibold text-white">
+                    {o.strength.total}/100
+                  </span>
+                  {o.strength.components.map((c) => (
+                    <span key={c.label} title={`${c.why} · ${c.earned}/${c.weight}`}
+                      className={`rounded-[5px] px-1.5 py-0.5 text-[10px] ${
+                        c.band === "Strong" ? "bg-[#ECFDF3] text-[#027A48]"
+                          : c.band === "Medium" ? "bg-[#FFFAEB] text-[#B54708]"
+                            : "bg-[#FEF3F2] text-[#B42318]"}`}>
+                      {c.label} · {c.band}
+                    </span>
+                  ))}
+                </div>
+                {o.narrativeTitles.length > 0 && (
+                  <p className="mt-1.5 text-[11px] text-[#667085]">
+                    Rests on: {o.narrativeTitles.join(" · ")}
+                  </p>
+                )}
                 {o.signals.length > 0 ? (
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {o.signals.map((sig) => (
@@ -204,6 +239,46 @@ export default async function L3Page({ params, searchParams }: {
         <h2 className="rounded-[6px] bg-[#F2F4F7] px-2 py-0.5 font-mono text-[12px] font-medium text-[#344054]">Signals</h2>
         <p className="text-[12px] text-[#667085]">News, LinkedIn, hiring, leadership changes, events, restructuring.</p>
       </div>
+      {v.narratives.length > 0 && (
+        <section className={`${CARD} mt-2 p-5`}>
+          <h3 className="text-[13px] font-semibold">What keeps repeating</h3>
+          <p className="mt-0.5 text-[11.5px] text-[#667085]">
+            The same thing observed from more than one direction. A seller should not have to
+            read {v.postMixTotal} posts to find {v.narratives.length} themes.
+          </p>
+          <ul className="mt-3 grid gap-3 lg:grid-cols-2">
+            {v.narratives.map((n) => (
+              <li key={n.key} className="rounded-[10px] border border-[#EDEFF3] p-3">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <span className="text-[12.5px] font-medium text-[#101828]">{n.title}</span>
+                  <span className="text-[10.5px] text-[#98A2B3]">
+                    {n.strands} strand{n.strands === 1 ? "" : "s"}
+                    {n.newest ? ` · newest ${n.newest.toISOString().slice(0, 10)}` : ""}
+                  </span>
+                </div>
+                <p className="mt-1 text-[11.5px] leading-relaxed text-[#475467]">{n.relevance}</p>
+                <ul className="mt-1.5 flex flex-wrap gap-1.5">
+                  {n.evidence.map((e, k) => (
+                    <li key={`${e.label}-${k}`}>
+                      {e.url ? (
+                        <a href={e.url} target="_blank" rel="noreferrer"
+                          className="rounded-[5px] bg-[#F9FAFB] px-1.5 py-0.5 text-[10px] text-[#4F46E5] hover:underline">
+                          {e.label.slice(0, 46)} · {e.detail}
+                        </a>
+                      ) : (
+                        <span className="rounded-[5px] bg-[#F9FAFB] px-1.5 py-0.5 text-[10px] text-[#667085]">
+                          {e.label.slice(0, 46)} · {e.detail}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
 
       {/* ── announcements ── */}
       {v.announcements.length > 0 && (
@@ -737,6 +812,26 @@ export default async function L3Page({ params, searchParams }: {
         </>
       )}
 
+
+      {/* ── Unknowns ── */}
+      {v.unknowns.length > 0 && (
+        <>
+          <div id="unknowns" className="mt-6 flex items-baseline gap-2.5">
+            <h2 className="rounded-[6px] bg-[#F2F4F7] px-2 py-0.5 font-mono text-[12px] font-medium text-[#344054]">Unknowns</h2>
+            <p className="text-[12px] text-[#667085]">What nobody has established, and that would change the approach.</p>
+          </div>
+          <section className={`${CARD} mt-2 p-5`}>
+            <ul className="space-y-2">
+              {v.unknowns.map((u) => (
+                <li key={u} className="flex items-start gap-2.5 text-[12.5px] leading-relaxed text-[#344054]">
+                  <span className="mt-[3px] h-3.5 w-3.5 shrink-0 rounded-[4px] border border-[#D0D5DD]" />
+                  <span>{u}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </>
+      )}
 
       {/* ── Sources ── */}
       {v.sources.length > 0 && (

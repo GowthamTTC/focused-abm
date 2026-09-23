@@ -12,13 +12,15 @@
  * fastest way to lose a room that asks how it was calculated.
  */
 import { and, eq, inArray } from "drizzle-orm";
-import { db, accountSignal, accountPerson, connection, job } from "@/db";
+import { db, accountSignal, accountPerson, connection, job, service } from "@/db";
 import { companyKey } from "@/modules/radar/score";
 import { meanSentiment, type Band, type Trigger } from "@/modules/pulse/types";
 import { loadAccountMap, mapKeys, type AccountMapRow } from "@/modules/accounts/org-map";
 import { voiceOf } from "@/modules/intel/voice";
 import { isUsPost } from "@/modules/accounts/us-filter";
 import { bucketOf, BUCKET_LABELS, BUCKET_ORDER, type PostBucket } from "@/modules/accounts/post-buckets";
+import { buildNarratives, type Narrative } from "@/modules/accounts/narratives";
+import { scoreOpportunity, type OpportunityScore } from "@/modules/accounts/opportunity-score";
 import { competitorHits } from "@/modules/pulse/competitors";
 import { getOrgSettings } from "@/modules/settings/org-settings";
 import { DEFAULT_TRIGGERS, scoreTriggers, triggersIn, type TriggerScore, type TriggerSignal } from "@/modules/accounts/trigger-vocab";
@@ -240,10 +242,21 @@ export interface L3View {
    *  on and the most senior researched name — never written by hand, so it
    *  cannot go stale against the sections under it. */
   exec: { summary: string; nextAction: string } | null;
+  /** What the signals keep saying, clustered. Three to five durable themes
+   *  with the evidence that made each one. */
+  narratives: Narrative[];
+  /** The facts nobody has established yet, and that would change the account
+   *  decision if they were. A tool that only reports what it knows is a
+   *  research archive; the gaps are what make it an analysis. */
+  unknowns: string[];
   /** Commercial opportunities, each standing on more than one thing: the
    *  signals that fired for it, and the people it fits. */
   opportunities: {
     offer: string;
+    /** The narratives this opportunity rests on. */
+    narrativeTitles: string[];
+    /** Strength out of 100, with every component shown. Not a probability. */
+    strength: OpportunityScore;
     /** The signals whose vocabulary entry points at this offer. */
     signals: { label: string; hits: number; points: number }[];
     people: { name: string; url: string | null }[];
@@ -1115,16 +1128,66 @@ export async function loadL3(
   // An offer plus the signals that argue for it plus the people it fits. One
   // of the three on its own is a guess; together they are an opportunity, and
   // the page shows all three so a reader can take it apart.
-  const opportunities = pitch.map((o) => ({
-    offer: o.offer,
-    signals: triggerScore.fired
+  const narratives = buildNarratives(triggerScore.fired, pressRows.filter(
+    (r) => !focusKey || r.signalKey === focusKey || r.kind === "filing",
+  ));
+
+  // The workspace's own live offers. An opportunity that names something this
+  // firm does not sell scores lower for it, and says so.
+  const catalogue = new Set((await db.select({ slug: service.slug }).from(service).where(and(
+    eq(service.orgId, orgId), eq(service.status, "active"),
+  ))).map((x) => x.slug));
+  const opportunities = pitch.map((o) => {
+    const mine = narratives.filter((n) => n.offer === o.offer);
+    const signals = triggerScore.fired
       .filter((h) => h.trigger.offer === o.offer)
-      .map((h) => ({ label: h.trigger.label, hits: h.hits, points: Math.round(h.points) })),
-    people: o.people,
-    why: o.why,
-    whyFor: o.whyFor,
-    whyForUrl: o.whyForUrl,
-  })).sort((a, b) => (b.signals.length - a.signals.length) || (b.people.length - a.people.length));
+      .map((h) => ({ label: h.trigger.label, hits: h.hits, points: Math.round(h.points) }));
+    const evidence = mine.flatMap((n) => n.evidence);
+    const dates = evidence.map((e) => e.at?.getTime() ?? 0).filter(Boolean);
+    return {
+      offer: o.offer,
+      narrativeTitles: mine.map((n) => n.title),
+      strength: scoreOpportunity({
+        // Signals and press both count, and a narrative's evidence already
+        // holds both — this is the number of INDEPENDENT things, not the
+        // number of posts, because twenty reposts of one event is one event.
+        strands: Math.max(signals.length, evidence.length),
+        newest: dates.length ? new Date(Math.max(...dates)) : null,
+        people: o.people.length,
+        inCatalogue: catalogue.has(o.offer),
+        authoritative: evidence.filter((e) => e.kind === "press").length,
+      }),
+      signals,
+      people: o.people,
+      why: o.why,
+      whyFor: o.whyFor,
+      whyForUrl: o.whyForUrl,
+    };
+  }).sort((a, b) => b.strength.total - a.strength.total);
+
+  // ── Unknowns ────────────────────────────────────────────────────────────
+  // Assembled from what the page cannot answer, not from a list somebody typed.
+  // Each one is a question whose answer would change how this account is
+  // approached, and each is only asked when the data actually leaves it open.
+  const unknowns: string[] = [];
+  const devPeople = contacts.filter((c) => /learning|talent|leadership development|organi[sz]ational/i.test(c.role));
+  if (devPeople.length === 0) {
+    unknowns.push(`Who owns leadership development for ${busiest ?? companyName}? Nobody found carries it in their title.`);
+  }
+  if (contacts.some((c) => c.amiEvent)) {
+    unknowns.push("Does the Allergan Medical Institute procure training independently, or through the parent's L&D?");
+  }
+  if (contacts.some((c) => /communication/i.test(c.role))) {
+    unknowns.push("Is Strategic Communications responsible for employee communication after the reorganisation, or only external?");
+  }
+  if (contacts.every((c) => !c.connected)) {
+    unknowns.push("Does this workspace have any relationship into the unit at all? No contact here matches a known connection.");
+  }
+  const unresearched = contacts.filter((c) => !c.research).length;
+  if (unresearched > 0) {
+    unknowns.push(`${unresearched} of ${contacts.length} people have not been read yet — their relevance is a guess until they are.`);
+  }
+  unknowns.push("Who holds the budget: Communications, Commercial Excellence, HR/L&D or Medical Education?");
 
   // ── The executive line ──────────────────────────────────────────────────
   const topSignal = triggerScore.fired[0] ?? null;
@@ -1228,6 +1291,8 @@ export async function loadL3(
     announcements,
     overview,
     exec,
+    narratives,
+    unknowns,
     opportunities,
     sources,
     postMix,
