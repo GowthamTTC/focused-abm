@@ -708,7 +708,11 @@ export default async function L3Page({ params, searchParams }: {
                   ))}
                 </ul>
 
-                <div className="rounded-[10px] border border-[#EDEFF3] p-4">
+                {/* Same height as the list beside it, and scrolls inside that
+                    height: a research note that grows to two thousand pixels
+                    pushes the rest of the page down and leaves the list
+                    stranded against white space. */}
+                <div className="max-h-[32rem] overflow-y-auto rounded-[10px] border border-[#EDEFF3] p-4">
                   {!chosen ? (
                     <p className="text-[12.5px] text-[#667085]">Pick a name to read the research.</p>
                   ) : (
