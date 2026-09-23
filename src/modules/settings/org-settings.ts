@@ -29,6 +29,7 @@ const settingsSchema = z.object({
     label: z.string().min(1).max(80),
     weight: z.number().int().min(1).max(5),
     why: z.string().max(400).optional(),
+    offer: z.string().max(80).nullish(),
   })).max(60).optional(),
   offIcpSignals: z.array(z.string().max(60)).max(200).optional(),
   postScanDailyCap: z.number().int().min(1).max(2000).optional(),

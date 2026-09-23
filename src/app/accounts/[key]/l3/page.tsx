@@ -236,9 +236,16 @@ export default async function L3Page({ params, searchParams }: {
                         <div className="space-y-1.5">
                           {n.matchedTriggers.map((t) => (
                             <div key={t.phrase}>
-                              <span className="rounded-[6px] border border-[#D9D6FE] bg-[#FAFAFF] px-1.5 py-0.5 text-[10.5px] font-medium text-[#4F46E5]">
-                                {t.label} · {t.weight} pts
-                              </span>
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="rounded-[6px] border border-[#D9D6FE] bg-[#FAFAFF] px-1.5 py-0.5 text-[10.5px] font-medium text-[#4F46E5]">
+                                  {t.label} · {t.weight} pts
+                                </span>
+                                {t.offer && (
+                                  <span className="rounded-[6px] bg-[#ECFDF3] px-1.5 py-0.5 text-[10.5px] font-medium text-[#027A48]">
+                                    {t.offer}
+                                  </span>
+                                )}
+                              </div>
                               {t.why && (
                                 <p className="mt-1 text-[11.5px] leading-snug text-[#475467]">{t.why}</p>
                               )}

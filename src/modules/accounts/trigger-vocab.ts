@@ -26,6 +26,11 @@ export interface TriggerSignal {
    *  asked to explain each post afresh writes something plausible and
    *  different each time, which is how a panel stops being believed. */
   why?: string;
+  /** The offer this opens, as a slug from the workspace's own catalogue. Null
+   *  when the signal is real but nothing in the catalogue credibly opens on it
+   *  — a respectable answer, and better than routing everything to whatever is
+   *  nearest. */
+  offer?: string | null;
 }
 
 /** A leadership-and-communication seller's vocabulary, ordered by weight.
@@ -34,21 +39,81 @@ export interface TriggerSignal {
  *  Aesthetics. Phrases that found nothing are still here — a trigger that is
  *  quiet this month is not a trigger that is wrong. */
 export const DEFAULT_TRIGGERS: TriggerSignal[] = [
-  { phrase: "speaker training", label: "Speaker training programme", weight: 5, why: "They already train faculty to present, so the principle is conceded and the budget exists. The content is theirs; presence, structure and landing a room are a separate skill and a separate line." },        // 18/19
-  { phrase: "national sales meeting", label: "National sales meeting", weight: 5, why: "The year's largest presentation moment. Message landing, manager readiness and speaker coaching are bought in the months before it, not after." },      // 9/10
-  { phrase: "sales kickoff", label: "Sales kickoff", weight: 5, why: "A kickoff sets the year's story. Whoever owns it is buying help to make it land before the date, not after." },                        // 0/0
-  { phrase: "town hall", label: "Town hall / all-hands", weight: 4, why: "Town halls are where leaders are judged on delivery rather than content. Internal communications owns the moment and usually the budget." },                    // 1/1
-  { phrase: "leadership development", label: "Leadership development", weight: 4, why: "The category named openly. Someone owns a programme, a budget line and a calendar — the conversation starts at comparison, not education." },      // 7/35
-  { phrase: "high potential", label: "High-potential programme", weight: 4, why: "A HiPo cohort is a defined audience, a named sponsor in talent, and a programme that recurs annually." },            // 8/38
-  { phrase: "succession", label: "Succession planning", weight: 4, why: "Succession work names a bench. Naming it creates the obligation to develop it, which is the part that gets outsourced." },
-  { phrase: "bootcamp", label: "New-hire bootcamp", weight: 3, why: "A new-hire bootcamp needs people who can teach and managers who can coach — both buyable, and both usually thin when hiring is fast." },                         // 1/1
-  { phrase: "onboarding", label: "Onboarding wave", weight: 3, why: "An onboarding wave means managers absorbing new people at once. First-time-manager capability is the thing that breaks first." },                         // 1/1
-  { phrase: "coaching", label: "Coaching", weight: 3, why: "Said out loud, coaching is already an accepted category here. The question is who provides it, not whether it is needed." },                                  // 2/3
-  { phrase: "employee engagement", label: "Employee engagement", weight: 3, why: "Engagement programmes route to leader communication within a quarter — that is where the spend lands." },            // 2/5
-  { phrase: "women in leadership", label: "Women in leadership / ERG", weight: 3, why: "ERG and development programmes carry a standing budget and a named executive sponsor, which is a short path to a buyer." },      // 3/12
-  { phrase: "sales conference", label: "Sales conference", weight: 3, why: "A field conference is a presentation moment with a deadline. Preparation is bought; the date does not move." },
-  { phrase: "offsite", label: "Leadership offsite", weight: 2, why: "Leadership offsites are designed and facilitated by somebody. That somebody is often external and chosen weeks ahead." },
-  { phrase: "launch readiness", label: "Launch readiness", weight: 2, why: "A launch means field teams learning a new story fast and telling it consistently. That is training work with a fixed date." },                  // 0/0
+  {
+    phrase: "speaker training", label: "Speaker training programme", weight: 5,
+    offer: "communicating-with-storytelling",
+    why: "They already put faculty in front of rooms, so the principle is settled. The science is theirs; what earns attention is presence and a story that lands. That layer sits beside the content they own.",
+  },
+  {
+    phrase: "national sales meeting", label: "National sales meeting", weight: 5,
+    offer: "communicating-with-storytelling",
+    why: "The room that sets the year. Leaders rehearse content and neglect connection — the work is in the weeks before, so the message is felt and not just heard.",
+  },
+  {
+    phrase: "sales kickoff", label: "Sales kickoff", weight: 5,
+    offer: "communicating-with-storytelling",
+    why: "A kickoff is a performance with a fixed date. Preparing leaders to land it — presence, story, the first ninety seconds — is bought ahead of the day.",
+  },
+  {
+    phrase: "town hall", label: "Town hall / all-hands", weight: 4,
+    offer: "leadership-communication-development-ingo",
+    why: "Town halls are where leaders are believed, or are not. Presence under scrutiny is learnable, and internal communications owns both the moment and the budget.",
+  },
+  {
+    phrase: "leadership development", label: "Leadership development", weight: 4,
+    offer: "leadership-communication-development-ingo",
+    why: "Our category, named by them. Someone already owns a programme and a calendar, so the conversation starts at fit rather than at why this matters.",
+  },
+  {
+    phrase: "high potential", label: "High-potential programme", weight: 4,
+    offer: "high-potential-succession-programs",
+    why: "A defined cohort with a sponsor in talent, being readied to lead. Presence is usually the thing they are closest to missing.",
+  },
+  {
+    phrase: "succession", label: "Succession planning", weight: 4,
+    offer: "high-potential-succession-programs",
+    why: "Naming a bench creates the duty to develop it. Successors are chosen on capability and then judged on how they carry a room.",
+  },
+  {
+    phrase: "bootcamp", label: "New-hire bootcamp", weight: 3,
+    offer: "team-organizational-development",
+    why: "People arriving together need managers who can teach and coach. That capability is thin wherever hiring is fast.",
+  },
+  {
+    phrase: "onboarding", label: "Onboarding wave", weight: 3,
+    offer: "team-organizational-development",
+    why: "An onboarding wave lands on managers first. First-time leaders learning to listen and connect is where it strains.",
+  },
+  {
+    phrase: "coaching", label: "Coaching", weight: 3,
+    offer: "executive-coaching",
+    why: "Said out loud, coaching is already accepted here. The open question is who they trust to do it.",
+  },
+  {
+    phrase: "employee engagement", label: "Employee engagement", weight: 3,
+    offer: "leadership-communication-development-ingo",
+    why: "Engagement is a leadership-communication problem in a survey's clothing. The spend follows within a quarter.",
+  },
+  {
+    phrase: "women in leadership", label: "Women in leadership / ERG", weight: 3,
+    offer: "high-potential-succession-programs",
+    why: "ERG and development programmes carry a standing budget and a senior sponsor — a short path to someone who can say yes.",
+  },
+  {
+    phrase: "sales conference", label: "Sales conference", weight: 3,
+    offer: "communicating-with-storytelling",
+    why: "A field conference is a deadline for being understood. Preparation is bought; the date does not move.",
+  },
+  {
+    phrase: "offsite", label: "Leadership offsite", weight: 2,
+    offer: "team-organizational-development",
+    why: "Offsites are designed and facilitated by somebody. Teams come to be aligned, which is trust work as much as agenda work.",
+  },
+  {
+    phrase: "launch readiness", label: "Launch readiness", weight: 2,
+    offer: "communicating-with-storytelling",
+    why: "A launch asks field teams to tell a new story consistently and fast. Rehearsal is the difference between saying it and landing it.",
+  },
 ];
 
 export interface TriggerHit {
