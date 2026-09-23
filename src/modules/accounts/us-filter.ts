@@ -41,14 +41,26 @@ const FOREIGN_WORDS = [
   "não", "mais", "uma",
 ];
 
+/** Words that place a job headline in another language outright. "Product
+ *  specialist chez AbbVie" is a French headline whatever the post says, and
+ *  one of these is enough because a headline is too short to reach the
+ *  three-marker bar the body uses. */
+const FOREIGN_HEADLINE = [
+  "chez", "bei", "beim", "presso", "für", "und", "bij", "och", "hos", "ved",
+  "presso", "przy", "nel", "dans", "auprès",
+];
+
 function norm(s: string): string {
   return ` ${s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim()} `;
 }
 
-/** The page speaks for a market that is not the US. */
+/** The page speaks for a market that is not the US, or — when the "page" is a
+ *  person's own author line — the headline is not written in English. */
 export function pageIsElsewhere(pageName: string | null | undefined): boolean {
   const hay = norm(pageName ?? "");
-  return ELSEWHERE.some((c) => hay.includes(` ${c} `));
+  if (ELSEWHERE.some((c) => hay.includes(` ${c} `))) return true;
+  if (FOREIGN_HEADLINE.some((w) => hay.includes(` ${w} `))) return true;
+  return FOREIGN_WORDS.filter((w) => hay.includes(` ${w} `)).length >= 2;
 }
 
 /** The post is written in a language other than English. */

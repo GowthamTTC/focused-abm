@@ -111,6 +111,18 @@ export interface SignalContact {
   lastPostAt: Date | null;
   url: string | null;
   theme: string | null;
+  /** They announced a new role in the post we hold. */
+  newArrival: boolean;
+  /** Their post names the Allergan Medical Institute or its speaker summit —
+   *  the clearest evidence on this account that someone is inside the
+   *  education and training programme a seller of it would want to reach. */
+  amiEvent: boolean;
+  excerpt: string;
+  /** Whether this workspace already knows them. At an account nobody is
+   *  connected to, every row reading "not connected" IS the finding — it is
+   *  whitespace at the level of a person rather than a function. */
+  connected: boolean;
+  connectionId: string | null;
 }
 
 /** Movement in and out of the account, counted two different ways because the
@@ -418,9 +430,20 @@ export async function loadL3(
 
   // Authors whose headline names the employer. Deduped by person, newest post
   // kept, so a prolific poster is one row rather than five.
-  const byPerson = new Map<string, SignalContact>();
-  for (const sg of allLi) {
+  const AMI_RE = /\b(allergan medical institute|\bAMI\b|speaker training summit)\b/i;
+  const ARRIVAL_CONTACT_RE = /\b(joined|joining|starting a new|started a new|new chapter|new position|new role|took on a new)\b/i;
+  const focusKey = focusUnit ? companyKey(focusUnit) : null;
+  // Scoped to the unit in focus when there is one. An Allergan Aesthetics page
+  // that lists AbbVie's recruiters and Parkinson's directors is an AbbVie page.
+  const unitLi = focusKey ? allLi.filter((sg) => sg.signalKey === focusKey) : [];
+  const contactPool = unitLi.length ? unitLi : allLi;
+  const byPerson = new Map<string, Omit<SignalContact, "connected" | "connectionId">>();
+  for (const sg of contactPool) {
     if (voiceOf(sg.title, sg.companyName ?? companyName, extraAliases) !== "employee") continue;
+    // US only, and only the unit in question — the same two filters the
+    // workforce counts use, because a list of people to approach has to obey
+    // the same scope as the numbers above it.
+    if (!isUsPost(sg.title, sg.body)) continue;
     const [namePart, ...rest] = (sg.title ?? "").split(" \u2014 ");
     const name = namePart.trim();
     if (!name) continue;
@@ -432,9 +455,31 @@ export async function loadL3(
       lastPostAt: sg.publishedAt,
       url: sg.url,
       theme: sg.theme,
+      newArrival: ARRIVAL_CONTACT_RE.test(sg.body ?? ""),
+      amiEvent: AMI_RE.test(`${sg.title ?? ""} ${sg.body ?? ""}`),
+      excerpt: (sg.body ?? "").replace(/\s+/g, " ").trim().slice(0, 150),
     });
   }
+  // Do we already know any of them? Matched on normalised full name against
+  // this workspace's own connections. A name match is not proof of identity,
+  // so the page says "connected" rather than asserting it is the same person.
+  const known = await db.select({
+    id: connection.id,
+    firstName: connection.firstName,
+    lastName: connection.lastName,
+  }).from(connection).where(eq(connection.orgId, orgId));
+  const knownByName = new Map<string, string>();
+  for (const k of known) {
+    const n = `${k.firstName} ${k.lastName}`.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    if (n && !knownByName.has(n)) knownByName.set(n, k.id);
+  }
+
   const contacts = [...byPerson.values()]
+    .map((c) => {
+      const n = c.name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+      const id = knownByName.get(n) ?? null;
+      return { ...c, connected: Boolean(id), connectionId: id };
+    })
     .sort((a, b) => (b.lastPostAt?.getTime() ?? 0) - (a.lastPostAt?.getTime() ?? 0));
 
   // Leadership and company voices only. The market half of the feed is
@@ -603,7 +648,6 @@ export async function loadL3(
   const HIRING_RE = /\b(we are hiring|we're hiring|now hiring|#hiring|open role|open position|join our team|apply (here|now)|is looking for)\b/i;
   const EXIT_RE = /\b(last day|farewell|open to work|impacted by|role was eliminated|made redundant|laid off|layoffs?)\b/i;
 
-  const focusKey = focusUnit ? companyKey(focusUnit) : null;
   const seenBody = new Set<string>();
   const scopedLi = (focusKey ? allLi.filter((sg) => sg.signalKey === focusKey) : allLi)
     // ONLY PEOPLE WHO WORK THERE. Without this the counts read the whole feed:

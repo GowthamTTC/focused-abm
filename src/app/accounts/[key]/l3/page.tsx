@@ -9,7 +9,7 @@ const BTN_GHOST = "inline-flex items-center gap-1.5 rounded-[8px] border border-
 
 export default async function L3Page({ params, searchParams }: {
   params: Promise<{ key: string }>;
-  searchParams: Promise<{ focus?: string; alias?: string; queued?: string; country?: string }>;
+  searchParams: Promise<{ focus?: string; alias?: string; queued?: string; country?: string; person?: string }>;
 }) {
   const user = await requirePage();
   const { key: rawKey } = await params;
@@ -342,53 +342,119 @@ export default async function L3Page({ params, searchParams }: {
         </div>
       </section>
 
-      {/* ── decision-makers ── */}
+      {/* ── people ── */}
       <div className="mt-4">
         <section className={`${CARD} p-5`}>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-[15px] font-semibold">Target decision-makers</h2>
+            <div>
+              <h2 className="text-[15px] font-semibold">People at this account</h2>
+              <p className="mt-1 max-w-3xl text-[12px] text-[#667085]">
+                Everyone whose own LinkedIn headline says they work here, from posts already
+                stored, US only. Pick a name to see the profile.
+              </p>
+            </div>
             <span className="rounded-full bg-[#F2F4F7] px-2.5 py-1 text-[10.5px] text-[#475467]">
               Validate CHRO/CLO with Gaysel
             </span>
           </div>
-          <table className="mt-3 w-full">
-            <thead>
-              <tr className="text-left text-[10.5px] uppercase tracking-wide text-[#98A2B3]">
-                <th className="pb-2 font-medium">Role</th>
-                <th className="pb-2 font-medium">Seniority</th>
-                <th className="pb-2 font-medium">Relationship path</th>
-                <th className="pb-2 font-medium">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {v.decisionMakers.map((d) => (
-                <tr key={d.role} className="border-t border-[#F2F4F7] text-[12px]">
-                  <td className="py-2.5 pr-2 align-top font-medium text-[#101828]">{d.role}</td>
-                  <td className="py-2.5 pr-2 align-top text-[#667085]">{d.seniority}</td>
-                  <td className="py-2.5 pr-2 align-top text-[#98A2B3]">
-                    {d.person ? d.person.name : "To be identified"}
-                  </td>
-                  <td className="py-2.5 align-top">
-                    {d.person ? (
-                      <Link href={`/people/${d.person.id}`}
-                        className="rounded-[6px] border border-[#E4E7EC] px-2 py-1 text-[11px] hover:bg-[#F9FAFB]">Open</Link>
-                    ) : (
-                      <Link href={`/intel?c=${encodeURIComponent(focus.toLowerCase() || key)}&n=${encodeURIComponent(focusUnit?.unit.name ?? v.companyName)}`}
-                        className="rounded-[6px] border border-[#E4E7EC] px-2 py-1 text-[11px] hover:bg-[#F9FAFB]">Identify</Link>
+
+          {v.contacts.length === 0 ? (
+            <p className="mt-3 text-[13px] text-[#667085]">
+              No US employee-voice posts stored for this account yet.
+            </p>
+          ) : (() => {
+            const picked = v.contacts.find((c) => c.name === sp.person) ?? v.contacts[0];
+            const href = (name: string) => {
+              const qs = new URLSearchParams();
+              if (focusRaw) qs.set("focus", focusRaw);
+              if (sp.alias) qs.set("alias", sp.alias);
+              qs.set("person", name);
+              return `/accounts/${encodeURIComponent(key)}/l3?${qs}#people`;
+            };
+            return (
+              <div id="people" className="mt-3.5 grid gap-4 lg:grid-cols-[1fr_1.1fr]">
+                <ul className="max-h-[26rem] divide-y divide-[#F2F4F7] overflow-y-auto rounded-[10px] border border-[#EDEFF3]">
+                  {v.contacts.map((c) => (
+                    <li key={c.name}>
+                      <Link href={href(c.name)}
+                        className={`block px-3 py-2.5 hover:bg-[#F9FAFB] ${
+                          c.name === picked.name ? "bg-[#EEF4FF]" : ""}`}>
+                        <div className="flex flex-wrap items-baseline gap-1.5">
+                          <span className="text-[12.5px] font-medium text-[#101828]">{c.name}</span>
+                          {c.newArrival && (
+                            <span className="rounded-[5px] bg-[#ECFDF3] px-1.5 py-0.5 text-[9.5px] font-medium text-[#027A48]">
+                              New arrival
+                            </span>
+                          )}
+                          {c.amiEvent && (
+                            <span className="rounded-[5px] bg-[#FAFAFF] px-1.5 py-0.5 text-[9.5px] font-medium text-[#4F46E5] ring-1 ring-[#D9D6FE]">
+                              AMI
+                            </span>
+                          )}
+                        </div>
+                        {c.role && (
+                          <div className="mt-0.5 text-[11px] leading-snug text-[#667085]">{c.role.slice(0, 74)}</div>
+                        )}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+
+                <div className="rounded-[10px] border border-[#EDEFF3] p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-[15px] font-semibold text-[#101828]">{picked.name}</div>
+                      {picked.role && (
+                        <div className="mt-0.5 text-[12px] leading-snug text-[#667085]">{picked.role}</div>
+                      )}
+                    </div>
+                    <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10.5px] font-medium ${
+                      picked.connected
+                        ? "bg-[#ECFDF3] text-[#027A48]"
+                        : "bg-[#FEF3F2] text-[#B42318]"}`}>
+                      {picked.connected ? "Connected" : "Not connected"}
+                    </span>
+                  </div>
+
+                  <div className="mt-2.5 flex flex-wrap gap-1.5">
+                    {picked.newArrival && (
+                      <span className="rounded-[6px] bg-[#ECFDF3] px-2 py-0.5 text-[10.5px] font-medium text-[#027A48]">
+                        New arrival
+                      </span>
                     )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <p className="mt-3 text-[11px] leading-snug text-[#98A2B3]">
-            No warm paths or mutual connections are shown: this workspace holds nobody at
-            this account, so any path here would be invented — and one invented path
-            discredits every real thing on this page.
-          </p>
+                    {picked.amiEvent && (
+                      <span className="rounded-[6px] bg-[#FAFAFF] px-2 py-0.5 text-[10.5px] font-medium text-[#4F46E5] ring-1 ring-[#D9D6FE]">
+                        AMI programme
+                      </span>
+                    )}
+                    {picked.theme && (
+                      <span className="rounded-[6px] bg-[#F2F4F7] px-2 py-0.5 text-[10.5px] capitalize text-[#475467]">
+                        {picked.theme}
+                      </span>
+                    )}
+                  </div>
 
+                  <p className="mt-3 text-[12.5px] leading-relaxed text-[#344054]">{picked.excerpt}…</p>
+                  <p className="mt-2 text-[11px] text-[#98A2B3]">
+                    {picked.lastPostAt ? picked.lastPostAt.toISOString().slice(0, 10) : "undated"}
+                    {picked.url && (
+                      <> · <a href={picked.url} target="_blank" rel="noreferrer"
+                        className="text-[#4F46E5] hover:underline">open their post ↗</a></>
+                    )}
+                  </p>
+
+                  {!picked.connected && (
+                    <p className="mt-3 border-t border-[#F2F4F7] pt-2.5 text-[11px] leading-snug text-[#98A2B3]">
+                      Nobody in this workspace is connected to them. Matched by name against this
+                      workspace&apos;s own connections — a name match would not be proof of identity,
+                      and there is no match here to make.
+                    </p>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
         </section>
-
       </div>
 
       {/* ── incumbents ── */}
