@@ -254,3 +254,16 @@ export function triggersIn(
     return needle.length >= 2 && hay.includes(` ${needle} `);
   });
 }
+
+
+/** Points are an internal ranking device. A salesperson should never have to
+ *  translate "5 pts" into an action, so the page shows what the number MEANS:
+ *  direct evidence, evidence that strengthens something already believed, or
+ *  background that cannot carry a conclusion on its own. */
+export type EvidenceStrength = "Strong contributor" | "Supporting contributor" | "Context only";
+
+export function evidenceStrength(points: number): EvidenceStrength {
+  if (points >= 5) return "Strong contributor";
+  if (points >= 3) return "Supporting contributor";
+  return "Context only";
+}

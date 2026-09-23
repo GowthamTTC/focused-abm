@@ -1,5 +1,5 @@
 /**
- * L3 Account Intelligence — one account, read four ways.
+ * Account Intelligence — one account, read four ways.
  *
  * Footprint (what the team says it has), whitespace (what the org chart says it
  * has not), change signals (what the outside world said lately), and the people
@@ -20,6 +20,7 @@ import { voiceOf } from "@/modules/intel/voice";
 import { isUsPost } from "@/modules/accounts/us-filter";
 import { bucketOf, BUCKET_LABELS, BUCKET_ORDER, type PostBucket } from "@/modules/accounts/post-buckets";
 import { buildNarratives, NARRATIVES, type Narrative } from "@/modules/accounts/narratives";
+import { evidenceStrength, type EvidenceStrength } from "@/modules/accounts/trigger-vocab";
 import { scoreOpportunity, type OpportunityScore } from "@/modules/accounts/opportunity-score";
 import { competitorHits } from "@/modules/pulse/competitors";
 import { getOrgSettings } from "@/modules/settings/org-settings";
@@ -83,6 +84,12 @@ export interface TopSignal extends SignalCard {
  *  something in public, with whatever buying-signal language it carries. */
 export interface PressNote {
   id: string;
+  /** The patterns this item is evidence FOR. An announcement is not
+   *  intelligence on its own; it is intelligence when it turns out to be the
+   *  third thing saying the same. */
+  contributesTo: string[];
+  /** What its weight means in words, so nobody has to read "5 pts". */
+  strength: EvidenceStrength;
   title: string | null;
   source: string | null;
   url: string | null;
@@ -258,7 +265,18 @@ export interface L3View {
    *  Assembled from the strongest signal, the offer the research kept landing
    *  on and the most senior researched name — never written by hand, so it
    *  cannot go stale against the sections under it. */
-  exec: { summary: string; nextAction: string } | null;
+  exec: {
+    summary: string;
+    nextAction: string;
+    /** What the account looks like at a glance, in the four numbers the
+     *  framework asks for: how much independent evidence, how many functions
+     *  it touches, how many people it reaches, and how fresh it is. */
+    stats: { independentEvents: number; functions: number; people: number; latest: Date | null };
+    /** Kept apart on purpose. The first is what the company did; the second is
+     *  what we think it implies, and the page never blends them. */
+    observed: string;
+    inferred: string;
+  } | null;
   /** What the signals keep saying, clustered. Three to five durable themes
    *  with the evidence that made each one. */
   narratives: Narrative[];
@@ -275,7 +293,7 @@ export interface L3View {
     /** Strength out of 100, with every component shown. Not a probability. */
     strength: OpportunityScore;
     /** The signals whose vocabulary entry points at this offer. */
-    signals: { label: string; hits: number; points: number }[];
+    signals: { label: string; hits: number; points: number; strength: EvidenceStrength }[];
     people: { name: string; url: string | null }[];
     why: string | null;
     whyFor: string | null;
@@ -827,15 +845,22 @@ export async function loadL3(
     .filter((r) => triggersIn(`${r.title ?? ""} ${r.body ?? ""}`, vocab).length > 0)
     .filter((r, i, arr) => arr.findIndex((q) => (q.url ?? q.title) === (r.url ?? r.title)) === i)
     .slice(0, 6)
-    .map((r) => ({
-      id: r.id,
-      title: r.title,
-      source: r.source,
-      url: r.url,
-      body: r.body,
-      publishedAt: r.publishedAt,
-      matchedTriggers: triggersIn(`${r.title ?? ""} ${r.body ?? ""}`, vocab),
-    }));
+    .map((r) => {
+      const matched = triggersIn(`${r.title ?? ""} ${r.body ?? ""}`, vocab);
+      return {
+        id: r.id,
+        title: r.title,
+        source: r.source,
+        url: r.url,
+        body: r.body,
+        publishedAt: r.publishedAt,
+        matchedTriggers: matched,
+        contributesTo: NARRATIVES
+          .filter((n) => n.pressWords.test(`${r.title ?? ""} ${r.body ?? ""}`))
+          .map((n) => n.title),
+        strength: evidenceStrength(Math.max(0, ...matched.map((t) => t.weight))),
+      };
+    });
 
   const voicePosts: VoicePost[] = allLi
     .map((sg) => ({ sg, voice: voiceOf(sg.title, sg.companyName ?? companyName, extraAliases) }))
@@ -1096,7 +1121,9 @@ export async function loadL3(
     pains.push({
       title: hit.trigger.label,
       detail: hit.trigger.why ?? "",
-      source: `${hit.hits} post${hit.hits === 1 ? "" : "s"} · ${Math.round(hit.points)} pts`,
+      // Words, not points. "40 pts" is a ranking device; "strong contributor"
+      // is something a salesperson can act on without learning our arithmetic.
+      source: `${hit.hits} post${hit.hits === 1 ? "" : "s"} · ${evidenceStrength(hit.trigger.weight)}`,
     });
   }
   for (const a of announcements.slice(0, 2)) {
@@ -1159,7 +1186,12 @@ export async function loadL3(
     const mine = narratives.filter((n) => n.offer === o.offer);
     const signals = triggerScore.fired
       .filter((h) => h.trigger.offer === o.offer)
-      .map((h) => ({ label: h.trigger.label, hits: h.hits, points: Math.round(h.points) }));
+      .map((h) => ({
+        label: h.trigger.label,
+        hits: h.hits,
+        points: Math.round(h.points),
+        strength: evidenceStrength(h.trigger.weight),
+      }));
     const evidence = mine.flatMap((n) => n.evidence);
     const dates = evidence.map((e) => e.at?.getTime() ?? 0).filter(Boolean);
     return {
@@ -1269,8 +1301,28 @@ export async function loadL3(
   const topSignal = triggerScore.fired[0] ?? null;
   const topOpp = opportunities[0] ?? null;
   const topPerson = entry[0] ?? null;
+  const FUNCTION_WORDS = ["training", "faculty", "communication", "talent", "human resources", "leadership development", "medical education"];
+  const functionsTouched = FUNCTION_WORDS.filter((w) =>
+    contacts.some((c) => c.role.toLowerCase().includes(w))).length;
+  const latestSignal = [
+    ...narratives.map((n) => n.newest?.getTime() ?? 0),
+    ...announcements.map((a) => a.publishedAt?.getTime() ?? 0),
+  ].filter(Boolean);
+
   const exec = topSignal || topOpp
     ? {
+        stats: {
+          independentEvents: narratives.reduce((t, n) => t + n.strands, 0),
+          functions: functionsTouched,
+          people: contacts.length,
+          latest: latestSignal.length ? new Date(Math.max(...latestSignal)) : null,
+        },
+        observed: narratives.length > 0
+          ? `${busiest ?? companyName} ${narratives.map((n) => n.title.replace(/^The /, "").toLowerCase()).slice(0, 3).join(", ")} — recorded across ${narratives.reduce((t, n) => t + n.strands, 0)} independent pieces of evidence.`
+          : "Nothing has been recorded from more than one source yet.",
+        inferred: topOpp
+          ? `These may create a need around ${topOpp.offer.replace(/-/g, " ")}, and the page treats that as a hypothesis until someone at the account says otherwise.`
+          : "No hypothesis yet — the evidence does not converge.",
         summary: [
           topSignal
             ? `The strongest thing happening at ${busiest ?? companyName} is ${topSignal.trigger.label.toLowerCase()}: ${topSignal.hits} post${topSignal.hits === 1 ? "" : "s"} in the window, ${Math.round(topSignal.points)} points after age decay.`

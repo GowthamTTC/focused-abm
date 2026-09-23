@@ -26,7 +26,7 @@ export default async function L3Page({ params, searchParams }: {
   if (!v.map) {
     return (
       <Shell user={user} active="accounts">
-        <h1 className="text-xl font-semibold">L3 Account Intelligence</h1>
+        <h1 className="text-xl font-semibold">Account Intelligence</h1>
         <section className={`${CARD} mt-4 p-4`}>
           <p className="text-[13px] text-[#475467]">
             No org map for this account yet, and whitespace is the difference between a
@@ -80,7 +80,7 @@ export default async function L3Page({ params, searchParams }: {
             <Link href={`/accounts/${encodeURIComponent(key)}`} className="hover:text-[#4F46E5]">{v.companyName}</Link>
             {focusUnit && <>{" › "}<span className="font-medium text-[#4F46E5]">{focusUnit.unit.name}</span></>}
           </p>
-          <h1 className="mt-1.5 text-[26px] font-semibold tracking-[-.01em]">L3 Account Intelligence</h1>
+          <h1 className="mt-1.5 text-[26px] font-semibold tracking-[-.01em]">Account Intelligence</h1>
 
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -151,6 +151,31 @@ export default async function L3Page({ params, searchParams }: {
               </div>
             ))}
           </dl>
+          <div className="mt-3 grid gap-2 border-t border-[#E9D7FE] pt-3 sm:grid-cols-2">
+            <div className="rounded-[8px] border border-[#EDEFF3] bg-white/70 p-2.5">
+              <div className="text-[9.5px] font-medium uppercase tracking-wide text-[#98A2B3]">Observed</div>
+              <p className="mt-0.5 text-[11.5px] leading-relaxed text-[#344054]">{v.exec.observed}</p>
+            </div>
+            <div className="rounded-[8px] border border-[#FDE9C9] bg-[#FFFCF5] p-2.5">
+              <div className="text-[9.5px] font-medium uppercase tracking-wide text-[#B54708]">Inferred</div>
+              <p className="mt-0.5 text-[11.5px] leading-relaxed text-[#344054]">{v.exec.inferred}</p>
+            </div>
+          </div>
+
+          <div className="mt-2.5 flex flex-wrap gap-x-6 gap-y-1.5">
+            {([
+              ["Evidence strength", `${v.exec.stats.independentEvents} independent events`],
+              ["Functions involved", String(v.exec.stats.functions)],
+              ["Relevant people", String(v.exec.stats.people)],
+              ["Latest signal", v.exec.stats.latest ? v.exec.stats.latest.toISOString().slice(0, 10) : "—"],
+            ] as const).map(([k, val]) => (
+              <span key={k} className="text-[11px] text-[#667085]">
+                <span className="uppercase tracking-wide text-[#98A2B3]">{k} · </span>
+                <span className="font-medium text-[#101828]">{val}</span>
+              </span>
+            ))}
+          </div>
+
           <p className="mt-3 flex flex-wrap items-baseline gap-2 border-t border-[#E9D7FE] pt-3 text-[13px]">
             <span className="rounded-[6px] bg-[#4F46E5] px-2 py-0.5 text-[10.5px] font-medium uppercase tracking-wide text-white">
               Next step
@@ -206,7 +231,7 @@ export default async function L3Page({ params, searchParams }: {
                     {o.signals.map((sig) => (
                       <span key={sig.label}
                         className="rounded-[6px] border border-[#D9D6FE] bg-[#FAFAFF] px-1.5 py-0.5 text-[10.5px] font-medium text-[#4F46E5]">
-                        {sig.label} · {sig.hits} post{sig.hits === 1 ? "" : "s"} · {sig.points} pts
+                        {sig.label} · {sig.hits} post{sig.hits === 1 ? "" : "s"} · {sig.strength}
                       </span>
                     ))}
                   </div>
@@ -255,22 +280,25 @@ export default async function L3Page({ params, searchParams }: {
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <span className="text-[12.5px] font-medium text-[#101828]">{n.title}</span>
                   <span className="text-[10.5px] text-[#98A2B3]">
-                    {n.strands} strand{n.strands === 1 ? "" : "s"}
+                    {n.strands} independent supporting signal{n.strands === 1 ? "" : "s"}
                     {n.newest ? ` · newest ${n.newest.toISOString().slice(0, 10)}` : ""}
                   </span>
                 </div>
                 <p className="mt-1 text-[11.5px] leading-relaxed text-[#475467]">{n.relevance}</p>
-                <ul className="mt-1.5 flex flex-wrap gap-1.5">
+                <div className="mt-2 text-[9.5px] font-medium uppercase tracking-wide text-[#98A2B3]">
+                  Why we believe this
+                </div>
+                <ul className="mt-1 flex flex-wrap gap-1.5">
                   {n.evidence.map((e, k) => (
                     <li key={`${e.label}-${k}`}>
                       {e.url ? (
                         <a href={e.url} target="_blank" rel="noreferrer"
                           className="rounded-[5px] bg-[#F9FAFB] px-1.5 py-0.5 text-[10px] text-[#4F46E5] hover:underline">
-                          {e.label.slice(0, 46)} · {e.detail}
+                          ✓ {e.at ? `${e.at.toISOString().slice(5, 10)} — ` : ""}{e.label.slice(0, 44)}
                         </a>
                       ) : (
                         <span className="rounded-[5px] bg-[#F9FAFB] px-1.5 py-0.5 text-[10px] text-[#667085]">
-                          {e.label.slice(0, 46)} · {e.detail}
+                          ✓ {e.at ? `${e.at.toISOString().slice(5, 10)} — ` : ""}{e.label.slice(0, 44)}
                         </span>
                       )}
                     </li>
@@ -325,11 +353,22 @@ export default async function L3Page({ params, searchParams }: {
 
                   <div className="lg:border-l lg:border-[#F2F4F7] lg:pl-4">
                     <div className="space-y-1.5">
+                        {n.contributesTo.length > 0 && (
+                          <div className="mb-2">
+                            <div className="text-[9.5px] font-medium uppercase tracking-wide text-[#98A2B3]">
+                              Contributes to
+                            </div>
+                            <p className="mt-0.5 text-[12px] font-medium text-[#101828]">
+                              {n.contributesTo.join(" · ")}
+                            </p>
+                            <p className="text-[10.5px] text-[#667085]">{n.strength}</p>
+                          </div>
+                        )}
                         {n.matchedTriggers.map((t) => (
                           <div key={t.phrase}>
                             <div className="flex flex-wrap items-center gap-1.5">
                               <span className="rounded-[6px] border border-[#D9D6FE] bg-[#FAFAFF] px-1.5 py-0.5 text-[10.5px] font-medium text-[#4F46E5]">
-                                {t.label} · {t.weight} pts
+                                {t.label}
                               </span>
                               {t.offer && (
                                 <span className="rounded-[6px] bg-[#ECFDF3] px-1.5 py-0.5 text-[10.5px] font-medium text-[#027A48]">
@@ -406,7 +445,7 @@ export default async function L3Page({ params, searchParams }: {
                             <div key={t.phrase}>
                               <div className="flex flex-wrap items-center gap-1.5">
                                 <span className="rounded-[6px] border border-[#D9D6FE] bg-[#FAFAFF] px-1.5 py-0.5 text-[10.5px] font-medium text-[#4F46E5]">
-                                  {t.label} · {t.weight} pts
+                                  {t.label}
                                 </span>
                                 {t.offer && (
                                   <span className="rounded-[6px] bg-[#ECFDF3] px-1.5 py-0.5 text-[10.5px] font-medium text-[#027A48]">

@@ -293,7 +293,7 @@ export default async function AccountsPage({ searchParams }: {
                         <span className="mx-1.5 text-[#D0D5DD]">|</span>
                         <Link href={`/accounts/${encodeURIComponent(selected.key)}/l3`}
                           className="text-[#4338CA] hover:underline">
-                          L3 intelligence &rarr;
+                          Account intelligence &rarr;
                         </Link>
                       </>
                     )}
