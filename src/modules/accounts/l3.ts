@@ -117,15 +117,28 @@ export interface SignalContact {
  *  two sources see different things. Filings are official, historical and
  *  complete; LinkedIn is unofficial, recent and partial. Reporting them side by
  *  side with their windows stated is the only honest way to show both. */
+/** One post behind a count. The count is the length of this list, so a reader
+ *  who opens the number sees exactly what produced it — and can tell us a row
+ *  does not belong, which is how "37 arrivals" was caught being seventeen
+ *  reposts of a competitor's conference. */
+export interface MovementPost {
+  id: string;
+  who: string;
+  role: string;
+  publishedAt: Date | null;
+  url: string | null;
+  excerpt: string;
+}
+
 export interface WorkforceMovement {
   /** Restructuring filings — official, with dates and headcounts in the title. */
   filings: SignalCard[];
   /** Posts announcing a new role or a move into the account. */
-  arrivals: number;
+  arrivals: MovementPost[];
   /** Posts advertising open roles. */
-  hiringPosts: number;
+  hiringPosts: MovementPost[];
   /** Posts using departure or layoff language. */
-  exits: number;
+  exits: MovementPost[];
   postsRead: number;
   /** The unit these counts describe, and the span of posts they were taken
    *  over. LinkedIn's post search accepts past_day, past_week or past_month and
@@ -202,6 +215,23 @@ function describeAuthor(authorLine: string | null, units: OrgUnit[]): string | n
     .filter((u) => u.note && who.includes(u.name.toLowerCase()))
     .sort((a, b) => b.name.length - a.name.length)[0];
   return hit?.note ?? null;
+}
+
+/** A stored signal reduced to what a reader needs to judge whether it belongs
+ *  in the count it was put in. */
+function toMovementPost(sg: {
+  id: string; title: string | null; body: string | null;
+  publishedAt: Date | null; url: string | null;
+}): MovementPost {
+  const [namePart, ...rest] = (sg.title ?? "").split(" \u2014 ");
+  return {
+    id: sg.id,
+    who: namePart.trim() || "Unknown",
+    role: rest.join(" \u2014 ").trim(),
+    publishedAt: sg.publishedAt,
+    url: sg.url,
+    excerpt: (sg.body ?? "").replace(/\s+/g, " ").trim().slice(0, 190),
+  };
 }
 
 export async function loadL3(
@@ -600,9 +630,9 @@ export async function loadL3(
     filings: news
       .filter((sg) => sg.theme === "restructuring")
       .sort((a, b) => (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0)),
-    arrivals: scopedLi.filter((sg) => ARRIVAL_RE.test(sg.body ?? "")).length,
-    hiringPosts: scopedLi.filter((sg) => HIRING_RE.test(sg.body ?? "")).length,
-    exits: scopedLi.filter((sg) => EXIT_RE.test(sg.body ?? "")).length,
+    arrivals: scopedLi.filter((sg) => ARRIVAL_RE.test(sg.body ?? "")).map(toMovementPost),
+    hiringPosts: scopedLi.filter((sg) => HIRING_RE.test(sg.body ?? "")).map(toMovementPost),
+    exits: scopedLi.filter((sg) => EXIT_RE.test(sg.body ?? "")).map(toMovementPost),
     postsRead: scopedLi.length,
     scope: focusUnit || companyName,
     from: dates.length ? new Date(Math.min(...dates.map((d) => d.getTime()))) : null,
