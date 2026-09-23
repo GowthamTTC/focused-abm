@@ -329,3 +329,24 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
 html[data-nav="collapsed"] #app-sidebar {
   display: none;
 }
+
+
+/* The intelligence band is the one section the page assembles rather than
+   reports, so it glows: a violet rim that breathes slowly. Slow on purpose —
+   a fast pulse reads as an alert, and nothing here is urgent. The animation is
+   dropped for anyone who asked their system not to animate. */
+.ai-glow {
+  position: relative;
+  border: 1px solid rgba(139, 92, 246, 0.35);
+  box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.06), 0 0 18px rgba(139, 92, 246, 0.14);
+  animation: ai-glow-breathe 4.5s ease-in-out infinite;
+}
+
+@keyframes ai-glow-breathe {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.06), 0 0 14px rgba(139, 92, 246, 0.12); }
+  50%      { box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.12), 0 0 26px rgba(139, 92, 246, 0.26); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-glow { animation: none; }
+}
