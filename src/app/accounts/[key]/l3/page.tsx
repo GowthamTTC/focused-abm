@@ -9,7 +9,7 @@ const BTN_GHOST = "inline-flex items-center gap-1.5 rounded-[8px] border border-
 
 export default async function L3Page({ params, searchParams }: {
   params: Promise<{ key: string }>;
-  searchParams: Promise<{ focus?: string; alias?: string; queued?: string; country?: string; level?: string }>;
+  searchParams: Promise<{ focus?: string; alias?: string; queued?: string; country?: string; level?: string; person?: string }>;
 }) {
   const user = await requirePage();
   const { key: rawKey } = await params;
@@ -444,15 +444,17 @@ export default async function L3Page({ params, searchParams }: {
             const shown = picked === "all"
               ? v.contacts
               : v.contacts.filter((c) => c.level === picked);
-            const href = (k: string) => {
+            const chosen = shown.find((c) => c.name === sp.person) ?? shown[0];
+            const href = (k: string, person?: string) => {
               const qs = new URLSearchParams();
               if (focusRaw) qs.set("focus", focusRaw);
               if (sp.alias) qs.set("alias", sp.alias);
               if (k !== "all") qs.set("level", k);
+              if (person) qs.set("person", person);
               return `/accounts/${encodeURIComponent(key)}/l3?${qs}#people`;
             };
             return (
-              <div id="people" className="mt-3.5 grid gap-4 lg:grid-cols-[190px_1fr]">
+              <div id="people" className="mt-3.5 grid gap-4 lg:grid-cols-[170px_1fr_1.15fr]">
                 <div>
                   <div className="text-[10.5px] font-medium uppercase tracking-wide text-[#98A2B3]">
                     Seniority
@@ -473,42 +475,110 @@ export default async function L3Page({ params, searchParams }: {
                       </li>
                     ))}
                   </ul>
+                  <p className="mt-3 px-2.5 text-[10.5px] leading-snug text-[#98A2B3]">
+                    {v.contacts.filter((c) => c.research).length} of {v.contacts.length} researched.
+                  </p>
                 </div>
 
-                <ul className="max-h-[30rem] divide-y divide-[#F2F4F7] overflow-y-auto rounded-[10px] border border-[#EDEFF3]">
+                <ul className="max-h-[32rem] divide-y divide-[#F2F4F7] overflow-y-auto rounded-[10px] border border-[#EDEFF3]">
                   {shown.map((c) => (
-                    <li key={c.name} className="px-3.5 py-2.5">
-                      <div className="flex flex-wrap items-baseline gap-2">
-                        <span className="text-[13px] font-medium text-[#101828]">{c.name}</span>
-                        {c.newArrival && (
-                          <span className="rounded-[5px] bg-[#ECFDF3] px-1.5 py-0.5 text-[10px] font-medium text-[#027A48]">
-                            New arrival
-                          </span>
+                    <li key={c.name}>
+                      <Link href={href(picked, c.name)}
+                        className={`block px-3.5 py-2.5 hover:bg-[#F9FAFB] ${
+                          chosen && c.name === chosen.name ? "bg-[#EEF4FF]" : ""}`}>
+                        <div className="flex flex-wrap items-baseline gap-2">
+                          <span className="text-[12.5px] font-medium text-[#101828]">{c.name}</span>
+                          {c.newArrival && (
+                            <span className="rounded-[5px] bg-[#ECFDF3] px-1.5 py-0.5 text-[10px] font-medium text-[#027A48]">
+                              New arrival
+                            </span>
+                          )}
+                          {c.amiEvent && (
+                            <span className="rounded-[5px] bg-[#FAFAFF] px-1.5 py-0.5 text-[10px] font-medium text-[#4F46E5] ring-1 ring-[#D9D6FE]">
+                              AMI
+                            </span>
+                          )}
+                          {c.research && (
+                            <span className="ml-auto shrink-0 text-[9.5px] uppercase tracking-wide text-[#98A2B3]">
+                              researched
+                            </span>
+                          )}
+                        </div>
+                        {c.role && (
+                          <div className="mt-0.5 text-[11px] leading-snug text-[#667085]">
+                            {c.role.length > 92 ? `${c.role.slice(0, 92)}…` : c.role}
+                          </div>
                         )}
-                        {c.amiEvent && (
-                          <span className="rounded-[5px] bg-[#FAFAFF] px-1.5 py-0.5 text-[10px] font-medium text-[#4F46E5] ring-1 ring-[#D9D6FE]">
-                            AMI
-                          </span>
-                        )}
-                        <span className="ml-auto flex shrink-0 items-baseline gap-2 text-[10.5px]">
-                          {c.url && (
-                            <a href={c.url} target="_blank" rel="noreferrer"
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+
+                <div className="rounded-[10px] border border-[#EDEFF3] p-4">
+                  {!chosen ? (
+                    <p className="text-[12.5px] text-[#667085]">Pick a name to read the research.</p>
+                  ) : (
+                    <>
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="text-[14.5px] font-semibold text-[#101828]">{chosen.name}</div>
+                          {chosen.role && (
+                            <div className="mt-0.5 text-[11.5px] leading-snug text-[#667085]">{chosen.role}</div>
+                          )}
+                        </div>
+                        <span className="flex shrink-0 items-baseline gap-2 text-[10.5px]">
+                          {chosen.url && (
+                            <a href={chosen.url} target="_blank" rel="noreferrer"
                               className="text-[#4F46E5] hover:underline">recent post ↗</a>
                           )}
-                          {c.profileUrl && (
-                            <a href={c.profileUrl} target="_blank" rel="noreferrer"
+                          {chosen.profileUrl && (
+                            <a href={chosen.profileUrl} target="_blank" rel="noreferrer"
                               className="text-[#4F46E5] hover:underline">profile ↗</a>
                           )}
                         </span>
                       </div>
-                      {c.role && (
-                        <div className="mt-0.5 text-[11.5px] leading-snug text-[#667085]">
-                          {c.role.length > 150 ? `${c.role.slice(0, 150)}…` : c.role}
+
+                      {chosen.research ? (
+                        <div className="mt-3 space-y-2.5">
+                          {chosen.research.flag && (
+                            <p className="rounded-[8px] bg-[#FFFBFA] px-2.5 py-2 text-[11.5px] leading-snug text-[#B42318] ring-1 ring-[#FEE4E2]">
+                              {chosen.research.flag}
+                            </p>
+                          )}
+                          {([
+                            ["Who they are", chosen.research.aboutSummary],
+                            ["What they are measured on", chosen.research.priorities],
+                            ["Where we meet it", chosen.research.angle],
+                            ["What they post", chosen.research.postsSummary],
+                          ] as const).map(([label, body]) => body ? (
+                            <div key={label}>
+                              <div className="text-[10px] font-medium uppercase tracking-wide text-[#98A2B3]">
+                                {label}
+                              </div>
+                              <p className="mt-0.5 text-[12px] leading-relaxed text-[#344054]">{body}</p>
+                            </div>
+                          ) : null)}
+                          {chosen.research.evidence && (
+                            <p className="border-l-2 border-[#D9D6FE] pl-2.5 text-[12px] italic leading-relaxed text-[#475467]">
+                              &ldquo;{chosen.research.evidence}&rdquo;
+                            </p>
+                          )}
+                          <p className="border-t border-[#F2F4F7] pt-2 text-[10.5px] leading-snug text-[#98A2B3]">
+                            Read by {chosen.researchedBy ?? "an unnamed seat"}
+                            {chosen.researchedAt ? ` on ${chosen.researchedAt.toISOString().slice(0, 10)}` : ""}.
+                            Everything above is drawn from their own profile and posts; where those
+                            were empty the note says so and reasons from the role instead.
+                          </p>
                         </div>
+                      ) : (
+                        <p className="mt-3 text-[12px] leading-relaxed text-[#667085]">
+                          Not researched yet. The list knows their name, headline and profile; nobody
+                          has read them.
+                        </p>
                       )}
-                    </li>
-                  ))}
-                </ul>
+                    </>
+                  )}
+                </div>
               </div>
             );
           })()}

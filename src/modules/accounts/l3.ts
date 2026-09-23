@@ -134,6 +134,19 @@ export interface SignalContact {
   source: "post" | "search";
   /** Their LinkedIn profile, when we have it. */
   profileUrl: string | null;
+  /** What the research pass concluded about them, and who fetched it. Null
+   *  until a pass has run — a person with no research is a person nobody has
+   *  read yet, which the page says rather than hides. */
+  research: {
+    aboutSummary: string;
+    postsSummary: string;
+    priorities: string;
+    angle: string;
+    evidence: string | null;
+    flag: string | null;
+  } | null;
+  researchedAt: Date | null;
+  researchedBy: string | null;
   lastPostAt: Date | null;
   url: string | null;
   theme: string | null;
@@ -555,6 +568,9 @@ export async function loadL3(
       role: postRole,
       level: levelOf(postRole),
       source: "post",
+      research: null,
+      researchedAt: null,
+      researchedBy: null,
       profileUrl: sg.authorProfileUrl,
       lastPostAt: sg.publishedAt,
       url: sg.url,
@@ -573,6 +589,10 @@ export async function loadL3(
     profileUrl: accountPerson.profileUrl,
     companyKey: accountPerson.companyKey,
     levelOverride: accountPerson.levelOverride,
+    capturedBy: accountPerson.capturedBy,
+    researchJson: accountPerson.researchJson,
+    researchedAt: accountPerson.researchedAt,
+    researchedBy: accountPerson.researchedBy,
   }).from(accountPerson).where(and(
     eq(accountPerson.orgId, orgId),
     inArray(accountPerson.companyKey, [...unitKeys]),
@@ -580,13 +600,34 @@ export async function loadL3(
   /** Bands set by hand, by normalised name, applied after the merge so a
    *  correction holds whether the person was found by a post or by a search. */
   const levelFix = new Map<string, SeniorityLevel>();
+  /** Research by normalised name, so it reaches a person however they were
+   *  found — the pass reads account_person, the list may know them from a post. */
+  const researchByName = new Map<string, SignalContact["research"] & object>();
+  const researchMeta = new Map<string, { at: Date | null; by: string | null }>();
   for (const d of directory) {
     const fix = (d.levelOverride ?? "").trim() as SeniorityLevel;
     if (fix) levelFix.set(d.name.toLowerCase(), fix);
+    const r = d.researchJson as Record<string, string | null> | null;
+    if (r && typeof r.about_summary === "string") {
+      researchByName.set(d.name.toLowerCase(), {
+        aboutSummary: r.about_summary ?? "",
+        postsSummary: r.posts_summary ?? "",
+        priorities: r.priorities ?? "",
+        angle: r.angle ?? "",
+        evidence: r.evidence ?? null,
+        flag: r.flag ?? null,
+      });
+      researchMeta.set(d.name.toLowerCase(), { at: d.researchedAt, by: d.researchedBy });
+    }
     const headline = (d.headline ?? "").trim();
     if (focusKey && d.companyKey !== focusKey && !(focusRe?.test(headline) ?? false)) continue;
     const key = d.name.toLowerCase();
     const prev = byPerson.get(key);
+    // Rows copied out of the post feed exist so the research pass can reach
+    // people it otherwise could not. They must not ADD anyone: the post path
+    // applies the employee-voice and US tests, and a row that skipped them
+    // would walk a foreign-market reposter straight onto the list.
+    if (!prev && d.capturedBy === "post author") continue;
     if (prev) {
       // Already known from a post. Keep the post — it carries a date and words
       // — and take only the profile link the search added.
@@ -599,6 +640,9 @@ export async function loadL3(
       level: levelOf(headline),
       source: "search",
       profileUrl: d.profileUrl,
+      research: null,
+      researchedAt: null,
+      researchedBy: null,
       lastPostAt: null,
       url: null,
       theme: null,
@@ -626,7 +670,17 @@ export async function loadL3(
     .filter((c) => matchesIcp(c.role))
     // Taken out by hand. A headline cannot say "this one is not the buyer".
     .filter((c) => !hidden.has(nameKey(c.name)))
-    .map((c) => ({ ...c, level: levelFix.get(c.name.toLowerCase()) ?? c.level }))
+    .map((c) => {
+      const k = c.name.toLowerCase();
+      const meta = researchMeta.get(k);
+      return {
+        ...c,
+        level: levelFix.get(k) ?? c.level,
+        research: researchByName.get(k) ?? null,
+        researchedAt: meta?.at ?? null,
+        researchedBy: meta?.by ?? null,
+      };
+    })
     .map((c) => {
       const n = c.name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
       const id = knownByName.get(n) ?? null;

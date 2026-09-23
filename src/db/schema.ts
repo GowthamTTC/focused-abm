@@ -512,6 +512,20 @@ export const accountPerson = pgTable("account_person", {
    *  does it say so; a reader who knows that can say it here rather than
    *  arguing with the page. Null means "read it off the headline". */
   levelOverride: text("level_override"),
+
+  // ── Filled by a research pass; null until one runs ──
+  /** The About section as LinkedIn returned it, verbatim. */
+  about: text("about"),
+  /** Their recent posts as fetched, JSON — text, date, url. The evidence the
+   *  summary below rests on, kept so a claim can be checked against it. */
+  postsJson: jsonb("posts_json").$type<{ text: string; postedAt: string | null; url: string | null }[]>(),
+  /** What the research pass concluded, JSON: about_summary, posts_summary,
+   *  priorities, angle, evidence, flag. */
+  researchJson: jsonb("research_json").$type<Record<string, unknown>>(),
+  researchedAt: ts("researched_at"),
+  /** Which LinkedIn seat fetched it. A profile read is done by somebody, and
+   *  network distance and visibility both depend on who that was. */
+  researchedBy: text("researched_by"),
   createdAt: ts("created_at").notNull().defaultNow(),
   updatedAt: ts("updated_at").notNull().defaultNow(),
 }, (t) => [
