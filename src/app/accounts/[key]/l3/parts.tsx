@@ -101,7 +101,10 @@ export function Meter({ value, color }: { value: number | null; color: string })
  *  connectors, which an absolutely-positioned diagram cannot. */
 export function OrgTree({ root, nodes }: {
   root: string;
-  nodes: { name: string; state: "engaged" | "whitespace"; sub?: string }[];
+  /** `focus` marks the unit the whole page is scoped to. It glows, because a
+   *  reader arriving at the chart should be able to see in one second which of
+   *  the thirteen boxes everything else on the page is about. */
+  nodes: { name: string; state: "engaged" | "whitespace"; sub?: string; focus?: boolean }[];
 }) {
   const style = {
     engaged: "border-[#ABEFC6] bg-[#F6FEF9] text-[#027A48]",
@@ -121,7 +124,8 @@ export function OrgTree({ root, nodes }: {
         {nodes.map((n) => (
           <div key={n.name} className="relative">
             <div className="absolute -top-4 left-1/2 h-4 w-px bg-[#D0D5DD]" />
-            <div className={`rounded-[8px] border px-2.5 py-1.5 text-center text-[11.5px] ${style[n.state]}`}>
+            <div className={`rounded-[8px] border px-2.5 py-1.5 text-center text-[11.5px] ${
+              n.focus ? "ai-glow border-[#C7B9FF] bg-white text-[#3538CD]" : style[n.state]}`}>
               <div className="font-medium">{n.name}</div>
               {n.sub && <div className="text-[9.5px] opacity-80">{n.sub}</div>}
             </div>

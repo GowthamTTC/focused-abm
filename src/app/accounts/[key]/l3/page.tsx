@@ -57,12 +57,15 @@ export default async function L3Page({ params, searchParams }: {
     ...siteUnits.filter((u) => !isFocus(u.unit.name) && !u.engaged && u.people === 0),
     ...siteUnits.filter((u) => !isFocus(u.unit.name) && (u.engaged || u.people > 0)),
   ];
-  // No focus highlight and no legend. Every entity on this chart is whitespace,
-  // so singling one out in red implied the others were something else, and a
-  // legend explaining three states when only one is drawn is furniture.
+  // No legend, and no red. Every entity on this chart is whitespace, so
+  // singling one out in a warning colour implied the others were something
+  // else. The unit the page is scoped to glows instead — not a state, a
+  // "you are here", so a reader can see in one second which of thirteen boxes
+  // everything below is about.
   const treeNodes = ordered.slice(0, TREE_MAX).map((u) => ({
     name: u.unit.name,
     state: (u.engaged || u.people > 0 ? "engaged" : "whitespace") as "engaged" | "whitespace",
+    focus: Boolean(v.focusApplied) && u.unit.name.toLowerCase() === (v.focusApplied ?? "").toLowerCase(),
     sub: u.unit.website,
   }));
 
