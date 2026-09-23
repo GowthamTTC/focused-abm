@@ -62,7 +62,7 @@ export default async function L3Page({ params, searchParams }: {
   // Only units with their own public website. An internal function like
   // Regulatory Affairs is not a thing an account plan can walk into; an
   // operating company that kept its own site after acquisition is.
-  const TREE_MAX = 26;
+  const TREE_MAX = 12;
   const siteUnits = v.units.filter((u) => u.unit.website);
   const isFocus = (n: string) => n.toLowerCase() === focus.toLowerCase();
   const ordered = [
@@ -163,6 +163,30 @@ export default async function L3Page({ params, searchParams }: {
           </div>
 
           <div className="lg:border-l lg:border-[#EDEFF3] lg:pl-6">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <h2 className="text-[13px] font-semibold">Org-chart whitespace map</h2>
+              <div className="flex flex-wrap gap-2.5">
+                <LegendDot color="#12B76A" label="Engaged" />
+                <LegendDot color="#D0D5DD" label="Whitespace" />
+                <LegendDot color="#F04438" label="Priority" />
+              </div>
+            </div>
+            <p className="mt-1 text-[11.5px] text-[#667085]">
+              Entities with their own public website — correct it in the{" "}
+              <Link href={`/accounts/${encodeURIComponent(key)}`} className="text-[#4F46E5] hover:underline">map editor</Link>.
+            </p>
+            <OrgTree root={v.companyName} nodes={treeNodes} />
+            <p className="mt-3 text-center text-[11px] text-[#98A2B3]">
+              {siteUnits.length} of {v.counts.mapped} mapped units have their own website ·{" "}
+              {v.counts.whitespace} of {v.counts.mapped} have no engagement
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ── company news ── */}
+      <div className="mt-4">
+        <section className={`${CARD} p-5`}>
             <div className="flex items-baseline justify-between gap-2">
               <h2 className="text-[13px] font-semibold">From their US LinkedIn pages · 30 days</h2>
               <span className="text-[11px] text-[#98A2B3]">
@@ -209,33 +233,6 @@ export default async function L3Page({ params, searchParams }: {
                 ))}
               </ul>
             )}
-          </div>
-        </div>
-      </section>
-
-      {/* ── org tree ── */}
-      <div className="mt-4">
-        <section className={`${CARD} p-5`}>
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div>
-              <h2 className="text-[15px] font-semibold">Org-chart whitespace map</h2>
-              <p className="mt-1 text-[12px] text-[#667085]">
-                Entities with their own public website — a first-draft list, correct it in the{" "}
-                <Link href={`/accounts/${encodeURIComponent(key)}`} className="text-[#4F46E5] hover:underline">map editor</Link>.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <LegendDot color="#12B76A" label="Current engagement" />
-              <LegendDot color="#D0D5DD" label="Potential whitespace" />
-              <LegendDot color="#F04438" label="Priority opportunity" />
-            </div>
-          </div>
-          <OrgTree root={v.companyName} nodes={treeNodes} />
-          <p className="mt-3 text-center text-[11px] text-[#98A2B3]">
-            Operating entities with their own website · {siteUnits.length} of{" "}
-            {v.counts.mapped} mapped units · {v.counts.whitespace} of {v.counts.mapped} have
-            no engagement
-          </p>
         </section>
       </div>
 
