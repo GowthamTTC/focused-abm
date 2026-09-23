@@ -189,19 +189,32 @@ async function collectDomain(domain: string, domains: string[]): Promise<NewsIte
   if (!base) return [];
   const host = hostOf(base) ?? "";
 
-  for (const path of FEED_PATHS) {
-    const feedUrl = `${base}${path}`;
-    try {
-      const xml = await fetchAllowed(feedUrl, domains);
-      if (!xml) continue;
-      const items = parseFeed(xml, feedUrl, host);
-      // "Parses" has to mean "yielded items", not "returned 200". Newsrooms
-      // answer an unknown /feed with their HTML homepage, which parses to
-      // nothing, and stopping there would never reach the real /rss.xml.
-      if (items.length > 0) return items;
-    } catch {
-      // Keep trying this domain's remaining paths; a thrown fetch says nothing
-      // about whether the next path exists.
+  // The bare host and its www. form are different servers as far as a CDN is
+  // concerned, and plenty of publishers serve the feed on ONE of them.
+  // fiercepharma.com answers every feed path with 403 and does not redirect;
+  // www.fiercepharma.com serves 60KB of RSS from /rss.xml. A workspace that
+  // typed the domain without the prefix therefore collected nothing from a
+  // source it had deliberately configured — which is how the largest story
+  // about an account went unseen for months.
+  const bases = host.startsWith("www.")
+    ? [base, base.replace("://www.", "://")]
+    : [base, base.replace("://", "://www.")];
+
+  for (const b of bases) {
+    for (const path of FEED_PATHS) {
+      const feedUrl = `${b}${path}`;
+      try {
+        const xml = await fetchAllowed(feedUrl, domains);
+        if (!xml) continue;
+        const items = parseFeed(xml, feedUrl, host);
+        // "Parses" has to mean "yielded items", not "returned 200". Newsrooms
+        // answer an unknown /feed with their HTML homepage, which parses to
+        // nothing, and stopping there would never reach the real /rss.xml.
+        if (items.length > 0) return items;
+      } catch {
+        // Keep trying this domain's remaining paths; a thrown fetch says nothing
+        // about whether the next path exists.
+      }
     }
   }
   return [];

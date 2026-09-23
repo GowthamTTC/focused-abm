@@ -221,6 +221,34 @@ export async function loadL3(
     inArray(accountSignal.companyKey, [...unitKeys]),
   )).orderBy(desc(accountSignal.publishedAt)).limit(400);
 
+  // News and filings are fetched separately. They are few, and they lose a
+  // newest-first race against hundreds of LinkedIn posts: once this account
+  // passed four hundred rows, the WARN notice naming a 202-person
+  // reorganisation — the oldest row and the most important one — fell off the
+  // end of the limit and stopped existing as far as the page was concerned.
+  const pressRows = await db.select({
+    id: accountSignal.id,
+    kind: accountSignal.kind,
+    source: accountSignal.source,
+    title: accountSignal.title,
+    url: accountSignal.url,
+    publishedAt: accountSignal.publishedAt,
+    body: accountSignal.body,
+    theme: accountSignal.theme,
+    sentiment: accountSignal.sentiment,
+    evidence: accountSignal.evidence,
+    companyName: accountSignal.companyName,
+    signalKey: accountSignal.companyKey,
+    capturedBy: accountSignal.capturedBy,
+    authorProfileUrl: accountSignal.authorProfileUrl,
+    authorCountry: accountSignal.authorCountry,
+    authorLocation: accountSignal.authorLocation,
+  }).from(accountSignal).where(and(
+    eq(accountSignal.orgId, orgId),
+    inArray(accountSignal.companyKey, [...unitKeys]),
+    inArray(accountSignal.kind, ["news", "filing"]),
+  )).orderBy(desc(accountSignal.publishedAt)).limit(120);
+
   const allLi = signals.filter((s) => s.kind === "linkedin");
   // A country filter over rows that carry no country is not a filter, it is an
   // eraser: it emptied sentiment, themes and change signals while the buying
@@ -238,7 +266,7 @@ export async function loadL3(
     located: allLi.filter((s) => s.authorCountry).length,
     total: allLi.length,
   };
-  const news = signals.filter((s) => s.kind === "news" || s.kind === "filing");
+  const news = pressRows;
 
   const tone = meanSentiment(li.map((s) => ({ sentiment: s.sentiment, at: s.publishedAt })));
   // A gauge wants 0–100; sentiment is −100..100. This is a restatement of one
@@ -399,11 +427,23 @@ export async function loadL3(
     .slice(0, 6);
 
   const triggerScore = scoreTriggers(
-    allLi.map((sg) => ({
-      title: sg.title, body: sg.body, evidence: sg.evidence,
-      url: sg.url, publishedAt: sg.publishedAt,
-      inside: voiceOf(sg.title, sg.companyName ?? companyName, extraAliases) !== "market",
-    })),
+    [
+      ...allLi.map((sg) => ({
+        title: sg.title, body: sg.body, evidence: sg.evidence,
+        url: sg.url, publishedAt: sg.publishedAt,
+        inside: voiceOf(sg.title, sg.companyName ?? companyName, extraAliases) !== "market",
+      })),
+      // News and filings count. The `inside` rule exists to keep LinkedIn's
+      // market chatter and a competitor's event marketing from scoring — not to
+      // exclude a regulatory filing or trade reporting about the account, which
+      // passed the collector's company test and came from a domain this
+      // workspace chose. A WARN notice naming a reorganisation is the strongest
+      // buying signal available and was scoring nothing.
+      ...news.map((sg) => ({
+        title: sg.title, body: sg.body, evidence: sg.evidence,
+        url: sg.url, publishedAt: sg.publishedAt, inside: true,
+      })),
+    ],
     vocab,
   );
 
@@ -493,7 +533,16 @@ export async function loadL3(
     ...news.filter((sg) => Boolean(sg.evidence)),
   ]
     .sort((a, b) => (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0));
-  const changeSignalsDeduped = dedupeByUrl(changeSignalsRaw).slice(0, 8);
+  // Restructuring outranks recency. Sorted newest-first alone, a WARN filing
+  // naming a reorganisation sat below whatever a quality engineer posted this
+  // morning — the most consequential fact about the account, buried by a day.
+  const changeSignalsDeduped = dedupeByUrl(changeSignalsRaw)
+    .sort((a, b) => {
+      const rank = (t: string | null) => (t === "restructuring" ? 0 : t === "leadership" ? 1 : 2);
+      const r = rank(a.theme) - rank(b.theme);
+      return r !== 0 ? r : (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0);
+    })
+    .slice(0, 8);
 
   // Every search this account has been read with. Shown so the reader can see
   // what was asked as well as what came back — including the phrases that

@@ -40,6 +40,21 @@ export interface TriggerSignal {
  *  quiet this month is not a trigger that is wrong. */
 export const DEFAULT_TRIGGERS: TriggerSignal[] = [
   {
+    phrase: "restructuring", label: "Restructuring", weight: 5,
+    offer: "leadership-communication-development-ingo",
+    why: "A reorganisation is announced once and lived with for a year. The people who stay need their leaders to explain it credibly and repeatedly, and that is the work — not the announcement, the eighteen months after it.",
+  },
+  {
+    phrase: "reorganization", label: "Reorganisation", weight: 5,
+    offer: "team-organizational-development",
+    why: "Teams reassembled under new leaders have to rebuild trust before they perform. That is the gap between a new structure on a chart and a team that works.",
+  },
+  {
+    phrase: "layoffs", label: "Layoffs", weight: 4,
+    offer: "leadership-communication-development-ingo",
+    why: "Survivors watch how it was handled and decide what the company is. Managers carrying that conversation are usually doing it for the first time.",
+  },
+  {
     phrase: "speaker training", label: "Speaker training programme", weight: 5,
     offer: "communicating-with-storytelling",
     why: "They already put faculty in front of rooms, so the principle is settled. The science is theirs; what earns attention is presence and a story that lands. That layer sits beside the content they own.",
