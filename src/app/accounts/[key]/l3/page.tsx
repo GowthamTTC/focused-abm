@@ -9,7 +9,7 @@ const BTN_GHOST = "inline-flex items-center gap-1.5 rounded-[8px] border border-
 
 export default async function L3Page({ params, searchParams }: {
   params: Promise<{ key: string }>;
-  searchParams: Promise<{ focus?: string; alias?: string; queued?: string; country?: string }>;
+  searchParams: Promise<{ focus?: string; alias?: string; queued?: string; country?: string; level?: string }>;
 }) {
   const user = await requirePage();
   const { key: rawKey } = await params;
@@ -427,48 +427,96 @@ export default async function L3Page({ params, searchParams }: {
             <p className="mt-3 text-[13px] text-[#667085]">
               No US employee-voice posts stored for this account match the ICP yet.
             </p>
-          ) : (
-            <ul className="mt-3.5 grid max-h-[30rem] grid-cols-1 gap-x-4 overflow-y-auto rounded-[10px] border border-[#EDEFF3] p-1 lg:grid-cols-2">
-              {v.contacts.map((c) => (
-                <li key={c.name} className="border-b border-[#F2F4F7] px-3 py-2.5">
-                  <div className="flex flex-wrap items-baseline gap-2">
-                    <span className="text-[13px] font-medium text-[#101828]">{c.name}</span>
-                    {c.newArrival && (
-                      <span className="rounded-[5px] bg-[#ECFDF3] px-1.5 py-0.5 text-[10px] font-medium text-[#027A48]">
-                        New arrival
-                      </span>
-                    )}
-                    {c.amiEvent && (
-                      <span className="rounded-[5px] bg-[#FAFAFF] px-1.5 py-0.5 text-[10px] font-medium text-[#4F46E5] ring-1 ring-[#D9D6FE]">
-                        AMI
-                      </span>
-                    )}
-                    <span className="ml-auto shrink-0 text-[10.5px]">
-                      {c.source === "post" && c.url ? (
-                        <a href={c.url} target="_blank" rel="noreferrer"
-                          className="text-[#4F46E5] hover:underline">their post ↗</a>
-                      ) : c.profileUrl ? (
-                        <a href={c.profileUrl} target="_blank" rel="noreferrer"
-                          className="text-[#4F46E5] hover:underline">profile ↗</a>
-                      ) : null}
-                    </span>
+          ) : (() => {
+            const BANDS: { key: string; label: string }[] = [
+              { key: "all", label: "Everyone" },
+              { key: "exec", label: "C-level / SVP" },
+              { key: "vp", label: "VP / Head of" },
+              { key: "director", label: "Director" },
+              { key: "manager", label: "Manager / Lead" },
+              { key: "other", label: "No rank named" },
+            ];
+            const picked = BANDS.some((x) => x.key === sp.level) ? sp.level! : "all";
+            const count = (k: string) =>
+              k === "all" ? v.contacts.length : v.contacts.filter((c) => c.level === k).length;
+            const shown = picked === "all"
+              ? v.contacts
+              : v.contacts.filter((c) => c.level === picked);
+            const href = (k: string) => {
+              const qs = new URLSearchParams();
+              if (focusRaw) qs.set("focus", focusRaw);
+              if (sp.alias) qs.set("alias", sp.alias);
+              if (k !== "all") qs.set("level", k);
+              return `/accounts/${encodeURIComponent(key)}/l3?${qs}#people`;
+            };
+            return (
+              <div id="people" className="mt-3.5 grid gap-4 lg:grid-cols-[190px_1fr]">
+                <div>
+                  <div className="text-[10.5px] font-medium uppercase tracking-wide text-[#98A2B3]">
+                    Seniority
                   </div>
-                  {c.role && (
-                    <div className="mt-0.5 text-[11.5px] leading-snug text-[#667085]">
-                      {c.role.length > 110 ? `${c.role.slice(0, 110)}…` : c.role}
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
+                  <ul className="mt-1.5 space-y-0.5">
+                    {BANDS.map((b) => (
+                      <li key={b.key}>
+                        <Link href={href(b.key)}
+                          className={`flex items-baseline justify-between rounded-[7px] px-2.5 py-1.5 text-[12px] ${
+                            b.key === picked
+                              ? "bg-[#EEF4FF] font-medium text-[#3538CD]"
+                              : "text-[#475467] hover:bg-[#F9FAFB]"}`}>
+                          <span>{b.label}</span>
+                          <span className={b.key === picked ? "text-[#3538CD]" : "text-[#98A2B3]"}>
+                            {count(b.key)}
+                          </span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <ul className="max-h-[30rem] divide-y divide-[#F2F4F7] overflow-y-auto rounded-[10px] border border-[#EDEFF3]">
+                  {shown.map((c) => (
+                    <li key={c.name} className="px-3.5 py-2.5">
+                      <div className="flex flex-wrap items-baseline gap-2">
+                        <span className="text-[13px] font-medium text-[#101828]">{c.name}</span>
+                        {c.newArrival && (
+                          <span className="rounded-[5px] bg-[#ECFDF3] px-1.5 py-0.5 text-[10px] font-medium text-[#027A48]">
+                            New arrival
+                          </span>
+                        )}
+                        {c.amiEvent && (
+                          <span className="rounded-[5px] bg-[#FAFAFF] px-1.5 py-0.5 text-[10px] font-medium text-[#4F46E5] ring-1 ring-[#D9D6FE]">
+                            AMI
+                          </span>
+                        )}
+                        <span className="ml-auto shrink-0 text-[10.5px]">
+                          {c.source === "post" && c.url ? (
+                            <a href={c.url} target="_blank" rel="noreferrer"
+                              className="text-[#4F46E5] hover:underline">their post ↗</a>
+                          ) : c.profileUrl ? (
+                            <a href={c.profileUrl} target="_blank" rel="noreferrer"
+                              className="text-[#4F46E5] hover:underline">profile ↗</a>
+                          ) : null}
+                        </span>
+                      </div>
+                      {c.role && (
+                        <div className="mt-0.5 text-[11.5px] leading-snug text-[#667085]">
+                          {c.role.length > 150 ? `${c.role.slice(0, 150)}…` : c.role}
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })()}
           <p className="mt-2 text-[11px] leading-snug text-[#98A2B3]">
             {v.contacts.length} {v.contacts.length === 1 ? "person" : "people"} ·{" "}
             {v.contacts.filter((c) => c.source === "post").length} found by what they posted,{" "}
             {v.contacts.filter((c) => c.source === "search").length} by searching LinkedIn for the
-            roles. New arrival reads the post&apos;s own words and excludes tenure anniversaries,
-            which use the same language. AMI means the headline or post names the Allergan
-            Medical Institute.
+            roles. Seniority is read off the headline, so &ldquo;no rank named&rdquo; means the
+            title says none — usually faculty or an individual contributor. New arrival reads the
+            post&apos;s own words and excludes tenure anniversaries, which use the same language.
+            AMI means the headline or post names the Allergan Medical Institute.
           </p>
         </section>
       </div>

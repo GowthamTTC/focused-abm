@@ -117,9 +117,17 @@ export interface QueryRun {
   at: Date | null;
 }
 
+/** Seniority bands, read off the headline. Coarse on purpose: the point is to
+ *  let a reader ask "who are the leaders here" without reading twenty titles,
+ *  not to reproduce AbbVie's grade ladder. */
+export type SeniorityLevel = "exec" | "vp" | "director" | "manager" | "other";
+
 export interface SignalContact {
   name: string;
   role: string;
+  /** Which band their title puts them in. "other" means the headline names no
+   *  rank at all, which is common for faculty and individual contributors. */
+  level: SeniorityLevel;
   /** Where this person came from. "post" means they wrote something we hold;
    *  "search" means LinkedIn's people search returned them and they have said
    *  nothing in the window. The second kind is most of any organisation. */
@@ -475,6 +483,22 @@ export async function loadL3(
   // row that got in on its title alone — someone whose headline says training
   // or communications keeps their place whatever else it says.
   const ICP_OFF_FUNCTION_RE = /\b(information technology|business technology|it|regulated systems|systems|software|engineering|engineer|infrastructure|cyber|data platform|quality assurance|qa|validation)\b/i;
+  // Read in this order: "Executive Director" is a director, and "Associate
+  // Vice President" is a VP. Testing the words in rank order instead would
+  // promote both of them.
+  const levelOf = (role: string): SeniorityLevel => {
+    const r = role.replace(/president[\u2019']?s club/gi, " ");
+    if (/\b(svp|evp|senior vice president|executive vice president)\b/i.test(r)) return "exec";
+    if (/\b(chief|ceo|coo|cfo|clo|chro|cmo)\b/i.test(r)) return "exec";
+    // "Vice President" contains the word "president". Without this the
+    // Associate Vice President who heads AMI's curricula was filed as an
+    // officer of the company.
+    if (/(?<!vice\s)\bpresident\b/i.test(r)) return "exec";
+    if (/\b(vice president|avp|vp|head of)\b/i.test(r)) return "vp";
+    if (/\bdirector\b/i.test(r)) return "director";
+    if (/\b(manager|lead|supervisor|principal)\b/i.test(r)) return "manager";
+    return "other";
+  };
   const matchesIcp = (role: string) => {
     // "2X President's Club Winner" is a sales award, not an officer of the
     // company. It is the one phrase that turns this list into a list of
@@ -513,9 +537,11 @@ export async function loadL3(
     if (!name) continue;
     const prev = byPerson.get(name.toLowerCase());
     if (prev && (prev.lastPostAt?.getTime() ?? 0) >= (sg.publishedAt?.getTime() ?? 0)) continue;
+    const postRole = rest.join(" \u2014 ").trim();
     byPerson.set(name.toLowerCase(), {
       name,
-      role: rest.join(" \u2014 ").trim(),
+      role: postRole,
+      level: levelOf(postRole),
       source: "post",
       profileUrl: sg.authorProfileUrl,
       lastPostAt: sg.publishedAt,
@@ -552,6 +578,7 @@ export async function loadL3(
     byPerson.set(key, {
       name: d.name,
       role: headline,
+      level: levelOf(headline),
       source: "search",
       profileUrl: d.profileUrl,
       lastPostAt: null,
