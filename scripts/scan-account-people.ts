@@ -4,12 +4,14 @@
  *   CONFIRM_PRODUCTION=1 ORG_ID=... KEY="allergan aesthetics" NAME="Allergan Aesthetics" \
  *     npx tsx --env-file=.env scripts/scan-account-people.ts
  *
- * QUERIES="faculty,training" narrows the role phrases; PER_QUERY caps each page.
+ * QUERIES="faculty,training" narrows the role phrases, WIDE=1 runs the second
+ * pass, PREFIX="Allergan" changes what each phrase is searched beside, and
+ * PER_QUERY caps each one.
  * Costs one LinkedIn search request per phrase and never calls the model.
  */
 import { eq } from "drizzle-orm";
 import { db, org } from "../src/db";
-import { scanCompanyPeople, ICP_QUERIES } from "../src/modules/intel/people";
+import { scanCompanyPeople, ICP_QUERIES, ICP_QUERIES_WIDE } from "../src/modules/intel/people";
 
 async function main() {
   if (process.env.CONFIRM_PRODUCTION !== "1") throw new Error("needs CONFIRM_PRODUCTION=1");
@@ -23,10 +25,11 @@ async function main() {
 
   const queries = (process.env.QUERIES ?? "").trim()
     ? process.env.QUERIES!.split(",").map((q) => q.trim()).filter(Boolean)
-    : ICP_QUERIES;
+    : process.env.WIDE === "1" ? ICP_QUERIES_WIDE : ICP_QUERIES;
   const perQuery = Number(process.env.PER_QUERY ?? 25);
 
-  const res = await scanCompanyPeople(orgId, key, name, { queries, perQuery },
+  const prefix = (process.env.PREFIX ?? "").trim() || undefined;
+  const res = await scanCompanyPeople(orgId, key, name, { queries, perQuery, prefix },
     async (done, total) => { console.error(`  ${done}/${total} searches`); });
   console.log(JSON.stringify({ workspace: w.name, key, ...res }, null, 2));
   process.exit(0);

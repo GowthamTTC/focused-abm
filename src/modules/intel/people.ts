@@ -66,11 +66,42 @@ export const ICP_QUERIES = [
   "enablement",
 ];
 
+/** A second pass, for when the first has been run and the account is still
+ *  thinner than it should be. Same idea, further out: the functions that own a
+ *  rollout, the people who run the field's own capability, and the HR roles
+ *  that sit inside a business unit rather than above it. */
+export const ICP_QUERIES_WIDE = [
+  "sales training",
+  "commercial excellence",
+  "commercial operations",
+  "customer experience",
+  "change management",
+  "internal communications",
+  "employee experience",
+  "talent acquisition",
+  "coaching",
+  "onboarding",
+  "capability",
+  "academy",
+  "HR business partner",
+  "people operations",
+  "speaker training",
+  "field force effectiveness",
+];
+
 export async function scanCompanyPeople(
   orgId: string,
   companyKey: string,
   companyName: string,
-  opts: { queries?: string[]; perQuery?: number; locationQuery?: string } = {},
+  opts: {
+    queries?: string[];
+    perQuery?: number;
+    locationQuery?: string;
+    /** What each role phrase is searched beside. Defaults to the company name;
+     *  "Allergan" finds the institute's people too, whose headlines name the
+     *  brand but not the unit. */
+    prefix?: string;
+  } = {},
   onProgress?: (done: number, total: number) => Promise<void>,
 ): Promise<PeopleScanResult> {
   const name = companyName.trim();
@@ -83,7 +114,8 @@ export async function scanCompanyPeople(
   if (!seat) throw new Error("Connect a LinkedIn account in Settings first.");
 
   const provider = getChannelProvider();
-  const queries = (opts.queries ?? ICP_QUERIES).map((q) => `${name} ${q}`);
+  const prefix = (opts.prefix ?? name).trim();
+  const queries = (opts.queries ?? ICP_QUERIES).map((q) => `${prefix} ${q}`);
   const perQuery = Math.max(10, Math.min(50, opts.perQuery ?? 25));
   const locationQuery = opts.locationQuery ?? "United States";
 

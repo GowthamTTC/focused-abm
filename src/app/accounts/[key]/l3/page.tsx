@@ -165,7 +165,7 @@ export default async function L3Page({ params, searchParams }: {
               <div>
                 <h2 className="text-[13px] font-semibold">From their US LinkedIn pages · 30 days</h2>
                 <p className="mt-0.5 text-[11.5px] text-[#667085]">
-                  What they posted, and why it is an opening for this workspace.
+                  Only the posts that carry a buying signal, and why each one is an opening.
                 </p>
               </div>
               <span className="text-[11px] text-[#98A2B3]">
@@ -176,8 +176,9 @@ export default async function L3Page({ params, searchParams }: {
             </div>
             {v.companyUpdates.length === 0 ? (
               <p className="mt-2 text-[12px] leading-snug text-[#667085]">
-                No US company-page posts in the last 30 days among those stored. Pages that
-                name another market, and posts written in another language, are left out.
+                No US company-page post in the last 30 days carries buying-signal language.
+                Product marketing is not listed, and neither are pages naming another market or
+                posts written in another language.
               </p>
             ) : (
               <ul className="mt-2.5 divide-y divide-[#F2F4F7]">
@@ -207,12 +208,7 @@ export default async function L3Page({ params, searchParams }: {
                           {n.about}
                         </p>
                       )}
-                      {n.matchedTriggers.length === 0 ? (
-                        <p className="text-[11.5px] leading-snug text-[#98A2B3]">
-                          No buying signal. Product marketing — nothing here to open on.
-                        </p>
-                      ) : (
-                        <div className="space-y-1.5">
+                      <div className="space-y-1.5">
                           {n.matchedTriggers.map((t) => (
                             <div key={t.phrase}>
                               <div className="flex flex-wrap items-center gap-1.5">
@@ -228,10 +224,9 @@ export default async function L3Page({ params, searchParams }: {
                               {t.why && (
                                 <p className="mt-1 text-[11.5px] leading-snug text-[#475467]">{t.why}</p>
                               )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </li>
                 ))}
@@ -248,8 +243,8 @@ export default async function L3Page({ params, searchParams }: {
               <div>
                 <h2 className="text-[13px] font-semibold">What the business announced</h2>
                 <p className="mt-0.5 text-[11.5px] text-[#667085]">
-                  Press carrying the unit&apos;s own numbers and decisions — what its LinkedIn
-                  page does not publish and its newsroom files under the parent.
+                  Press the unit&apos;s LinkedIn page does not publish and its newsroom files
+                  under the parent — kept where it carries something to open on.
                 </p>
               </div>
               <span className="text-[11px] text-[#98A2B3]">
@@ -281,13 +276,7 @@ export default async function L3Page({ params, searchParams }: {
                   </div>
 
                   <div className="lg:border-l lg:border-[#F2F4F7] lg:pl-4">
-                    {n.matchedTriggers.length === 0 ? (
-                      <p className="text-[11.5px] leading-snug text-[#98A2B3]">
-                        Context, not a trigger. Numbers set up the conversation; they are not
-                        the thing to open on.
-                      </p>
-                    ) : (
-                      <div className="space-y-1.5">
+                    <div className="space-y-1.5">
                         {n.matchedTriggers.map((t) => (
                           <div key={t.phrase}>
                             <div className="flex flex-wrap items-center gap-1.5">
@@ -303,10 +292,9 @@ export default async function L3Page({ params, searchParams }: {
                             {t.why && (
                               <p className="mt-1 text-[11.5px] leading-snug text-[#475467]">{t.why}</p>
                             )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </li>
               ))}

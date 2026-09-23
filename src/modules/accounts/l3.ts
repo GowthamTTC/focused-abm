@@ -602,6 +602,10 @@ export async function loadL3(
   const unitPress = pressRows.filter((r) => r.signalKey === focusKey);
   const announcements: PressNote[] = (focusKey && unitPress.length ? unitPress : pressRows)
     .filter((r) => r.kind === "news")
+    // Only what there is something to do about. A release with no buying-signal
+    // language is background a seller already has; printing it beside the line
+    // "context, not a trigger" is a row that costs attention and returns none.
+    .filter((r) => triggersIn(`${r.title ?? ""} ${r.body ?? ""}`, vocab).length > 0)
     .filter((r, i, arr) => arr.findIndex((q) => (q.url ?? q.title) === (r.url ?? r.title)) === i)
     .slice(0, 6)
     .map((r) => ({
@@ -655,6 +659,10 @@ export async function loadL3(
       const id = (p.url || p.body || "").trim().toLowerCase();
       return !id || arr.findIndex((q) => (q.url || q.body || "").trim().toLowerCase() === id) === i;
     })
+    // Product marketing is not an opening. A Natrelle post listing implant
+    // profiles is the company doing its job, and a row that says "no buying
+    // signal" beside it is a row that tells a seller nothing twice.
+    .filter((p) => p.matchedTriggers.length > 0)
     .slice(0, 6);
 
   const triggerScore = scoreTriggers(
