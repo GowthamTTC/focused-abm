@@ -76,6 +76,18 @@ export interface TopSignal extends SignalCard {
 /** A post by someone at the account or by the company itself, with the search
  *  phrase that surfaced it. The provenance is the point: a claim made from
  *  these posts can be traced back to how they were looked for. */
+/** A press item recorded against the unit: the company or its parent saying
+ *  something in public, with whatever buying-signal language it carries. */
+export interface PressNote {
+  id: string;
+  title: string | null;
+  source: string | null;
+  url: string | null;
+  body: string | null;
+  publishedAt: Date | null;
+  matchedTriggers: TriggerSignal[];
+}
+
 export interface VoicePost {
   id: string;
   who: string;
@@ -190,6 +202,9 @@ export interface L3View {
    *  newsroom publishes investor calendar; its LinkedIn page publishes what the
    *  business is actually doing, which is the thing a seller wants. */
   companyUpdates: VoicePost[];
+  /** Press about the business, newest first — the releases that carry the
+   *  unit's own numbers and decisions, which its LinkedIn page does not. */
+  announcements: PressNote[];
   /** Null country = the whole feed. `located` says how many rows could be
    *  placed at all, which a reader needs before trusting a country split. */
   geo: { country: string | null; located: number; total: number };
@@ -432,10 +447,46 @@ export async function loadL3(
   // kept, so a prolific poster is one row rather than five.
   const AMI_RE = /\b(allergan medical institute|\bAMI\b|speaker training summit)\b/i;
   const ARRIVAL_CONTACT_RE = /\b(joined|joining|starting a new|started a new|new chapter|new position|new role|took on a new)\b/i;
+  // A tenure post uses the same words as an arrival post — "joined AbbVie 11
+  // years ago today" is not a new joiner, and tagging it as one is the kind of
+  // mistake a seller only has to make once in front of a client.
+  const ANNIVERSARY_RE = /\b(\d+(st|nd|rd|th)?[- ]?year|anniversary|years ago|years at|years with|decade)\b/i;
+  // Ariel sells leadership and communication development. The list is the
+  // people who buy that or own the teams it is bought for — not everyone who
+  // happens to post. Two ways in: the role IS people development, or the role
+  // is senior enough to commission it for a team.
+  const ICP_FUNCTION_RE = new RegExp([
+    "learning and development", "learning & development", "\\bl&d\\b", "talent",
+    "leadership development", "organi[sz]ational development", "organi[sz]ation development",
+    "training", "enablement", "capability", "academy", "institute", "faculty",
+    "medical education", "field education", "human resources", "\\bhr\\b", "people",
+    "communications", "communication", "culture", "engagement", "coaching",
+  ].join("|"), "i");
+  const ICP_SENIORITY_RE = /\b(chief|ceo|clo|chro|coo|cfo|president|svp|evp|vp|vice president|head of|senior director|associate director|director|general manager|regional director)\b/i;
+  const matchesIcp = (role: string) => {
+    // "2X President's Club Winner" is a sales award, not an officer of the
+    // company. It is the one phrase that turns this list into a list of
+    // everybody, so it goes before the seniority test reads the headline.
+    const r = role.replace(/president[\u2019']?s club/gi, " ");
+    return ICP_FUNCTION_RE.test(r) || ICP_SENIORITY_RE.test(r);
+  };
   const focusKey = focusUnit ? companyKey(focusUnit) : null;
   // Scoped to the unit in focus when there is one. An Allergan Aesthetics page
   // that lists AbbVie's recruiters and Parkinson's directors is an AbbVie page.
-  const unitLi = focusKey ? allLi.filter((sg) => sg.signalKey === focusKey) : [];
+  // The unit's own rows, plus anyone whose headline names the unit however
+  // their post was filed. The Head of AMI Faculty works for Allergan
+  // Aesthetics and says so in his headline; his posts were captured under the
+  // institute's key, and a key-only filter loses exactly the people this
+  // section exists to find.
+  // Trailing "s" optional: headlines write "Allergan Aesthetic" as often as
+  // "Allergan Aesthetics", and a plural the author dropped is not a different
+  // employer.
+  const focusRe = focusUnit
+    ? new RegExp(`${focusUnit.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/s$/i, "")}s?`, "i")
+    : null;
+  const unitLi = focusKey
+    ? allLi.filter((sg) => sg.signalKey === focusKey || (focusRe?.test(sg.title ?? "") ?? false))
+    : [];
   const contactPool = unitLi.length ? unitLi : allLi;
   const byPerson = new Map<string, Omit<SignalContact, "connected" | "connectionId">>();
   for (const sg of contactPool) {
@@ -455,7 +506,7 @@ export async function loadL3(
       lastPostAt: sg.publishedAt,
       url: sg.url,
       theme: sg.theme,
-      newArrival: ARRIVAL_CONTACT_RE.test(sg.body ?? ""),
+      newArrival: ARRIVAL_CONTACT_RE.test(sg.body ?? "") && !ANNIVERSARY_RE.test(sg.body ?? ""),
       amiEvent: AMI_RE.test(`${sg.title ?? ""} ${sg.body ?? ""}`),
       excerpt: (sg.body ?? "").replace(/\s+/g, " ").trim().slice(0, 150),
     });
@@ -475,6 +526,7 @@ export async function loadL3(
   }
 
   const contacts = [...byPerson.values()]
+    .filter((c) => matchesIcp(c.role))
     .map((c) => {
       const n = c.name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
       const id = knownByName.get(n) ?? null;
@@ -489,6 +541,26 @@ export async function loadL3(
   // one; undefined falls back to the built-in list, and [] switches it off.
   const orgSettings = await getOrgSettings(orgId);
   const vocab = orgSettings.triggerSignals ?? DEFAULT_TRIGGERS;
+
+  // Press, newest first. WARN filings are excluded: they are already the left
+  // column of workforce movement, and a filing shown twice reads as two events.
+  // Scoped to the unit in focus, so the parent's investor calendar — "AbbVie to
+  // present at the Morgan Stanley healthcare conference" — stays out of a band
+  // that is meant to carry what the business itself did.
+  const unitPress = pressRows.filter((r) => r.signalKey === focusKey);
+  const announcements: PressNote[] = (focusKey && unitPress.length ? unitPress : pressRows)
+    .filter((r) => r.kind === "news")
+    .filter((r, i, arr) => arr.findIndex((q) => (q.url ?? q.title) === (r.url ?? r.title)) === i)
+    .slice(0, 6)
+    .map((r) => ({
+      id: r.id,
+      title: r.title,
+      source: r.source,
+      url: r.url,
+      body: r.body,
+      publishedAt: r.publishedAt,
+      matchedTriggers: triggersIn(`${r.title ?? ""} ${r.body ?? ""}`, vocab),
+    }));
 
   const voicePosts: VoicePost[] = allLi
     .map((sg) => ({ sg, voice: voiceOf(sg.title, sg.companyName ?? companyName, extraAliases) }))
@@ -749,6 +821,7 @@ export async function loadL3(
     changeSignals: changeSignalsDeduped,
     workforce,
     companyUpdates,
+    announcements,
     geo,
     contacts,
     triggerScore,

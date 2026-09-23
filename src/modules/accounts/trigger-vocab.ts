@@ -55,6 +55,16 @@ export const DEFAULT_TRIGGERS: TriggerSignal[] = [
     why: "Survivors watch how it was handled and decide what the company is. Managers carrying that conversation are usually doing it for the first time.",
   },
   {
+    phrase: "loyalty program", label: "Customer programme relaunch", weight: 4,
+    offer: "communicating-with-storytelling",
+    why: "A programme the field already tried to explain once, rebuilt. Every account manager goes back to the same customers with a new story about the same thing, and the previous version is why some of them stopped listening. Explaining it well is the whole job.",
+  },
+  {
+    phrase: "new president", label: "New unit leader", weight: 5,
+    offer: "leadership-communication-development-ingo",
+    why: "A leader arriving over an existing team spends the first year explaining a direction nobody there chose. What that costs is decided in how it is said, not in the strategy deck.",
+  },
+  {
     phrase: "speaker training", label: "Speaker training programme", weight: 5,
     offer: "communicating-with-storytelling",
     why: "They already put faculty in front of rooms, so the principle is settled. The science is theirs; what earns attention is presence and a story that lands. That layer sits beside the content they own.",

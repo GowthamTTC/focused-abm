@@ -9,7 +9,7 @@ const BTN_GHOST = "inline-flex items-center gap-1.5 rounded-[8px] border border-
 
 export default async function L3Page({ params, searchParams }: {
   params: Promise<{ key: string }>;
-  searchParams: Promise<{ focus?: string; alias?: string; queued?: string; country?: string; person?: string }>;
+  searchParams: Promise<{ focus?: string; alias?: string; queued?: string; country?: string }>;
 }) {
   const user = await requirePage();
   const { key: rawKey } = await params;
@@ -240,6 +240,81 @@ export default async function L3Page({ params, searchParams }: {
         </section>
       </div>
 
+      {/* ── announcements ── */}
+      {v.announcements.length > 0 && (
+        <div className="mt-4">
+          <section className={`${CARD} p-5`}>
+            <div className="flex items-baseline justify-between gap-2">
+              <div>
+                <h2 className="text-[13px] font-semibold">What the business announced</h2>
+                <p className="mt-0.5 text-[11.5px] text-[#667085]">
+                  Press carrying the unit&apos;s own numbers and decisions — what its LinkedIn
+                  page does not publish and its newsroom files under the parent.
+                </p>
+              </div>
+              <span className="text-[11px] text-[#98A2B3]">
+                {v.announcements.length} item{v.announcements.length === 1 ? "" : "s"}
+              </span>
+            </div>
+            <ul className="mt-2.5 divide-y divide-[#F2F4F7]">
+              {v.announcements.map((n) => (
+                <li key={n.id} className="grid gap-4 py-3 first:pt-0 lg:grid-cols-[1.35fr_1fr]">
+                  <div>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-[12.5px] font-medium leading-snug text-[#101828]">
+                        {n.title}
+                      </span>
+                      <span className="shrink-0 text-[10.5px] text-[#98A2B3]">
+                        {n.publishedAt ? n.publishedAt.toISOString().slice(0, 10) : ""}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[11.5px] leading-snug text-[#475467]">
+                      {(n.body ?? "").replace(/\s+/g, " ").slice(0, 320)}…
+                    </p>
+                    <p className="mt-1 text-[11px] text-[#667085]">
+                      {n.source}
+                      {n.url && (
+                        <> · <a href={n.url} target="_blank" rel="noreferrer"
+                          className="text-[#4F46E5] hover:underline">source ↗</a></>
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="lg:border-l lg:border-[#F2F4F7] lg:pl-4">
+                    {n.matchedTriggers.length === 0 ? (
+                      <p className="text-[11.5px] leading-snug text-[#98A2B3]">
+                        Context, not a trigger. Numbers set up the conversation; they are not
+                        the thing to open on.
+                      </p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {n.matchedTriggers.map((t) => (
+                          <div key={t.phrase}>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="rounded-[6px] border border-[#D9D6FE] bg-[#FAFAFF] px-1.5 py-0.5 text-[10.5px] font-medium text-[#4F46E5]">
+                                {t.label} · {t.weight} pts
+                              </span>
+                              {t.offer && (
+                                <span className="rounded-[6px] bg-[#ECFDF3] px-1.5 py-0.5 text-[10.5px] font-medium text-[#027A48]">
+                                  {t.offer}
+                                </span>
+                              )}
+                            </div>
+                            {t.why && (
+                              <p className="mt-1 text-[11.5px] leading-snug text-[#475467]">{t.why}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </div>
+      )}
+
       {/* ── workforce movement ── */}
       <section className={`${CARD} mt-4 p-5`}>
         <h2 className="text-[15px] font-semibold">Workforce movement</h2>
@@ -347,10 +422,11 @@ export default async function L3Page({ params, searchParams }: {
         <section className={`${CARD} p-5`}>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <h2 className="text-[15px] font-semibold">People at this account</h2>
+              <h2 className="text-[15px] font-semibold">People who match the ICP</h2>
               <p className="mt-1 max-w-3xl text-[12px] text-[#667085]">
-                Everyone whose own LinkedIn headline says they work here, from posts already
-                stored, US only. Pick a name to see the profile.
+                From posts already stored, US only, headline says they work here — kept only
+                where the role buys leadership and communication development or owns a team it
+                would be bought for.
               </p>
             </div>
             <span className="rounded-full bg-[#F2F4F7] px-2.5 py-1 text-[10.5px] text-[#475467]">
@@ -360,100 +436,43 @@ export default async function L3Page({ params, searchParams }: {
 
           {v.contacts.length === 0 ? (
             <p className="mt-3 text-[13px] text-[#667085]">
-              No US employee-voice posts stored for this account yet.
+              No US employee-voice posts stored for this account match the ICP yet.
             </p>
-          ) : (() => {
-            const picked = v.contacts.find((c) => c.name === sp.person) ?? v.contacts[0];
-            const href = (name: string) => {
-              const qs = new URLSearchParams();
-              if (focusRaw) qs.set("focus", focusRaw);
-              if (sp.alias) qs.set("alias", sp.alias);
-              qs.set("person", name);
-              return `/accounts/${encodeURIComponent(key)}/l3?${qs}#people`;
-            };
-            return (
-              <div id="people" className="mt-3.5 grid gap-4 lg:grid-cols-[1fr_1.1fr]">
-                <ul className="max-h-[26rem] divide-y divide-[#F2F4F7] overflow-y-auto rounded-[10px] border border-[#EDEFF3]">
-                  {v.contacts.map((c) => (
-                    <li key={c.name}>
-                      <Link href={href(c.name)}
-                        className={`block px-3 py-2.5 hover:bg-[#F9FAFB] ${
-                          c.name === picked.name ? "bg-[#EEF4FF]" : ""}`}>
-                        <div className="flex flex-wrap items-baseline gap-1.5">
-                          <span className="text-[12.5px] font-medium text-[#101828]">{c.name}</span>
-                          {c.newArrival && (
-                            <span className="rounded-[5px] bg-[#ECFDF3] px-1.5 py-0.5 text-[9.5px] font-medium text-[#027A48]">
-                              New arrival
-                            </span>
-                          )}
-                          {c.amiEvent && (
-                            <span className="rounded-[5px] bg-[#FAFAFF] px-1.5 py-0.5 text-[9.5px] font-medium text-[#4F46E5] ring-1 ring-[#D9D6FE]">
-                              AMI
-                            </span>
-                          )}
-                        </div>
-                        {c.role && (
-                          <div className="mt-0.5 text-[11px] leading-snug text-[#667085]">{c.role.slice(0, 74)}</div>
-                        )}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-
-                <div className="rounded-[10px] border border-[#EDEFF3] p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="text-[15px] font-semibold text-[#101828]">{picked.name}</div>
-                      {picked.role && (
-                        <div className="mt-0.5 text-[12px] leading-snug text-[#667085]">{picked.role}</div>
-                      )}
-                    </div>
-                    <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10.5px] font-medium ${
-                      picked.connected
-                        ? "bg-[#ECFDF3] text-[#027A48]"
-                        : "bg-[#FEF3F2] text-[#B42318]"}`}>
-                      {picked.connected ? "Connected" : "Not connected"}
-                    </span>
-                  </div>
-
-                  <div className="mt-2.5 flex flex-wrap gap-1.5">
-                    {picked.newArrival && (
-                      <span className="rounded-[6px] bg-[#ECFDF3] px-2 py-0.5 text-[10.5px] font-medium text-[#027A48]">
+          ) : (
+            <ul className="mt-3.5 max-h-[26rem] divide-y divide-[#F2F4F7] overflow-y-auto rounded-[10px] border border-[#EDEFF3]">
+              {v.contacts.map((c) => (
+                <li key={c.name} className="px-3.5 py-2.5">
+                  <div className="flex flex-wrap items-baseline gap-2">
+                    <span className="text-[13px] font-medium text-[#101828]">{c.name}</span>
+                    {c.newArrival && (
+                      <span className="rounded-[5px] bg-[#ECFDF3] px-1.5 py-0.5 text-[10px] font-medium text-[#027A48]">
                         New arrival
                       </span>
                     )}
-                    {picked.amiEvent && (
-                      <span className="rounded-[6px] bg-[#FAFAFF] px-2 py-0.5 text-[10.5px] font-medium text-[#4F46E5] ring-1 ring-[#D9D6FE]">
-                        AMI programme
+                    {c.amiEvent && (
+                      <span className="rounded-[5px] bg-[#FAFAFF] px-1.5 py-0.5 text-[10px] font-medium text-[#4F46E5] ring-1 ring-[#D9D6FE]">
+                        AMI
                       </span>
                     )}
-                    {picked.theme && (
-                      <span className="rounded-[6px] bg-[#F2F4F7] px-2 py-0.5 text-[10.5px] capitalize text-[#475467]">
-                        {picked.theme}
-                      </span>
+                    {c.url && (
+                      <a href={c.url} target="_blank" rel="noreferrer"
+                        className="ml-auto shrink-0 text-[10.5px] text-[#4F46E5] hover:underline">
+                        open their post ↗
+                      </a>
                     )}
                   </div>
-
-                  <p className="mt-3 text-[12.5px] leading-relaxed text-[#344054]">{picked.excerpt}…</p>
-                  <p className="mt-2 text-[11px] text-[#98A2B3]">
-                    {picked.lastPostAt ? picked.lastPostAt.toISOString().slice(0, 10) : "undated"}
-                    {picked.url && (
-                      <> · <a href={picked.url} target="_blank" rel="noreferrer"
-                        className="text-[#4F46E5] hover:underline">open their post ↗</a></>
-                    )}
-                  </p>
-
-                  {!picked.connected && (
-                    <p className="mt-3 border-t border-[#F2F4F7] pt-2.5 text-[11px] leading-snug text-[#98A2B3]">
-                      Nobody in this workspace is connected to them. Matched by name against this
-                      workspace&apos;s own connections — a name match would not be proof of identity,
-                      and there is no match here to make.
-                    </p>
+                  {c.role && (
+                    <div className="mt-0.5 text-[11.5px] leading-snug text-[#667085]">{c.role}</div>
                   )}
-                </div>
-              </div>
-            );
-          })()}
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-2 text-[11px] leading-snug text-[#98A2B3]">
+            {v.contacts.length} {v.contacts.length === 1 ? "person" : "people"}. New arrival reads
+            the post&apos;s own words and excludes tenure anniversaries, which use the same
+            language. AMI means the post names the Allergan Medical Institute.
+          </p>
         </section>
       </div>
 
