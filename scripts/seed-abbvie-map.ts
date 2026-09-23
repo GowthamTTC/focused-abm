@@ -45,6 +45,10 @@ Virology
 # The third field is the unit's own public website. Entities that kept a
 # separate site after acquisition are externally-visible operating companies;
 # the ones without were folded into abbvie.com. Unverified — check before use.
+# Found by the news scan rather than from memory — announced 22 June 2026,
+# after this assistant's knowledge cutoff. The account's own newsroom is a
+# better source for recent acquisitions than any model.
+Apogee Therapeutics | Apogee | apogeetherapeutics.com
 Pharmacyclics | Imbruvica | pharmacyclics.com
 Cerevel Therapeutics | Cerevel | cerevel.com
 ImmunoGen | Elahere | immunogen.com

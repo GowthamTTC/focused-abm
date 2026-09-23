@@ -129,6 +129,10 @@ export interface L3View {
     marketTone: Band;
   };
   changeSignals: SignalCard[];
+  /** News and filings from the last 30 days, newest first — what the outside
+   *  world published about the account recently, as distinct from what its
+   *  people said. */
+  recentNews: SignalCard[];
   /** Null country = the whole feed. `located` says how many rows could be
    *  placed at all, which a reader needs before trusting a country split. */
   geo: { country: string | null; located: number; total: number };
@@ -420,8 +424,30 @@ export async function loadL3(
   // market back in — dermatologists with a well-quoted line about a product
   // launch, which is not a change AT the company either. A change signal comes
   // from inside: someone who works there, or the company itself.
+  // The same article is stored once per company key it was collected under —
+  // account_signal is unique on (org, key, source) — so an account whose units
+  // are tracked separately shows every story twice. Dedupe on the URL, which is
+  // what actually identifies a story, keeping the earliest publication date.
+  const dedupeByUrl = <T extends { url: string | null; title: string | null }>(rows: T[]): T[] => {
+    const seen = new Set<string>();
+    return rows.filter((r) => {
+      const id = (r.url || r.title || "").trim().toLowerCase();
+      if (!id || seen.has(id)) return Boolean(!id);
+      seen.add(id);
+      return true;
+    });
+  };
+
+  const NEWS_WINDOW_DAYS = 30;
+  const newsCutoff = Date.now() - NEWS_WINDOW_DAYS * 86400000;
+  const recentNews: SignalCard[] = dedupeByUrl(
+    news
+      .filter((sg) => sg.publishedAt && sg.publishedAt.getTime() >= newsCutoff)
+      .sort((a, b) => (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0)),
+  ).slice(0, 6);
+
   const CHANGE_THEMES = new Set(["restructuring", "leadership", "channel"]);
-  const changeSignals: SignalCard[] = [
+  const changeSignalsRaw: SignalCard[] = [
     ...li.filter((sg) => {
       const voice = voiceOf(sg.title, sg.companyName ?? companyName, extraAliases);
       if (voice === "market") return false;
@@ -431,8 +457,8 @@ export async function loadL3(
     // announcement has something in it to quote, and a scheduling notice does not.
     ...news.filter((sg) => Boolean(sg.evidence)),
   ]
-    .sort((a, b) => (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0))
-    .slice(0, 8);
+    .sort((a, b) => (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0));
+  const changeSignalsDeduped = dedupeByUrl(changeSignalsRaw).slice(0, 8);
 
   // Every search this account has been read with. Shown so the reader can see
   // what was asked as well as what came back — including the phrases that
@@ -482,11 +508,12 @@ export async function loadL3(
       pockets: units.filter((u) => u.engaged).length,
       mapped,
       whitespace: whitespace.length,
-      changeSignals: changeSignals.length,
+      changeSignals: changeSignalsDeduped.length,
     },
     whitespacePct,
     linkedin: { tone, gauge, stored: li.length, themes, volume, volumeChangePct, top, insideTone, marketTone },
-    changeSignals,
+    changeSignals: changeSignalsDeduped,
+    recentNews,
     geo,
     contacts,
     triggerScore,

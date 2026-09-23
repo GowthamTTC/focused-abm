@@ -6,46 +6,18 @@
  *
  * Local only — the guard refuses anything else. The rows are a read-only copy
  * of what the production scan already found; nothing here invents a signal.
+ *
+ * It copies SIGNALS and nothing else. It used to seed an org map too, from a
+ * hardcoded list of its own, which silently replaced a 47-unit map with a
+ * 31-unit one every time somebody refreshed the signals. The map has its own
+ * script; two things owning one row is how a map loses its columns.
  */
 import "./require-local-db";
 import { readFileSync } from "node:fs";
 import { and, eq, inArray } from "drizzle-orm";
 import { db, accountSignal, org } from "../src/db";
-import { parseUnitLines, saveAccountMap } from "../src/modules/accounts/org-map";
 
-const UNITS = `
-* Medical Affairs & HEOR | HEOR, Health Economics, Medical Affairs
-* Data & Statistical Sciences | Biostatistics
-* Clinical Data Strategy | Clinical Data
-* Dermatology
-* Customer Excellence
-* IRA Strategy
-* Patient Services Leadership | Patient Services
-* Operations Transformation
-* Commercial Operations
-Immunology
-Oncology
-Neuroscience
-Eye Care
-Allergan Aesthetics | Allergan, Botox, Juvederm, SkinMedica, DiamondGlow
-Established Brands
-Virology
-Regulatory Affairs
-Quality Assurance
-Manufacturing & Supply Chain
-Market Access & Pricing
-Legal & Compliance
-Finance
-Business Technology
-Discovery Research
-Clinical Development
-Pharmacovigilance
-Human Resources
-Corporate Affairs
-Business Development
-Procurement
-Patient Advocacy
-`;
+
 
 /** Minimal CSV reader for the columns dumped by the export — quoted fields,
  *  doubled quotes, embedded newlines and commas. */
@@ -96,12 +68,6 @@ async function main() {
     }).onConflictDoNothing();
     n += 1;
   }
-
-  await saveAccountMap(orgId, {
-    companyKey: "abbvie", name: "AbbVie",
-    aliases: ["Allergan Aesthetics", "Allergan"],
-    units: parseUnitLines(UNITS), source: "drafted",
-  });
 
   console.log(JSON.stringify({ workspace: w.name, signals: n }, null, 2));
   process.exit(0);

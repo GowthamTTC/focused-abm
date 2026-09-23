@@ -141,7 +141,7 @@ export default async function L3Page({ params, searchParams }: {
 
       {/* ── account card ── */}
       <section className={`${CARD} mt-4 p-5`}>
-        <div>
+        <div className="grid gap-6 lg:grid-cols-[minmax(280px,1fr)_1.5fr]">
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-[26px] font-semibold tracking-[-.02em] text-[#101828]">{v.companyName}</span>
@@ -160,6 +160,45 @@ export default async function L3Page({ params, searchParams }: {
                   className="text-[#4F46E5] hover:underline">{p.website}</a>
               )}
             </div>
+          </div>
+
+          <div className="lg:border-l lg:border-[#EDEFF3] lg:pl-6">
+            <div className="flex items-baseline justify-between gap-2">
+              <h2 className="text-[13px] font-semibold">Latest news · 30 days</h2>
+              <span className="text-[11px] text-[#98A2B3]">
+                {v.recentNews.length > 0
+                  ? `${v.recentNews.length} item${v.recentNews.length === 1 ? "" : "s"}`
+                  : "from this workspace's allowlisted sources"}
+              </span>
+            </div>
+            {v.recentNews.length === 0 ? (
+              <p className="mt-2 text-[12px] leading-snug text-[#667085]">
+                Nothing published in the last 30 days by the domains this workspace
+                allows. Add sources in Settings → Account Pulse, then refresh.
+              </p>
+            ) : (
+              <ul className="mt-2.5 divide-y divide-[#F2F4F7]">
+                {v.recentNews.map((n) => (
+                  <li key={n.id} className="py-2 first:pt-0">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-[12.5px] font-medium leading-snug text-[#101828]">
+                        {(n.title ?? "Untitled").slice(0, 96)}
+                      </span>
+                      <span className="shrink-0 text-[10.5px] text-[#98A2B3]">
+                        {n.publishedAt ? n.publishedAt.toISOString().slice(5, 10) : ""}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-[11px] text-[#667085]">
+                      {n.source ?? "news"}
+                      {n.url && (
+                        <> · <a href={n.url} target="_blank" rel="noreferrer"
+                          className="text-[#4F46E5] hover:underline">open ↗</a></>
+                      )}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
       </section>
