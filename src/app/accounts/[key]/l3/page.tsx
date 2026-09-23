@@ -308,12 +308,12 @@ export default async function L3Page({ params, searchParams }: {
       <section className={`${CARD} mt-4 p-5`}>
         <h2 className="text-[15px] font-semibold">Workforce movement</h2>
         <p className="mt-1 max-w-3xl text-[12px] text-[#667085]">
-          Two sources that see different things. Filings are official, dated and complete.
-          LinkedIn is unofficial, reaches back 30 days only, and shows whoever chose to post.
-          Neither is the whole picture; together they are the shape of it.
+          What the company had to file. Official, dated, and complete for the sites it
+          covers — a WARN notice is the one record of a reorganisation that does not depend
+          on anyone choosing to talk about it.
         </p>
 
-        <div className="mt-3.5 grid gap-4 lg:grid-cols-[1.25fr_1fr]">
+        <div className="mt-3.5">
           <div className="rounded-[10px] border border-[#FEE4E2] bg-[#FFFBFA] p-4">
             <div className="text-[11px] font-medium uppercase tracking-wide text-[#B42318]">
               Filed layoffs · WARN notices
@@ -343,65 +343,6 @@ export default async function L3Page({ params, searchParams }: {
                 ))}
               </ul>
             )}
-          </div>
-
-          <div className="rounded-[10px] border border-[#EDEFF3] p-4">
-            <div className="text-[11px] font-medium uppercase tracking-wide text-[#475467]">
-              LinkedIn · {v.workforce.scope} · US
-            </div>
-            <p className="mt-0.5 text-[11px] text-[#98A2B3]">
-              {v.workforce.from && v.workforce.to
-                ? `posts held ${v.workforce.from.toISOString().slice(0, 10)} → ${v.workforce.to.toISOString().slice(0, 10)}`
-                : "no dated posts held"}
-            </p>
-            <div className="mt-2.5 grid grid-cols-3 gap-2">
-              {([
-                { label: "Arrival posts", posts: v.workforce.arrivals, colour: "#027A48" },
-                { label: "Hiring posts", posts: v.workforce.hiringPosts, colour: "#027A48" },
-                { label: "Exit posts", posts: v.workforce.exits, colour: v.workforce.exits.length > 0 ? "#B42318" : "#98A2B3" },
-              ]).map((b) => (
-                <details key={b.label} className="group rounded-[8px] bg-[#FAFBFC] open:bg-white open:ring-1 open:ring-[#E4E7EC]">
-                  <summary className="cursor-pointer list-none py-2.5 text-center">
-                    <div className="text-[20px] font-semibold leading-none" style={{ color: b.colour }}>
-                      {b.posts.length}
-                    </div>
-                    <div className="mt-1 text-[10.5px] text-[#667085]">
-                      {b.label}
-                      {b.posts.length > 0 && <span className="ml-1 text-[#98A2B3] group-open:hidden">▾</span>}
-                    </div>
-                  </summary>
-                  {b.posts.length > 0 && (
-                    <ul className="max-h-72 overflow-y-auto border-t border-[#F2F4F7] px-3 py-2 text-left">
-                      {b.posts.map((pp) => (
-                        <li key={pp.id} className="border-b border-[#F2F4F7] py-2 last:border-0">
-                          <div className="flex items-baseline justify-between gap-2">
-                            <span className="text-[11.5px] font-medium text-[#101828]">{pp.who}</span>
-                            <span className="shrink-0 text-[10px] text-[#98A2B3]">
-                              {pp.publishedAt ? pp.publishedAt.toISOString().slice(5, 10) : ""}
-                            </span>
-                          </div>
-                          {pp.role && <div className="text-[10px] leading-snug text-[#667085]">{pp.role.slice(0, 52)}</div>}
-                          <p className="mt-1 text-[10.5px] leading-snug text-[#475467]">{pp.excerpt.slice(0, 120)}…</p>
-                          {pp.url && (
-                            <a href={pp.url} target="_blank" rel="noreferrer"
-                              className="text-[10px] text-[#4F46E5] hover:underline">open ↗</a>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </details>
-              ))}
-            </div>
-            <p className="mt-2.5 text-[11px] leading-snug text-[#98A2B3]">
-              Click a number to see every post behind it. Counted over {v.workforce.postsRead}{" "}
-              posts by people whose headline says they work here. Counts of POSTS containing the language, never headcount, and
-              approximate — a tenure anniversary or a departure can read as an arrival. US means &ldquo;not shown to be
-              elsewhere&rdquo; — a post carries no location, so pages naming another market and
-              posts in another language are removed and the rest kept. LinkedIn&apos;s search
-              reaches back a month at most, so this window cannot be widened to meet the filing
-              date on the left; the two columns are years apart on purpose.
-            </p>
           </div>
         </div>
       </section>
