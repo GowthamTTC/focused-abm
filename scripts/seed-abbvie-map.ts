@@ -60,7 +60,12 @@ SkinMedica || skinmedica.com
 Allergan Medical Institute | AMI | allerganmedicalinstitute.com
 Natrelle || natrelle.com
 Stemcentrx
-Soliton
+# Soliton is deliberately NOT mapped. AbbVie acquired a medical-aesthetics
+# device company of that name, but "Soliton" on its own is also an Indian
+# software engineering firm that posts constantly — a scan for the unit stored
+# sixty of their posts about I3C validation and audio accessories, and they
+# reached a panel headed "US company news" about AbbVie. A unit whose name
+# cannot be told apart from an unrelated company is worse than a missing one.
 Syndesi Therapeutics | Syndesi
 DJS Antibodies
 Allergan Eye Care | Refresh, Restasis

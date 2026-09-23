@@ -365,6 +365,11 @@ export async function loadL3(
     // written in another language — rather than demanding proof of US-ness the
     // parent page never offers.
     .filter((p) => isUsPost(p.who, p.body))
+    // Same story, stored once per unit key it was collected under.
+    .filter((p, i, arr) => {
+      const id = (p.url || p.body || "").trim().toLowerCase();
+      return !id || arr.findIndex((q) => (q.url || q.body || "").trim().toLowerCase() === id) === i;
+    })
     .slice(0, 6);
 
   // Buying signals, scored. The vocabulary is the workspace's own when it has
