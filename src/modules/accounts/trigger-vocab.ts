@@ -57,7 +57,7 @@ export const DEFAULT_TRIGGERS: TriggerSignal[] = [
   {
     phrase: "loyalty program", label: "Customer programme relaunch", weight: 4,
     offer: "communicating-with-storytelling",
-    why: "A programme the field already tried to explain once, rebuilt. Every account manager goes back to the same customers with a new story about the same thing, and the previous version is why some of them stopped listening. Explaining it well is the whole job.",
+    why: "The field has to go back to customers who called the last version too complex and ask for a second hearing. That is credibility work, not a features conversation — product training teaches the tiers, and nobody teaches a rep how to say \"we got that wrong\". Managers cascade it to teams a year after a reorganisation, which is low-trust communication by definition, and faculty carry it to practices faster than reps do. Treat it as proof that now is the moment rather than as the pitch itself: the opening is the faculty and the managers, not the rebate.",
   },
   {
     phrase: "new president", label: "New unit leader", weight: 5,
