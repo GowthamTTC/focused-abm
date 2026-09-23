@@ -260,6 +260,74 @@ export default async function L3Page({ params, searchParams }: {
         </section>
       </div>
 
+      {/* ── workforce movement ── */}
+      <section className={`${CARD} mt-4 p-5`}>
+        <h2 className="text-[15px] font-semibold">Workforce movement</h2>
+        <p className="mt-1 max-w-3xl text-[12px] text-[#667085]">
+          Two sources that see different things. Filings are official, dated and complete.
+          LinkedIn is unofficial, reaches back 30 days only, and shows whoever chose to post.
+          Neither is the whole picture; together they are the shape of it.
+        </p>
+
+        <div className="mt-3.5 grid gap-4 lg:grid-cols-[1.25fr_1fr]">
+          <div className="rounded-[10px] border border-[#FEE4E2] bg-[#FFFBFA] p-4">
+            <div className="text-[11px] font-medium uppercase tracking-wide text-[#B42318]">
+              Filed layoffs · WARN notices
+            </div>
+            {v.workforce.filings.length === 0 ? (
+              <p className="mt-2 text-[13px] text-[#667085]">No restructuring filing recorded.</p>
+            ) : (
+              <ul className="mt-2.5 space-y-2.5">
+                {v.workforce.filings.map((f) => (
+                  <li key={f.id}>
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <span className="text-[13px] font-semibold text-[#101828]">
+                        {(f.title ?? "").replace(/ \(WARN notice\)$/, "")}
+                      </span>
+                      <span className="shrink-0 text-[11px] text-[#98A2B3]">
+                        {f.publishedAt ? f.publishedAt.toISOString().slice(0, 10) : ""}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-[11.5px] leading-snug text-[#475467]">
+                      {(f.body ?? "").slice(0, 190)}…
+                    </p>
+                    {f.url && (
+                      <a href={f.url} target="_blank" rel="noreferrer"
+                        className="text-[11px] text-[#4F46E5] hover:underline">source ↗</a>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="rounded-[10px] border border-[#EDEFF3] p-4">
+            <div className="text-[11px] font-medium uppercase tracking-wide text-[#475467]">
+              LinkedIn, last 30 days
+            </div>
+            <dl className="mt-2.5 grid grid-cols-3 gap-2 text-center">
+              {[
+                ["Arrivals", v.workforce.arrivals, "#027A48"],
+                ["Hiring posts", v.workforce.hiringPosts, "#027A48"],
+                ["Exit posts", v.workforce.exits, v.workforce.exits > 0 ? "#B42318" : "#98A2B3"],
+              ].map(([label, n, colour]) => (
+                <div key={String(label)} className="rounded-[8px] bg-[#FAFBFC] py-2.5">
+                  <div className="text-[20px] font-semibold leading-none" style={{ color: String(colour) }}>
+                    {String(n)}
+                  </div>
+                  <div className="mt-1 text-[10.5px] text-[#667085]">{String(label)}</div>
+                </div>
+              ))}
+            </dl>
+            <p className="mt-2.5 text-[11px] leading-snug text-[#98A2B3]">
+              Counted over {v.workforce.postsRead} stored posts. These are counts of POSTS
+              containing the language, never headcount — one person announcing a job is one
+              post, and so is a company announcing a restructure.
+            </p>
+          </div>
+        </div>
+      </section>
+
       {/* ── change signals + sentiment ── */}
       <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.05fr)_1fr]">
         <section className={`${CARD} p-5`}>

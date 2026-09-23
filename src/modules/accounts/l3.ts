@@ -113,6 +113,22 @@ export interface SignalContact {
   theme: string | null;
 }
 
+/** Movement in and out of the account, counted two different ways because the
+ *  two sources see different things. Filings are official, historical and
+ *  complete; LinkedIn is unofficial, recent and partial. Reporting them side by
+ *  side with their windows stated is the only honest way to show both. */
+export interface WorkforceMovement {
+  /** Restructuring filings — official, with dates and headcounts in the title. */
+  filings: SignalCard[];
+  /** Posts announcing a new role or a move into the account. */
+  arrivals: number;
+  /** Posts advertising open roles. */
+  hiringPosts: number;
+  /** Posts using departure or layoff language. */
+  exits: number;
+  postsRead: number;
+}
+
 export interface L3View {
   companyKey: string;
   companyName: string;
@@ -136,6 +152,7 @@ export interface L3View {
     marketTone: Band;
   };
   changeSignals: SignalCard[];
+  workforce: WorkforceMovement;
   /** What the account has posted from its OWN LinkedIn pages lately. Its
    *  newsroom publishes investor calendar; its LinkedIn page publishes what the
    *  business is actually doing, which is the thing a seller wants. */
@@ -219,7 +236,11 @@ export async function loadL3(
   }).from(accountSignal).where(and(
     eq(accountSignal.orgId, orgId),
     inArray(accountSignal.companyKey, [...unitKeys]),
-  )).orderBy(desc(accountSignal.publishedAt)).limit(400);
+  // High enough that the counts describe the account rather than the query.
+  // At 400 the workforce band reported 64 arrivals over 396 posts while the
+  // table held 432 — a number about our own paging, presented as a number
+  // about them.
+  )).orderBy(desc(accountSignal.publishedAt)).limit(1000);
 
   // News and filings are fetched separately. They are few, and they lose a
   // newest-first race against hundreds of LinkedIn posts: once this account
@@ -533,6 +554,24 @@ export async function loadL3(
     ...news.filter((sg) => Boolean(sg.evidence)),
   ]
     .sort((a, b) => (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0));
+  // Counted over the post bodies this workspace holds. These are coarse
+  // patterns, not a model: they are reported as counts of POSTS containing the
+  // language, never as headcount, because one person announcing a new job is
+  // one post and a company announcing a restructure is also one post.
+  const ARRIVAL_RE = /\b(joined|joining|starting a new|started a new|new chapter|new position|new role|thrilled to (share|announce)|excited to (share|announce) that i)\b/i;
+  const HIRING_RE = /\b(we are hiring|we're hiring|now hiring|#hiring|open role|open position|join our team|apply (here|now)|is looking for)\b/i;
+  const EXIT_RE = /\b(last day|farewell|open to work|impacted by|role was eliminated|made redundant|laid off|layoffs?)\b/i;
+
+  const workforce: WorkforceMovement = {
+    filings: news
+      .filter((sg) => sg.theme === "restructuring")
+      .sort((a, b) => (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0)),
+    arrivals: allLi.filter((sg) => ARRIVAL_RE.test(sg.body ?? "")).length,
+    hiringPosts: allLi.filter((sg) => HIRING_RE.test(sg.body ?? "")).length,
+    exits: allLi.filter((sg) => EXIT_RE.test(sg.body ?? "")).length,
+    postsRead: allLi.length,
+  };
+
   // Restructuring outranks recency. Sorted newest-first alone, a WARN filing
   // naming a reorganisation sat below whatever a quality engineer posted this
   // morning — the most consequential fact about the account, buried by a day.
@@ -597,6 +636,7 @@ export async function loadL3(
     whitespacePct,
     linkedin: { tone, gauge, stored: li.length, themes, volume, volumeChangePct, top, insideTone, marketTone },
     changeSignals: changeSignalsDeduped,
+    workforce,
     companyUpdates,
     geo,
     contacts,
