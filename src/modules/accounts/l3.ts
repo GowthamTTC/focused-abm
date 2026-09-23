@@ -20,7 +20,7 @@ import { voiceOf } from "@/modules/intel/voice";
 import { isUsPost } from "@/modules/accounts/us-filter";
 import { competitorHits } from "@/modules/pulse/competitors";
 import { getOrgSettings } from "@/modules/settings/org-settings";
-import { DEFAULT_TRIGGERS, scoreTriggers, type TriggerScore } from "@/modules/accounts/trigger-vocab";
+import { DEFAULT_TRIGGERS, scoreTriggers, triggersIn, type TriggerScore, type TriggerSignal } from "@/modules/accounts/trigger-vocab";
 import type { CompetitorHit } from "@/modules/pulse/types";
 import type { OrgUnit } from "@/db";
 import { desc } from "drizzle-orm";
@@ -89,6 +89,8 @@ export interface VoicePost {
   url: string | null;
   profileUrl: string | null;
   capturedBy: string | null;
+  /** Vocabulary phrases this post contains — why it matters, beside it. */
+  matchedTriggers: TriggerSignal[];
 }
 
 /** One search this account has been read with, and what it returned. */
@@ -331,6 +333,11 @@ export async function loadL3(
   // Leadership and company voices only. The market half of the feed is
   // practitioners talking about products, and it is not what an account plan
   // is arguing from.
+  // Buying signals, scored. The vocabulary is the workspace's own when it has
+  // one; undefined falls back to the built-in list, and [] switches it off.
+  const orgSettings = await getOrgSettings(orgId);
+  const vocab = orgSettings.triggerSignals ?? DEFAULT_TRIGGERS;
+
   const voicePosts: VoicePost[] = allLi
     .map((sg) => ({ sg, voice: voiceOf(sg.title, sg.companyName ?? companyName, extraAliases) }))
     .filter((x) => x.voice === "employee" || x.voice === "company")
@@ -349,6 +356,7 @@ export async function loadL3(
         url: sg.url,
         profileUrl: sg.authorProfileUrl,
         capturedBy: sg.capturedBy,
+        matchedTriggers: triggersIn(`${sg.title ?? ""} ${sg.body ?? ""}`, vocab),
       };
     })
     .sort((a, b) => (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0));
@@ -372,10 +380,6 @@ export async function loadL3(
     })
     .slice(0, 6);
 
-  // Buying signals, scored. The vocabulary is the workspace's own when it has
-  // one; undefined falls back to the built-in list, and [] switches it off.
-  const orgSettings = await getOrgSettings(orgId);
-  const vocab = orgSettings.triggerSignals ?? DEFAULT_TRIGGERS;
   const triggerScore = scoreTriggers(
     allLi.map((sg) => ({
       title: sg.title, body: sg.body, evidence: sg.evidence,

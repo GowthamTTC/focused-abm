@@ -142,3 +142,19 @@ export function scoreTriggers(
     quiet,
   };
 }
+
+/** Which of the vocabulary's phrases appear in one piece of text.
+ *
+ *  The score says an account is interesting; this says WHY THIS POST is. A
+ *  reader scanning a feed should not have to hold the vocabulary in their head
+ *  to see that "the 2026 AMI Speaker Training Summit" is the thing they sell. */
+export function triggersIn(
+  text: string,
+  vocab: TriggerSignal[] = DEFAULT_TRIGGERS,
+): TriggerSignal[] {
+  const hay = norm(text);
+  return vocab.filter((t) => {
+    const needle = norm(t.phrase).trim();
+    return needle.length >= 2 && hay.includes(` ${needle} `);
+  });
+}

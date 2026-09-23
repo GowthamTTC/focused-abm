@@ -195,6 +195,16 @@ export default async function L3Page({ params, searchParams }: {
                           className="text-[#4F46E5] hover:underline">open on LinkedIn ↗</a></>
                       )}
                     </p>
+                    {n.matchedTriggers.length > 0 && (
+                      <ul className="mt-1.5 flex flex-wrap gap-1.5">
+                        {n.matchedTriggers.map((t) => (
+                          <li key={t.phrase}
+                            className="rounded-[6px] border border-[#D9D6FE] bg-[#FAFAFF] px-1.5 py-0.5 text-[10.5px] font-medium text-[#4F46E5]">
+                            {t.label} · {t.weight} pts
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -457,6 +467,12 @@ export default async function L3Page({ params, searchParams }: {
                   <span className="rounded border border-[#E4E7EC] px-1.5 py-0.5 text-[10px] text-[#667085]">
                     found via: {p.capturedBy ?? "company name scan"}
                   </span>
+                  {p.matchedTriggers.map((t) => (
+                    <span key={t.phrase}
+                      className="rounded border border-[#D9D6FE] bg-[#FAFAFF] px-1.5 py-0.5 text-[10px] font-medium text-[#4F46E5]">
+                      {t.label}
+                    </span>
+                  ))}
                   {p.url && (
                     <a href={p.url} target="_blank" rel="noreferrer"
                       className="text-[10.5px] text-[#4F46E5] hover:underline">open on LinkedIn ↗</a>
