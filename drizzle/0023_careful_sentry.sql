@@ -1,0 +1,1 @@
+ALTER TABLE "account_person" ADD COLUMN "level_override" text;

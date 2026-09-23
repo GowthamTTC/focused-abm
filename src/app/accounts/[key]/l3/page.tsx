@@ -435,6 +435,7 @@ export default async function L3Page({ params, searchParams }: {
               { key: "vp", label: "VP / Head of" },
               { key: "director", label: "Director" },
               { key: "manager", label: "Manager / Lead" },
+              { key: "trainer", label: "Trainer" },
               { key: "other", label: "No rank named" },
             ];
             const picked = BANDS.some((x) => x.key === sp.level) ? sp.level! : "all";
@@ -457,7 +458,7 @@ export default async function L3Page({ params, searchParams }: {
                     Seniority
                   </div>
                   <ul className="mt-1.5 space-y-0.5">
-                    {BANDS.map((b) => (
+                    {BANDS.filter((b) => b.key === "all" || count(b.key) > 0 || b.key === picked).map((b) => (
                       <li key={b.key}>
                         <Link href={href(b.key)}
                           className={`flex items-baseline justify-between rounded-[7px] px-2.5 py-1.5 text-[12px] ${
@@ -489,14 +490,15 @@ export default async function L3Page({ params, searchParams }: {
                             AMI
                           </span>
                         )}
-                        <span className="ml-auto shrink-0 text-[10.5px]">
-                          {c.source === "post" && c.url ? (
+                        <span className="ml-auto flex shrink-0 items-baseline gap-2 text-[10.5px]">
+                          {c.url && (
                             <a href={c.url} target="_blank" rel="noreferrer"
-                              className="text-[#4F46E5] hover:underline">their post ↗</a>
-                          ) : c.profileUrl ? (
+                              className="text-[#4F46E5] hover:underline">recent post ↗</a>
+                          )}
+                          {c.profileUrl && (
                             <a href={c.profileUrl} target="_blank" rel="noreferrer"
                               className="text-[#4F46E5] hover:underline">profile ↗</a>
-                          ) : null}
+                          )}
                         </span>
                       </div>
                       {c.role && (
@@ -515,7 +517,7 @@ export default async function L3Page({ params, searchParams }: {
             {v.contacts.filter((c) => c.source === "post").length} found by what they posted,{" "}
             {v.contacts.filter((c) => c.source === "search").length} by searching LinkedIn for the
             roles. Seniority is read off the headline, so &ldquo;no rank named&rdquo; means the
-            title says none — usually faculty or an individual contributor. New arrival reads the
+            title says none, and a band set by hand overrides it where a reader knows better. New arrival reads the
             post&apos;s own words and excludes tenure anniversaries, which use the same language.
             AMI means the headline or post names the Allergan Medical Institute.
           </p>

@@ -120,7 +120,7 @@ export interface QueryRun {
 /** Seniority bands, read off the headline. Coarse on purpose: the point is to
  *  let a reader ask "who are the leaders here" without reading twenty titles,
  *  not to reproduce AbbVie's grade ladder. */
-export type SeniorityLevel = "exec" | "vp" | "director" | "manager" | "other";
+export type SeniorityLevel = "exec" | "vp" | "director" | "manager" | "trainer" | "other";
 
 export interface SignalContact {
   name: string;
@@ -496,6 +496,10 @@ export async function loadL3(
     if (/(?<!vice\s)\bpresident\b/i.test(r)) return "exec";
     if (/\b(vice president|avp|vp|head of)\b/i.test(r)) return "vp";
     if (/\bdirector\b/i.test(r)) return "director";
+    // Trainer before manager: "Sr. Training Manager" runs a function, while a
+    // "Faculty Trainer" teaches in rooms. Both matter to a seller of speaker
+    // training, and they are not the same conversation.
+    if (/\b(faculty trainer|trainer|preceptor|instructor|facilitator)\b/i.test(r)) return "trainer";
     if (/\b(manager|lead|supervisor|principal)\b/i.test(r)) return "manager";
     return "other";
   };
@@ -560,11 +564,17 @@ export async function loadL3(
     headline: accountPerson.headline,
     profileUrl: accountPerson.profileUrl,
     companyKey: accountPerson.companyKey,
+    levelOverride: accountPerson.levelOverride,
   }).from(accountPerson).where(and(
     eq(accountPerson.orgId, orgId),
     inArray(accountPerson.companyKey, [...unitKeys]),
   ));
+  /** Bands set by hand, by normalised name, applied after the merge so a
+   *  correction holds whether the person was found by a post or by a search. */
+  const levelFix = new Map<string, SeniorityLevel>();
   for (const d of directory) {
+    const fix = (d.levelOverride ?? "").trim() as SeniorityLevel;
+    if (fix) levelFix.set(d.name.toLowerCase(), fix);
     const headline = (d.headline ?? "").trim();
     if (focusKey && d.companyKey !== focusKey && !(focusRe?.test(headline) ?? false)) continue;
     const key = d.name.toLowerCase();
@@ -606,6 +616,7 @@ export async function loadL3(
 
   const contacts = [...byPerson.values()]
     .filter((c) => matchesIcp(c.role))
+    .map((c) => ({ ...c, level: levelFix.get(c.name.toLowerCase()) ?? c.level }))
     .map((c) => {
       const n = c.name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
       const id = knownByName.get(n) ?? null;

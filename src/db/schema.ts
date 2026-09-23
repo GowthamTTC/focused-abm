@@ -501,6 +501,12 @@ export const accountPerson = pgTable("account_person", {
   networkDistance: text("network_distance"),
   /** The search phrase that surfaced them. Provenance, same as signals. */
   capturedBy: text("captured_by"),
+  /** A seniority band set by hand, when the headline does not carry one. A
+   *  Communications lead whose title says only "Corporate & Commercial
+   *  Communications" is a director inside AbbVie and nowhere on her profile
+   *  does it say so; a reader who knows that can say it here rather than
+   *  arguing with the page. Null means "read it off the headline". */
+  levelOverride: text("level_override"),
   createdAt: ts("created_at").notNull().defaultNow(),
   updatedAt: ts("updated_at").notNull().defaultNow(),
 }, (t) => [
