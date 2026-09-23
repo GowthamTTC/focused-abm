@@ -412,7 +412,14 @@ export default async function L3Page({ params, searchParams }: {
         <section className={`${CARD} p-5`}>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <h2 className="text-[15px] font-semibold">People who match the ICP</h2>
+              <h2 className="text-[15px] font-semibold">
+                People who match the ICP
+                {v.focusApplied && (
+                  <span className="ml-2 rounded-full bg-[#EEF4FF] px-2 py-0.5 text-[10.5px] font-medium text-[#3538CD]">
+                    {v.focusApplied}
+                  </span>
+                )}
+              </h2>
               <p className="mt-1 max-w-3xl text-[12px] text-[#667085]">
                 Everyone whose LinkedIn headline puts them at this unit, US only — from posts
                 we hold and from searching LinkedIn for the roles themselves. Kept only where the

@@ -234,6 +234,10 @@ export interface L3View {
    *  newsroom publishes investor calendar; its LinkedIn page publishes what the
    *  business is actually doing, which is the thing a seller wants. */
   companyUpdates: VoicePost[];
+  /** The unit everything on this page is scoped to. Null means the whole
+   *  company. When the caller asked for nothing, this says what was chosen for
+   *  them, because a silent default is indistinguishable from a bug. */
+  focusApplied: string | null;
   /** The account in one screen: what hurts, and what to open with. Assembled
    *  from what is already on the page — the filing, the signals that fired, the
    *  offers the research kept landing on — so every line traces to a section
@@ -547,7 +551,23 @@ export async function loadL3(
   const nameKey = (n: string) => n.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   const hidden = new Set((orgSettings.icpHidden ?? []).map(nameKey));
 
-  const focusKey = focusUnit ? companyKey(focusUnit) : null;
+  // No focus asked for? Open on the unit the workspace has actually researched
+  // — the one with the most stored posts — rather than on the parent. A page
+  // that says "Allergan Aesthetics" at the top and lists AbbVie's Parkinson's
+  // directors underneath is answering a question nobody asked. "all" is the way
+  // back out to the whole company.
+  const busiest = (() => {
+    if (focusUnit) return focusUnit === "all" ? null : focusUnit;
+    const counts = new Map<string, number>();
+    for (const sg of allLi) {
+      if (!sg.signalKey || sg.signalKey === key) continue;
+      counts.set(sg.signalKey, (counts.get(sg.signalKey) ?? 0) + 1);
+    }
+    const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+    if (!top) return null;
+    return (map?.units ?? []).find((u) => companyKey(u.name) === top[0])?.name ?? null;
+  })();
+  const focusKey = busiest ? companyKey(busiest) : null;
   // Scoped to the unit in focus when there is one. An Allergan Aesthetics page
   // that lists AbbVie's recruiters and Parkinson's directors is an AbbVie page.
   // The unit's own rows, plus anyone whose headline names the unit however
@@ -558,8 +578,8 @@ export async function loadL3(
   // Trailing "s" optional: headlines write "Allergan Aesthetic" as often as
   // "Allergan Aesthetics", and a plural the author dropped is not a different
   // employer.
-  const focusRe = focusUnit
-    ? new RegExp(`${focusUnit.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/s$/i, "")}s?`, "i")
+  const focusRe = busiest
+    ? new RegExp(`${busiest.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/s$/i, "")}s?`, "i")
     : null;
   const unitLi = focusKey
     ? allLi.filter((sg) => sg.signalKey === focusKey || (focusRe?.test(sg.title ?? "") ?? false))
@@ -1067,6 +1087,7 @@ export async function loadL3(
     companyUpdates,
     announcements,
     overview,
+    focusApplied: busiest,
     geo,
     contacts,
     triggerScore,
