@@ -472,7 +472,9 @@ export async function loadL3(
   const ICP_FUNCTION_RE = new RegExp([
     "learning and development", "learning & development", "\\bl&d\\b", "talent",
     "leadership development", "organi[sz]ational development", "organi[sz]ation development",
-    "training", "enablement", "capability", "academy", "institute", "faculty",
+    "training", "trainer", "preceptor", "facilitator", "enablement", "capability",
+    "academy", "institute", "faculty",
+    "organi[sz]ational effectiveness", "change management", "employee experience",
     "medical education", "field education", "human resources", "\\bhr\\b", "people",
     "communications", "communication", "culture", "engagement", "coaching",
   ].join("|"), "i");
@@ -489,7 +491,7 @@ export async function loadL3(
   const levelOf = (role: string): SeniorityLevel => {
     const r = role.replace(/president[\u2019']?s club/gi, " ");
     if (/\b(svp|evp|senior vice president|executive vice president)\b/i.test(r)) return "exec";
-    if (/\b(chief|ceo|coo|cfo|clo|chro|cmo)\b/i.test(r)) return "exec";
+    if (/\b(chief|ceo|coo|cfo|clo|chro|cmo|cpo|cto|ciso)\b/i.test(r)) return "exec";
     // "Vice President" contains the word "president". Without this the
     // Associate Vice President who heads AMI's curricula was filed as an
     // officer of the company.

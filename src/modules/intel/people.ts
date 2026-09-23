@@ -70,6 +70,33 @@ export const ICP_QUERIES = [
  *  thinner than it should be. Same idea, further out: the functions that own a
  *  rollout, the people who run the field's own capability, and the HR roles
  *  that sit inside a business unit rather than above it. */
+/** The buyer's job titles, as the buyer writes them. The role-phrase lists
+ *  above find people by what they do; this finds them by what their card says,
+ *  which is how a seller of leadership development actually describes its
+ *  market. CEO is deliberately absent — the account is entered through the
+ *  people function, not the corner office. */
+export const ICP_TITLES = [
+  "Chief Learning Officer",
+  "Chief Human Resources Officer",
+  "Chief Operating Officer",
+  "Chief People Officer",
+  "VP of Human Resources",
+  "VP of Organizational Development",
+  "VP of Talent Management",
+  "VP of Learning and Development",
+  "VP of People and Culture",
+  "Director of Leadership Development",
+  "Director of Organizational Effectiveness",
+  "Director of Talent and Learning",
+  "Director of Change Management",
+  "Director of Employee Experience",
+  "Head of People",
+  "Head of Culture and Engagement",
+  "Organizational Development Manager",
+  "Change Management Lead",
+  "Learning and Development Manager",
+];
+
 export const ICP_QUERIES_WIDE = [
   "sales training",
   "commercial excellence",

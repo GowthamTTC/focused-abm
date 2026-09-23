@@ -11,7 +11,7 @@
  */
 import { eq } from "drizzle-orm";
 import { db, org } from "../src/db";
-import { scanCompanyPeople, ICP_QUERIES, ICP_QUERIES_WIDE } from "../src/modules/intel/people";
+import { scanCompanyPeople, ICP_QUERIES, ICP_QUERIES_WIDE, ICP_TITLES } from "../src/modules/intel/people";
 
 async function main() {
   if (process.env.CONFIRM_PRODUCTION !== "1") throw new Error("needs CONFIRM_PRODUCTION=1");
@@ -25,7 +25,9 @@ async function main() {
 
   const queries = (process.env.QUERIES ?? "").trim()
     ? process.env.QUERIES!.split(",").map((q) => q.trim()).filter(Boolean)
-    : process.env.WIDE === "1" ? ICP_QUERIES_WIDE : ICP_QUERIES;
+    : process.env.TITLES === "1" ? ICP_TITLES
+    : process.env.WIDE === "1" ? ICP_QUERIES_WIDE
+    : ICP_QUERIES;
   const perQuery = Number(process.env.PER_QUERY ?? 25);
 
   const prefix = (process.env.PREFIX ?? "").trim() || undefined;
