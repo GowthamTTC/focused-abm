@@ -3,6 +3,7 @@ import { Shell, requirePage } from "@/app/shell";
 import { loadL3 } from "@/modules/accounts/l3";
 import { refreshFocusSignals, scanTriggerVocabulary } from "./actions";
 import { CARD, OrgTree } from "./parts";
+import { PrintButton } from "@/components/print-button";
 
 const BTN = "inline-flex items-center gap-1.5 rounded-[8px] bg-[#4F46E5] px-3.5 py-2 text-[13px] font-medium text-white hover:bg-[#4338CA]";
 const BTN_GHOST = "inline-flex items-center gap-1.5 rounded-[8px] border border-[#E4E7EC] bg-white px-3 py-2 text-[13px] text-[#344054] hover:bg-[#F9FAFB]";
@@ -83,7 +84,7 @@ export default async function L3Page({ params, searchParams }: {
           <h1 className="mt-1.5 text-[26px] font-semibold tracking-[-.01em]">Account Intelligence</h1>
 
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="no-print flex flex-wrap items-center gap-2">
           <Link href={`/accounts/${encodeURIComponent(key)}`} className={BTN_GHOST}>Edit the org map</Link>
           <span className={BTN_GHOST}>Last 90 days</span>
           {/* A filter that can never match is worse than no filter: selecting it
@@ -115,6 +116,7 @@ export default async function L3Page({ params, searchParams }: {
           )}
           <a href={`/api/account-export/${encodeURIComponent(key)}?focus=${encodeURIComponent(focusRaw)}&alias=${encodeURIComponent(sp.alias ?? "")}`}
             className={BTN_GHOST}>⤓ Export brief</a>
+          <PrintButton className={BTN_GHOST} label="⎙ Export PDF" />
           <Link href={`/intel?c=${encodeURIComponent(focus ? focus.toLowerCase() : key)}&n=${encodeURIComponent(focusUnit?.unit.name ?? v.companyName)}&alias=${encodeURIComponent(sp.alias ?? "")}`}
             className={BTN}>Open signal detail →</Link>
         </div>
@@ -821,6 +823,49 @@ export default async function L3Page({ params, searchParams }: {
             AMI means the headline or post names the Allergan Medical Institute.
           </p>
         </section>
+      </div>
+
+      {/* ── every person, for the export only ──
+          The screen shows one dossier at a time because a reader is choosing.
+          A PDF has no reader to choose, so "export everything" has to mean
+          everything: this block is invisible on screen and prints all of them. */}
+      <div className="hidden print:block">
+        <h2 className="mt-6 text-[15px] font-semibold">People — full research</h2>
+        {v.contacts.map((c) => (
+          <section key={c.name} className="mt-3 rounded-[10px] border border-[#EDEFF3] p-3">
+            <div className="flex flex-wrap items-baseline gap-2">
+              <span className="text-[13px] font-semibold text-[#101828]">{c.name}</span>
+              <span className="text-[10.5px] text-[#667085]">relevance {c.relevance.score} · {c.relevance.buyingRole}</span>
+              {c.profileUrl && (
+                <a href={c.profileUrl} className="text-[10.5px] text-[#4F46E5]">{c.profileUrl}</a>
+              )}
+            </div>
+            {c.role && <p className="mt-0.5 text-[11px] text-[#667085]">{c.role}</p>}
+            {c.relevance.reasons.length > 0 && (
+              <ul className="mt-1.5">
+                {c.relevance.reasons.map((r) => (
+                  <li key={r} className="text-[11px] leading-snug text-[#475467]">— {r}</li>
+                ))}
+              </ul>
+            )}
+            <p className="mt-1 text-[11px] text-[#B54708]">Gap · {c.relevance.gap}</p>
+            {c.research && (
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                <div>
+                  <div className="text-[9.5px] font-medium uppercase tracking-wide text-[#98A2B3]">Observed</div>
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-[#344054]">{c.research.observed}</p>
+                  {c.research.postsRead && (
+                    <p className="mt-1 text-[10.5px] leading-relaxed text-[#667085]">{c.research.postsRead}</p>
+                  )}
+                </div>
+                <div>
+                  <div className="text-[9.5px] font-medium uppercase tracking-wide text-[#B54708]">Inferred</div>
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-[#344054]">{c.research.inferred}</p>
+                </div>
+              </div>
+            )}
+          </section>
+        ))}
       </div>
 
       {/* ── Plays ── */}

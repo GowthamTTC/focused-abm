@@ -350,3 +350,58 @@ html[data-nav="collapsed"] #app-sidebar {
 @media (prefers-reduced-motion: reduce) {
   .ai-glow { animation: none; }
 }
+
+
+/* ── Printing: the page becomes the PDF ────────────────────────────────────
+   Everything that scrolls on screen has to unroll on paper, or the export
+   silently loses whatever was below the fold of a box. Links are left as
+   links, so they stay clickable in the saved PDF. */
+@media print {
+  #app-sidebar,
+  header,
+  .no-print {
+    display: none !important;
+  }
+
+  html, body {
+    background: #fff !important;
+  }
+
+  /* Release every scroll box — lists of people, research panes, post details. */
+  [class*="max-h-"],
+  [class*="overflow-y-auto"],
+  [class*="overflow-hidden"] {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* Cards should not be split down the middle by a page break. */
+  section, li, details {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* The glow is a screen effect; on paper it is a grey smudge. */
+  .ai-glow {
+    animation: none !important;
+    box-shadow: none !important;
+    border-color: #C7B9FF !important;
+  }
+
+  a {
+    text-decoration: none;
+    color: #3538CD !important;
+  }
+
+  @page {
+    margin: 14mm 12mm;
+  }
+}
+
+/* While the print dialog is open the same rules apply on screen, so what the
+   preview shows is what the page is. */
+html[data-printing="1"] [class*="max-h-"],
+html[data-printing="1"] [class*="overflow-y-auto"] {
+  max-height: none !important;
+  overflow: visible !important;
+}
