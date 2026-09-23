@@ -1,6 +1,6 @@
 {
   "name": "focused-abm",
-  "version": "2.74.0",
+  "version": "2.74.1",
   "private": true,
   "engines": {
     "node": ">=22"

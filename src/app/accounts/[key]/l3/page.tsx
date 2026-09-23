@@ -162,20 +162,6 @@ export default async function L3Page({ params, searchParams }: {
             </div>
           </div>
 
-          <div className="mt-2.5 flex flex-wrap gap-x-6 gap-y-1.5">
-            {([
-              ["Evidence", `${v.exec.stats.sources} distinct sources · ${v.exec.stats.narratives} narratives`],
-              ["Functions involved", String(v.exec.stats.functions)],
-              ["Relevant people", String(v.exec.stats.people)],
-              ["Latest signal", v.exec.stats.latest ? v.exec.stats.latest.toISOString().slice(0, 10) : "—"],
-            ] as const).map(([k, val]) => (
-              <span key={k} className="text-[11px] text-[#667085]">
-                <span className="uppercase tracking-wide text-[#98A2B3]">{k} · </span>
-                <span className="font-medium text-[#101828]">{val}</span>
-              </span>
-            ))}
-          </div>
-
           <p className="mt-3 flex flex-wrap items-baseline gap-2 border-t border-[#E9D7FE] pt-3 text-[13px]">
             <span className="rounded-[6px] bg-[#4F46E5] px-2 py-0.5 text-[10.5px] font-medium uppercase tracking-wide text-white">
               Next step
