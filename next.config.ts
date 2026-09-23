@@ -25,6 +25,10 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   compress: false,
+  // pdfkit pulls fontkit, whose ESM build imports a helper name @swc/helpers
+  // no longer exports. Bundling it breaks the route; requiring it at runtime
+  // from node_modules does not, and it only ever runs on the server.
+  serverExternalPackages: ["pdfkit"],
   poweredByHeader: false,
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];

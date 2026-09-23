@@ -3,7 +3,6 @@ import { Shell, requirePage } from "@/app/shell";
 import { loadL3 } from "@/modules/accounts/l3";
 import { refreshFocusSignals, scanTriggerVocabulary } from "./actions";
 import { CARD, OrgTree } from "./parts";
-import { PrintButton } from "@/components/print-button";
 
 const BTN = "inline-flex items-center gap-1.5 rounded-[8px] bg-[#4F46E5] px-3.5 py-2 text-[13px] font-medium text-white hover:bg-[#4338CA]";
 const BTN_GHOST = "inline-flex items-center gap-1.5 rounded-[8px] border border-[#E4E7EC] bg-white px-3 py-2 text-[13px] text-[#344054] hover:bg-[#F9FAFB]";
@@ -116,7 +115,8 @@ export default async function L3Page({ params, searchParams }: {
           )}
           <a href={`/api/account-export/${encodeURIComponent(key)}?focus=${encodeURIComponent(focusRaw)}&alias=${encodeURIComponent(sp.alias ?? "")}`}
             className={BTN_GHOST}>⤓ Export brief</a>
-          <PrintButton className={BTN_GHOST} label="⎙ Export PDF" />
+          <a href={`/api/account-pdf/${encodeURIComponent(key)}?focus=${encodeURIComponent(focusRaw)}&alias=${encodeURIComponent(sp.alias ?? "")}`}
+            className={BTN_GHOST}>⤓ Export PDF</a>
           <Link href={`/intel?c=${encodeURIComponent(focus ? focus.toLowerCase() : key)}&n=${encodeURIComponent(focusUnit?.unit.name ?? v.companyName)}&alias=${encodeURIComponent(sp.alias ?? "")}`}
             className={BTN}>Open signal detail →</Link>
         </div>
