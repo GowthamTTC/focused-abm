@@ -91,6 +91,10 @@ export interface VoicePost {
   capturedBy: string | null;
   /** Vocabulary phrases this post contains — why it matters, beside it. */
   matchedTriggers: TriggerSignal[];
+  /** What the posting entity is, in its own words, when the map describes it.
+   *  A reason is easier to believe when the thing it is about has been
+   *  described first, by them rather than by us. */
+  about: string | null;
 }
 
 /** One search this account has been read with, and what it returned. */
@@ -160,6 +164,19 @@ function weekKey(d: Date): string {
   const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
   t.setUTCDate(t.getUTCDate() - t.getUTCDay());
   return t.toISOString().slice(0, 10);
+}
+
+/** The mapped unit a post's author page belongs to, and what the map says it
+ *  is. Matched on the page name containing the unit name — a company page is
+ *  named after the thing it speaks for, and the longest match wins so
+ *  "Allergan Medical Institute" is not claimed by "Allergan". */
+function describeAuthor(authorLine: string | null, units: OrgUnit[]): string | null {
+  const who = (authorLine ?? "").split(" \u2014 ")[0].toLowerCase();
+  if (!who.trim()) return null;
+  const hit = units
+    .filter((u) => u.note && who.includes(u.name.toLowerCase()))
+    .sort((a, b) => b.name.length - a.name.length)[0];
+  return hit?.note ?? null;
 }
 
 export async function loadL3(
@@ -357,6 +374,7 @@ export async function loadL3(
         profileUrl: sg.authorProfileUrl,
         capturedBy: sg.capturedBy,
         matchedTriggers: triggersIn(`${sg.title ?? ""} ${sg.body ?? ""}`, vocab),
+        about: describeAuthor(sg.title, map?.units ?? []),
       };
     })
     .sort((a, b) => (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0));

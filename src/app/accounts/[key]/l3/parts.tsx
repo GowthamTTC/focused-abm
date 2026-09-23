@@ -101,12 +101,11 @@ export function Meter({ value, color }: { value: number | null; color: string })
  *  connectors, which an absolutely-positioned diagram cannot. */
 export function OrgTree({ root, nodes }: {
   root: string;
-  nodes: { name: string; state: "engaged" | "whitespace" | "focus"; sub?: string }[];
+  nodes: { name: string; state: "engaged" | "whitespace"; sub?: string }[];
 }) {
   const style = {
     engaged: "border-[#ABEFC6] bg-[#F6FEF9] text-[#027A48]",
     whitespace: "border-[#E4E7EC] bg-[#FAFBFC] text-[#475467]",
-    focus: "border-[#F97066] bg-[#FFFBFA] text-[#B42318] ring-1 ring-[#FEE4E2]",
   } as const;
   return (
     <div className="mt-4">

@@ -309,16 +309,19 @@ export function parseUnitLines(text: string): OrgUnit[] {
       trimmed = trimmed.slice(1).trim();
       if (!trimmed) continue;
     }
-    // name | aka, aka | website — the middle may be empty ("Name || site.com")
-    const [namePart, akaPart, sitePart] = trimmed.split("|");
+    // name | aka, aka | website | what it is — any middle field may be empty,
+    // so "Name || site.com | description" reads naturally.
+    const [namePart, akaPart, sitePart, notePart] = trimmed.split("|");
     const name = (namePart ?? "").trim();
     if (!name) continue;
     const aka = (akaPart ?? "").split(",").map((s) => s.trim()).filter(Boolean);
     const website = (sitePart ?? "").trim().replace(/^https?:\/\//, "").replace(/\/$/, "");
+    const note = (notePart ?? "").trim();
     units.push({
       name,
       ...(aka.length ? { aka } : {}),
       ...(website ? { website } : {}),
+      ...(note ? { note } : {}),
       ...(engaged ? { engaged: true } : {}),
     });
   }
@@ -328,8 +331,9 @@ export function parseUnitLines(text: string): OrgUnit[] {
 export function formatUnitLines(units: OrgUnit[]): string {
   return units.map((u) => {
     let body = u.name;
-    if (u.aka?.length || u.website) body += ` | ${u.aka?.join(", ") ?? ""}`;
-    if (u.website) body += ` | ${u.website}`;
+    if (u.aka?.length || u.website || u.note) body += ` | ${u.aka?.join(", ") ?? ""}`;
+    if (u.website || u.note) body += ` | ${u.website ?? ""}`;
+    if (u.note) body += ` | ${u.note}`;
     return u.engaged ? `* ${body}` : body;
   }).join("\n");
 }

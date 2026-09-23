@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Shell, requirePage } from "@/app/shell";
 import { loadL3 } from "@/modules/accounts/l3";
 import { refreshFocusSignals, scanTriggerVocabulary } from "./actions";
-import { CARD, HalfGauge, LegendDot, Meter, OrgTree, VolumeChart } from "./parts";
+import { CARD, HalfGauge, Meter, OrgTree, VolumeChart } from "./parts";
 
 const BTN = "inline-flex items-center gap-1.5 rounded-[8px] bg-[#4F46E5] px-3.5 py-2 text-[13px] font-medium text-white hover:bg-[#4338CA]";
 const BTN_GHOST = "inline-flex items-center gap-1.5 rounded-[8px] border border-[#E4E7EC] bg-white px-3 py-2 text-[13px] text-[#344054] hover:bg-[#F9FAFB]";
@@ -70,14 +70,13 @@ export default async function L3Page({ params, searchParams }: {
     ...siteUnits.filter((u) => !isFocus(u.unit.name) && !u.engaged && u.people === 0),
     ...siteUnits.filter((u) => !isFocus(u.unit.name) && (u.engaged || u.people > 0)),
   ];
+  // No focus highlight and no legend. Every entity on this chart is whitespace,
+  // so singling one out in red implied the others were something else, and a
+  // legend explaining three states when only one is drawn is furniture.
   const treeNodes = ordered.slice(0, TREE_MAX).map((u) => ({
     name: u.unit.name,
-    state: (u.unit.name.toLowerCase() === focus.toLowerCase()
-      ? "focus"
-      : u.engaged || u.people > 0 ? "engaged" : "whitespace") as "focus" | "engaged" | "whitespace",
-    sub: u.unit.name.toLowerCase() === focus.toLowerCase()
-      ? "No Ariel engagement"
-      : u.unit.website,
+    state: (u.engaged || u.people > 0 ? "engaged" : "whitespace") as "engaged" | "whitespace",
+    sub: u.unit.website,
   }));
 
   return (
@@ -165,11 +164,6 @@ export default async function L3Page({ params, searchParams }: {
           <div className="lg:border-l lg:border-[#EDEFF3] lg:pl-6">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <h2 className="text-[13px] font-semibold">Org-chart whitespace map</h2>
-              <div className="flex flex-wrap gap-2.5">
-                <LegendDot color="#12B76A" label="Engaged" />
-                <LegendDot color="#D0D5DD" label="Whitespace" />
-                <LegendDot color="#F04438" label="Priority" />
-              </div>
             </div>
             <p className="mt-1 text-[11.5px] text-[#667085]">
               Entities with their own public website — correct it in the{" "}
@@ -228,6 +222,11 @@ export default async function L3Page({ params, searchParams }: {
                     </div>
 
                     <div className="lg:border-l lg:border-[#F2F4F7] lg:pl-4">
+                      {n.about && (
+                        <p className="mb-2 rounded-[8px] bg-[#F9FAFB] px-2.5 py-2 text-[11px] leading-snug text-[#475467]">
+                          {n.about}
+                        </p>
+                      )}
                       {n.matchedTriggers.length === 0 ? (
                         <p className="text-[11.5px] leading-snug text-[#98A2B3]">
                           No buying signal. Product marketing — nothing here to open on.

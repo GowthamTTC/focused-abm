@@ -57,7 +57,7 @@ Capstan Therapeutics | Capstan | capstantx.com
 Aliada Therapeutics | Aliada | aliadatx.com
 Zeltiq Aesthetics | Zeltiq, CoolSculpting | coolsculpting.com
 SkinMedica || skinmedica.com
-Allergan Medical Institute | AMI | allerganmedicalinstitute.com
+Allergan Medical Institute | AMI | allerganmedicalinstitute.com | AMI Online is a comprehensive learning platform featuring in-depth and on-demand education and training on the Allergan Aesthetics Portfolio of Products, designed to help injectors of all levels further their knowledge, refine their skills, and advance their expertise. (their own description)
 Natrelle || natrelle.com
 Stemcentrx
 # Soliton is deliberately NOT mapped. AbbVie acquired a medical-aesthetics
