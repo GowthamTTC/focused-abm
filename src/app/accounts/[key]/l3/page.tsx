@@ -292,7 +292,7 @@ export default async function L3Page({ params, searchParams }: {
             </p>
             <dl className="mt-2.5 grid grid-cols-3 gap-2 text-center">
               {[
-                ["Arrivals", v.workforce.arrivals, "#027A48"],
+                ["Arrival posts", v.workforce.arrivals, "#027A48"],
                 ["Hiring posts", v.workforce.hiringPosts, "#027A48"],
                 ["Exit posts", v.workforce.exits, v.workforce.exits > 0 ? "#B42318" : "#98A2B3"],
               ].map(([label, n, colour]) => (
@@ -305,8 +305,9 @@ export default async function L3Page({ params, searchParams }: {
               ))}
             </dl>
             <p className="mt-2.5 text-[11px] leading-snug text-[#98A2B3]">
-              Counted over {v.workforce.postsRead} stored posts for this unit. Counts of POSTS
-              containing the language, never headcount. US means &ldquo;not shown to be
+              Counted over {v.workforce.postsRead} posts by people whose headline says they
+              work here. Counts of POSTS containing the language, never headcount, and
+              approximate — a tenure anniversary or a departure can read as an arrival. US means &ldquo;not shown to be
               elsewhere&rdquo; — a post carries no location, so pages naming another market and
               posts in another language are removed and the rest kept. LinkedIn&apos;s search
               reaches back a month at most, so this window cannot be widened to meet the filing

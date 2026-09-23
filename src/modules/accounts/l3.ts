@@ -574,13 +574,27 @@ export async function loadL3(
   const EXIT_RE = /\b(last day|farewell|open to work|impacted by|role was eliminated|made redundant|laid off|layoffs?)\b/i;
 
   const focusKey = focusUnit ? companyKey(focusUnit) : null;
+  const seenBody = new Set<string>();
   const scopedLi = (focusKey ? allLi.filter((sg) => sg.signalKey === focusKey) : allLi)
+    // ONLY PEOPLE WHO WORK THERE. Without this the counts read the whole feed:
+    // "37 arrivals" was seventeen employees of a COMPETITOR reposting one
+    // syndicated write-up of their own conference, plus three actual arrivals.
+    // Movement at an account can only be reported by people at the account.
+    .filter((sg) => voiceOf(sg.title, sg.companyName ?? companyName, extraAliases) === "employee")
     // US only, as far as a post can show it. There is no location on a LinkedIn
     // post, so this removes what is demonstrably elsewhere — an author line
     // naming another market, or a post written in another language — and keeps
-    // the rest. That is "not shown to be elsewhere", not "proven American", and
-    // the panel says so rather than implying a precision it does not have.
-    .filter((sg) => isUsPost(sg.title, sg.body));
+    // the rest. That is "not shown to be elsewhere", not "proven American".
+    .filter((sg) => isUsPost(sg.title, sg.body))
+    // One syndicated post reposted by twenty colleagues is one event. Counting
+    // the copies turns a single announcement into a hiring wave.
+    .filter((sg) => {
+      const id = (sg.body ?? "").replace(/\s+/g, " ").trim().slice(0, 160).toLowerCase();
+      if (!id) return true;
+      if (seenBody.has(id)) return false;
+      seenBody.add(id);
+      return true;
+    });
   const dates = scopedLi.map((sg) => sg.publishedAt).filter((d): d is Date => Boolean(d));
   const workforce: WorkforceMovement = {
     filings: news
