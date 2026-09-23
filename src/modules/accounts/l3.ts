@@ -129,10 +129,10 @@ export interface L3View {
     marketTone: Band;
   };
   changeSignals: SignalCard[];
-  /** News and filings from the last 30 days, newest first — what the outside
-   *  world published about the account recently, as distinct from what its
-   *  people said. */
-  recentNews: SignalCard[];
+  /** What the account has posted from its OWN LinkedIn pages lately. Its
+   *  newsroom publishes investor calendar; its LinkedIn page publishes what the
+   *  business is actually doing, which is the thing a seller wants. */
+  companyUpdates: VoicePost[];
   /** Null country = the whole feed. `located` says how many rows could be
    *  placed at all, which a reader needs before trusting a country split. */
   geo: { country: string | null; located: number; total: number };
@@ -352,6 +352,15 @@ export async function loadL3(
     })
     .sort((a, b) => (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0));
 
+  // The account's own LinkedIn pages, newest first. Its newsroom publishes an
+  // investor calendar; its LinkedIn page publishes what the business is doing.
+  const UPDATE_WINDOW_DAYS = 30;
+  const updateCutoff = Date.now() - UPDATE_WINDOW_DAYS * 86400000;
+  const companyUpdates = voicePosts
+    .filter((p) => p.voice === "company")
+    .filter((p) => !p.publishedAt || p.publishedAt.getTime() >= updateCutoff)
+    .slice(0, 6);
+
   // Buying signals, scored. The vocabulary is the workspace's own when it has
   // one; undefined falls back to the built-in list, and [] switches it off.
   const orgSettings = await getOrgSettings(orgId);
@@ -438,13 +447,6 @@ export async function loadL3(
     });
   };
 
-  const NEWS_WINDOW_DAYS = 30;
-  const newsCutoff = Date.now() - NEWS_WINDOW_DAYS * 86400000;
-  const recentNews: SignalCard[] = dedupeByUrl(
-    news
-      .filter((sg) => sg.publishedAt && sg.publishedAt.getTime() >= newsCutoff)
-      .sort((a, b) => (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0)),
-  ).slice(0, 6);
 
   const CHANGE_THEMES = new Set(["restructuring", "leadership", "channel"]);
   const changeSignalsRaw: SignalCard[] = [
@@ -513,7 +515,7 @@ export async function loadL3(
     whitespacePct,
     linkedin: { tone, gauge, stored: li.length, themes, volume, volumeChangePct, top, insideTone, marketTone },
     changeSignals: changeSignalsDeduped,
-    recentNews,
+    companyUpdates,
     geo,
     contacts,
     triggerScore,

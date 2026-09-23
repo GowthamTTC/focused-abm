@@ -164,35 +164,35 @@ export default async function L3Page({ params, searchParams }: {
 
           <div className="lg:border-l lg:border-[#EDEFF3] lg:pl-6">
             <div className="flex items-baseline justify-between gap-2">
-              <h2 className="text-[13px] font-semibold">Latest news · 30 days</h2>
+              <h2 className="text-[13px] font-semibold">From their LinkedIn page · 30 days</h2>
               <span className="text-[11px] text-[#98A2B3]">
-                {v.recentNews.length > 0
-                  ? `${v.recentNews.length} item${v.recentNews.length === 1 ? "" : "s"}`
-                  : "from this workspace's allowlisted sources"}
+                {v.companyUpdates.length > 0
+                  ? `${v.companyUpdates.length} post${v.companyUpdates.length === 1 ? "" : "s"}`
+                  : "no company-page posts stored"}
               </span>
             </div>
-            {v.recentNews.length === 0 ? (
+            {v.companyUpdates.length === 0 ? (
               <p className="mt-2 text-[12px] leading-snug text-[#667085]">
-                Nothing published in the last 30 days by the domains this workspace
-                allows. Add sources in Settings → Account Pulse, then refresh.
+                Nothing posted by the company&apos;s own LinkedIn pages in the last 30 days,
+                among the posts stored. Scan the vocabulary or refresh signals to collect more.
               </p>
             ) : (
               <ul className="mt-2.5 divide-y divide-[#F2F4F7]">
-                {v.recentNews.map((n) => (
+                {v.companyUpdates.map((n) => (
                   <li key={n.id} className="py-2 first:pt-0">
                     <div className="flex items-baseline justify-between gap-2">
                       <span className="text-[12.5px] font-medium leading-snug text-[#101828]">
-                        {(n.title ?? "Untitled").slice(0, 96)}
+                        {(n.body ?? "").replace(/\s+/g, " ").slice(0, 118)}…
                       </span>
                       <span className="shrink-0 text-[10.5px] text-[#98A2B3]">
                         {n.publishedAt ? n.publishedAt.toISOString().slice(5, 10) : ""}
                       </span>
                     </div>
                     <p className="mt-0.5 text-[11px] text-[#667085]">
-                      {n.source ?? "news"}
+                      {n.who}
                       {n.url && (
                         <> · <a href={n.url} target="_blank" rel="noreferrer"
-                          className="text-[#4F46E5] hover:underline">open ↗</a></>
+                          className="text-[#4F46E5] hover:underline">open on LinkedIn ↗</a></>
                       )}
                     </p>
                   </li>
