@@ -127,15 +127,10 @@ export default async function L3Page({ params, searchParams }: {
       {(v.overview.pains.length > 0 || v.overview.pitch.length > 0) && (
         <section className="mt-4 rounded-[14px] border border-[#DDD6FE] bg-gradient-to-br from-[#F6F4FF] via-white to-[#EEF4FF] p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <h2 className="text-[15px] font-semibold">Intelligence overview</h2>
-          <p className="mt-1 max-w-3xl text-[12px] text-[#667085]">
-            Assembled from the sections below, not written over them — every line here points
-            at a filing, a scored signal or a researched name you can open.
-          </p>
-
           <div className="mt-3.5 grid gap-4 lg:grid-cols-2">
             <div>
               <div className="text-[10.5px] font-medium uppercase tracking-wide text-[#B42318]">
-                Where it hurts
+                Signals
               </div>
               {v.overview.pains.length === 0 ? (
                 <p className="mt-2 text-[12px] text-[#667085]">
@@ -405,6 +400,85 @@ export default async function L3Page({ params, searchParams }: {
             </ul>
           </section>
         </div>
+      )}
+
+      {/* ── post mix ── */}
+      {v.postMix.length > 0 && (
+        <section className={`${CARD} mt-4 p-5`}>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <div>
+              <h2 className="text-[15px] font-semibold">What is being posted, and how it reads</h2>
+              <p className="mt-1 max-w-3xl text-[12px] text-[#667085]">
+                Every stored post about {v.focusApplied ?? v.companyName} from the last 30 days,
+                sorted by what kind of post it is. Sentiment is averaged over the posts a model
+                actually scored, and each row says how many that was — an unscored post is not a
+                neutral one.
+              </p>
+            </div>
+            <span className="text-[11px] text-[#98A2B3]">{v.postMixTotal} posts</span>
+          </div>
+
+          <ul className="mt-3.5 space-y-2">
+            {v.postMix.map((m) => {
+              const tone = m.sentiment === null
+                ? { text: "not scored", cls: "bg-[#F2F4F7] text-[#667085]" }
+                : m.sentiment >= 25
+                  ? { text: `+${m.sentiment}`, cls: "bg-[#ECFDF3] text-[#027A48]" }
+                  : m.sentiment <= -25
+                    ? { text: `${m.sentiment}`, cls: "bg-[#FEF3F2] text-[#B42318]" }
+                    : { text: `${m.sentiment > 0 ? "+" : ""}${m.sentiment}`, cls: "bg-[#FFFAEB] text-[#B54708]" };
+              return (
+                <li key={m.key}>
+                  <details className="group rounded-[10px] border border-[#EDEFF3] open:bg-[#FCFCFD]">
+                    <summary className="flex cursor-pointer list-none flex-wrap items-center gap-3 px-3.5 py-2.5">
+                      <span className="text-[12.5px] font-medium text-[#101828]">{m.label}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-[10.5px] font-medium ${tone.cls}`}>
+                        {tone.text}
+                      </span>
+                      <span className="text-[11px] text-[#98A2B3]">
+                        {m.posts} post{m.posts === 1 ? "" : "s"} · {m.employee} from employees ·{" "}
+                        {m.market} from the market · {m.judged} scored
+                      </span>
+                      <span className="ml-auto flex h-1.5 w-[160px] overflow-hidden rounded-full bg-[#F2F4F7]">
+                        <span
+                          className="h-full rounded-full bg-[#4F46E5]"
+                          style={{ width: `${Math.round((m.posts / Math.max(1, v.postMixTotal)) * 100)}%` }}
+                        />
+                      </span>
+                      <span className="text-[10.5px] text-[#98A2B3] group-open:hidden">▾</span>
+                    </summary>
+                    <ul className="max-h-72 overflow-y-auto border-t border-[#F2F4F7] px-3.5 py-2">
+                      {m.examples.map((e, i) => (
+                        <li key={`${e.who}-${i}`} className="border-b border-[#F2F4F7] py-2 last:border-0">
+                          <div className="flex flex-wrap items-baseline gap-2">
+                            <span className="text-[11.5px] font-medium text-[#101828]">{e.who}</span>
+                            <span className={`rounded-[5px] px-1.5 py-0.5 text-[9.5px] ${
+                              e.voice === "market" ? "bg-[#F2F4F7] text-[#667085]" : "bg-[#EEF4FF] text-[#3538CD]"}`}>
+                              {e.voice}
+                            </span>
+                            {e.sentiment !== null && (
+                              <span className="text-[10px] text-[#98A2B3]">
+                                {e.sentiment > 0 ? "+" : ""}{e.sentiment}
+                              </span>
+                            )}
+                            <span className="ml-auto shrink-0 text-[10px] text-[#98A2B3]">
+                              {e.when ? e.when.toISOString().slice(0, 10) : "undated"}
+                            </span>
+                          </div>
+                          <p className="mt-0.5 text-[11px] leading-snug text-[#475467]">{e.line}…</p>
+                          {e.url && (
+                            <a href={e.url} target="_blank" rel="noreferrer"
+                              className="text-[10px] text-[#4F46E5] hover:underline">open on LinkedIn ↗</a>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
       )}
 
       {/* ── people ── */}

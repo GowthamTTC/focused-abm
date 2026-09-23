@@ -18,6 +18,7 @@ import { meanSentiment, type Band, type Trigger } from "@/modules/pulse/types";
 import { loadAccountMap, mapKeys, type AccountMapRow } from "@/modules/accounts/org-map";
 import { voiceOf } from "@/modules/intel/voice";
 import { isUsPost } from "@/modules/accounts/us-filter";
+import { bucketOf, BUCKET_LABELS, BUCKET_ORDER, type PostBucket } from "@/modules/accounts/post-buckets";
 import { competitorHits } from "@/modules/pulse/competitors";
 import { getOrgSettings } from "@/modules/settings/org-settings";
 import { DEFAULT_TRIGGERS, scoreTriggers, triggersIn, type TriggerScore, type TriggerSignal } from "@/modules/accounts/trigger-vocab";
@@ -234,6 +235,22 @@ export interface L3View {
    *  newsroom publishes investor calendar; its LinkedIn page publishes what the
    *  business is actually doing, which is the thing a seller wants. */
   companyUpdates: VoicePost[];
+  /** The stored posts sorted by what kind of post they are, with how each
+   *  kind reads. Sentiment is averaged over the JUDGED posts only and the row
+   *  says how many that was — an unjudged post is not a neutral one. */
+  postMix: {
+    key: PostBucket;
+    label: string;
+    posts: number;
+    judged: number;
+    /** −100..100 over judged posts, or null when none were judged. */
+    sentiment: number | null;
+    employee: number;
+    market: number;
+    examples: { who: string; when: Date | null; sentiment: number | null; line: string; url: string | null; voice: string }[];
+  }[];
+  /** How many stored posts the mix was computed over, and the window. */
+  postMixTotal: number;
   /** The unit everything on this page is scoped to. Null means the whole
    *  company. When the caller asked for nothing, this says what was chosen for
    *  them, because a silent default is indistinguishable from a bug. */
@@ -1067,6 +1084,50 @@ export async function loadL3(
 
   const overview = { pains: pains.slice(0, 4), pitch, entry };
 
+  // ── The post mix ────────────────────────────────────────────────────────
+  // Every stored post for the unit in focus, sorted by what kind of post it is
+  // and how it reads. Market voices are counted separately from employees
+  // because they are different populations answering different questions:
+  // practitioners talking about a product is not the account talking about
+  // itself, and averaging them together hides both.
+  const MIX_DAYS = 30;
+  const mixCutoff = Date.now() - MIX_DAYS * 86400000;
+  const mixSource = (focusKey ? allLi.filter((sg) => sg.signalKey === focusKey) : allLi)
+    .filter((sg) => !sg.publishedAt || sg.publishedAt.getTime() >= mixCutoff);
+  const mixBy = new Map<PostBucket, typeof mixSource>();
+  for (const sg of mixSource) {
+    const b = bucketOf(`${sg.title ?? ""} ${sg.body ?? ""}`);
+    mixBy.set(b, [...(mixBy.get(b) ?? []), sg]);
+  }
+  const postMix = BUCKET_ORDER.map((b) => {
+    const rows = mixBy.get(b) ?? [];
+    const judged = rows.filter((r) => r.sentiment !== null && Number.isFinite(r.sentiment));
+    const voiceOfRow = (sg: typeof rows[number]) =>
+      voiceOf(sg.title, sg.companyName ?? companyName, extraAliases);
+    return {
+      key: b,
+      label: BUCKET_LABELS[b],
+      posts: rows.length,
+      judged: judged.length,
+      sentiment: judged.length > 0
+        ? Math.round(judged.reduce((t, r) => t + (r.sentiment ?? 0), 0) / judged.length)
+        : null,
+      employee: rows.filter((r) => voiceOfRow(r) !== "market").length,
+      market: rows.filter((r) => voiceOfRow(r) === "market").length,
+      examples: [...rows]
+        .sort((a, b2) => (b2.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0))
+        .slice(0, 8)
+        .map((r) => ({
+          who: (r.title ?? "").split(" \u2014 ")[0],
+          when: r.publishedAt,
+          sentiment: r.sentiment,
+          line: (r.body ?? "").replace(/\s+/g, " ").slice(0, 160),
+          url: r.url,
+          voice: voiceOfRow(r),
+        })),
+    };
+  }).filter((r) => r.posts > 0);
+
   return {
     companyKey: key,
     companyName,
@@ -1087,6 +1148,8 @@ export async function loadL3(
     companyUpdates,
     announcements,
     overview,
+    postMix,
+    postMixTotal: mixSource.length,
     focusApplied: busiest,
     geo,
     contacts,
