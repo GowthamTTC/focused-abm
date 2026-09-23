@@ -85,6 +85,7 @@ export default async function L3Page({ params, searchParams }: {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Link href={`/accounts/${encodeURIComponent(key)}`} className={BTN_GHOST}>Edit the org map</Link>
           <span className={BTN_GHOST}>Last 90 days</span>
           {/* A filter that can never match is worse than no filter: selecting it
               emptied every band on the page and read as a broken screen. The
@@ -521,73 +522,6 @@ export default async function L3Page({ params, searchParams }: {
         </section>
       </div>
 
-      {/* ── incumbents ── */}
-      <section className={`${CARD} mt-4 p-5`}>
-        <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-[15px] font-semibold">Who else is selling in here</h2>
-          {v.competitors.length > 0 && (
-            <span className="rounded-full bg-[#FEF3F2] px-2.5 py-1 text-[11px] font-medium text-[#B42318]">
-              {v.competitors.length} incumbent{v.competitors.length === 1 ? "" : "s"} seen
-            </span>
-          )}
-        </div>
-        <p className="mt-1 text-[12px] text-[#667085]">
-          Named competitors appearing in this account&apos;s signals. Walking into an
-          incumbent is worth knowing before the first call rather than during it.
-        </p>
-        {v.competitors.length === 0 ? (
-          <p className="mt-3 text-[13px] text-[#667085]">
-            No named competitor found in the stored signals.
-          </p>
-        ) : (
-          <ul className="mt-3 grid gap-2.5 sm:grid-cols-2">
-            {v.competitors.map((c) => (
-              <li key={c.peer} className="rounded-[10px] border border-[#FEE4E2] bg-[#FFFBFA] p-3">
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="text-[13px] font-semibold text-[#B42318]">{c.peer}</span>
-                  <span className="text-[11px] text-[#98A2B3]">
-                    {c.mentions} mention{c.mentions === 1 ? "" : "s"}
-                    {c.latestAt && ` · ${c.latestAt.toISOString().slice(0, 10)}`}
-                  </span>
-                </div>
-                {c.snippet && (
-                  <p className="mt-1.5 text-[11.5px] italic leading-snug text-[#475467]">“{c.snippet.slice(0, 220)}”</p>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      {/* ── the play ── */}
-      <section className="mt-4 rounded-[14px] border border-[#E9EAEE] bg-[#FAFBFF] p-5">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-[18px]">⚑</span>
-              <h2 className="text-[16px] font-semibold">L3 ABM play</h2>
-            </div>
-            <p className="mt-1.5 text-[12.5px] text-[#475467]">
-              <b>Why now:</b> {v.counts.whitespace} of {v.counts.mapped} mapped functions with no
-              engagement{focusUnit && <>, {focusUnit.unit.name} among them</>}, against {v.counts.pockets} pockets
-              of relationship equity elsewhere in {v.companyName}.
-            </p>
-            <ol className="mt-2.5 flex flex-wrap gap-x-7 gap-y-2 text-[12px]">
-              {[
-                ["Map stakeholders", "Expand the org chart, identify the seats"],
-                ["Find a route in", "Use the pockets that already exist"],
-                ["Open on something specific", "Once there is something specific"],
-              ].map(([t, s], i) => (
-                <li key={t} className="flex items-start gap-2">
-                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#4F46E5] text-[10px] font-semibold text-white">{i + 1}</span>
-                  <span><b className="text-[#101828]">{t}</b><br /><span className="text-[#667085]">{s}</span></span>
-                </li>
-              ))}
-            </ol>
-          </div>
-          <Link href={`/accounts/${encodeURIComponent(key)}`} className={BTN_GHOST}>Edit the org map</Link>
-        </div>
-      </section>
     </Shell>
   );
 }
