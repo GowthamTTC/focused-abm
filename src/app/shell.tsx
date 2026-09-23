@@ -11,6 +11,7 @@ import { LiveJob } from "@/components/live-job";
 import { DismissibleBanner } from "@/components/dismissible-banner";
 import { HelpCenter } from "@/components/help-center";
 import { AgentRail } from "@/components/agent-rail";
+import { NavCollapse, NAV_BOOT } from "@/components/nav-collapse";
 import { novaHidden, socialHidden } from "@/lib/feature-access";
 
 export async function requirePage(): Promise<Ctx> {
@@ -120,7 +121,8 @@ export async function Shell({ user, active, children }: {
     <div className="flex h-screen overflow-hidden bg-[#F6F7FB] text-[#101828]">
       <CommandPalette />
       {/* ── Sidebar 232px ── */}
-      <aside className="flex w-[232px] shrink-0 flex-col border-r border-[#DDE2EE] bg-white">
+      <script dangerouslySetInnerHTML={{ __html: NAV_BOOT }} />
+      <aside id="app-sidebar" className="flex w-[232px] shrink-0 flex-col border-r border-[#DDE2EE] bg-white">
         <div className="flex items-center gap-[9px] px-4 pb-[14px] pt-[18px]">
           <span className="flex h-[22px] w-[22px] items-center justify-center rounded-[6px] bg-[#263BAA] text-[12px] font-bold text-white">F</span>
           <span className="min-w-0">
@@ -201,6 +203,7 @@ export async function Shell({ user, active, children }: {
       <div className="flex h-screen min-w-0 flex-1 flex-col">
         {/* Header 54px */}
         <header className="flex min-h-[54px] items-center gap-3 border-b border-[#DDE2EE] bg-white px-5">
+          <NavCollapse />
           <div className="min-w-0 flex-initial overflow-hidden" id="campaign-slot" />
           <div className="ml-auto flex flex-none items-center gap-[14px]">
             <PaletteTrigger />

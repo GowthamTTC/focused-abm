@@ -321,3 +321,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
 .nova-msg {
   animation: nova-rise 280ms ease both;
 }
+
+
+/* The sidebar, hidden. The toggle that brings it back lives in the header, so
+   there is always a way out of this state — and the attribute is set before
+   paint, so a reload does not show the sidebar for a frame first. */
+html[data-nav="collapsed"] #app-sidebar {
+  display: none;
+}
