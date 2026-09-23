@@ -469,12 +469,19 @@ export async function loadL3(
     "communications", "communication", "culture", "engagement", "coaching",
   ].join("|"), "i");
   const ICP_SENIORITY_RE = /\b(chief|ceo|clo|chro|coo|cfo|president|svp|evp|vp|vice president|head of|senior director|associate director|director|general manager|regional director)\b/i;
+  // Functions that are senior and are still not this buyer. A Director of IT
+  // and Regulated Systems runs systems, not people, and nothing about a
+  // leadership-communication offer reaches him. This only ever applies to a
+  // row that got in on its title alone — someone whose headline says training
+  // or communications keeps their place whatever else it says.
+  const ICP_OFF_FUNCTION_RE = /\b(information technology|business technology|it|regulated systems|systems|software|engineering|engineer|infrastructure|cyber|data platform|quality assurance|qa|validation)\b/i;
   const matchesIcp = (role: string) => {
     // "2X President's Club Winner" is a sales award, not an officer of the
     // company. It is the one phrase that turns this list into a list of
     // everybody, so it goes before the seniority test reads the headline.
     const r = role.replace(/president[\u2019']?s club/gi, " ");
-    return ICP_FUNCTION_RE.test(r) || ICP_SENIORITY_RE.test(r);
+    if (ICP_FUNCTION_RE.test(r)) return true;
+    return ICP_SENIORITY_RE.test(r) && !ICP_OFF_FUNCTION_RE.test(r);
   };
   const focusKey = focusUnit ? companyKey(focusUnit) : null;
   // Scoped to the unit in focus when there is one. An Allergan Aesthetics page
