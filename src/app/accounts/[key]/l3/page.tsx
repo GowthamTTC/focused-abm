@@ -20,16 +20,6 @@ function toneWord(s: number | null): string {
   return "Mixed";
 }
 
-function Tile({ label, value, sub, tone }: { label: string; value: string | number; sub: string; tone?: string }) {
-  return (
-    <div className="rounded-[12px] border border-[#EDEFF3] px-4 py-3">
-      <div className="text-[11.5px] text-[#667085]">{label}</div>
-      <div className="mt-1 text-[26px] font-semibold leading-none" style={{ color: tone ?? "#101828" }}>{value}</div>
-      <div className="mt-1.5 text-[11px] text-[#98A2B3]">{sub}</div>
-    </div>
-  );
-}
-
 export default async function L3Page({ params, searchParams }: {
   params: Promise<{ key: string }>;
   searchParams: Promise<{ focus?: string; alias?: string; queued?: string; country?: string }>;
@@ -151,7 +141,7 @@ export default async function L3Page({ params, searchParams }: {
 
       {/* ── account card ── */}
       <section className={`${CARD} mt-4 p-5`}>
-        <div className="grid gap-5 lg:grid-cols-[minmax(240px,1fr)_2.4fr]">
+        <div>
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-[26px] font-semibold tracking-[-.02em] text-[#101828]">{v.companyName}</span>
@@ -169,15 +159,6 @@ export default async function L3Page({ params, searchParams }: {
                 <a href={`https://${p.website.replace(/^https?:\/\//, "")}`} target="_blank" rel="noreferrer"
                   className="text-[#4F46E5] hover:underline">{p.website}</a>
               )}
-            </div>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <Tile label="Existing Ariel pockets" value={v.counts.pockets} sub="asserted by the team" />
-            <Tile label="Mapped functions" value={v.counts.mapped} sub={`across ${v.companyName}`} />
-            <Tile label="Whitespace functions" value={v.counts.whitespace} sub="no engagement recorded" tone="#B54708" />
-            <div className="rounded-[12px] border border-[#D3F8DF] bg-[#F6FEF9] px-3 py-2">
-              <HalfGauge value={v.whitespacePct} color="#B54708"
-                big="Whitespace" small={`${v.counts.whitespace} of ${v.counts.mapped} functions`} />
             </div>
           </div>
         </div>
