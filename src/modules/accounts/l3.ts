@@ -261,7 +261,15 @@ export interface L3View {
    *  below it rather than being a paragraph somebody wrote once. */
   overview: {
     pains: { title: string; detail: string; source: string }[];
-    pitch: { offer: string; people: { name: string; url: string | null }[]; why: string | null; whyFor: string | null }[];
+    pitch: {
+      offer: string;
+      people: { name: string; url: string | null }[];
+      why: string | null;
+      /** Whose reasoning is shown, and their profile. One person's sentence is
+       *  never presented as a statement about all of them. */
+      whyFor: string | null;
+      whyForUrl: string | null;
+    }[];
     /** Named seats to open on, most senior first. */
     entry: { name: string; role: string; url: string | null; why: string | null }[];
   };
@@ -1058,6 +1066,7 @@ export async function loadL3(
     people: { name: string; url: string | null }[];
     why: string | null;
     whyFor: string | null;
+    whyForUrl: string | null;
   }>();
   for (const c of contacts) {
     const slug = c.research?.offer?.trim();
@@ -1066,12 +1075,12 @@ export async function loadL3(
     // the card names whose, so nobody reads a sentence about one manager as a
     // statement about eleven.
     const row = byOffer.get(slug)
-      ?? { people: [], why: c.research?.offerWhy ?? null, whyFor: c.name };
+      ?? { people: [], why: c.research?.offerWhy ?? null, whyFor: c.name, whyForUrl: c.profileUrl };
     row.people.push({ name: c.name, url: c.profileUrl });
     byOffer.set(slug, row);
   }
   const pitch = [...byOffer.entries()]
-    .map(([offer, r]) => ({ offer, people: r.people, why: r.why, whyFor: r.whyFor }))
+    .map(([offer, r]) => ({ offer, people: r.people, why: r.why, whyFor: r.whyFor, whyForUrl: r.whyForUrl }))
     .sort((a, b) => b.people.length - a.people.length)
     .slice(0, 3);
 

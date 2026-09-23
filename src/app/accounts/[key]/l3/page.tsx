@@ -207,24 +207,21 @@ export default async function L3Page({ params, searchParams }: {
                       </div>
                       {o.why && (
                         <p className="mt-1 text-[11.5px] leading-relaxed text-[#475467]">
-                          <span className="text-[#98A2B3]">
-                            {o.whyFor ? `why, for ${o.whyFor}: ` : ""}
-                          </span>
+                          {o.whyFor && (
+                            <span className="text-[#98A2B3]">
+                              why, for{" "}
+                              {o.whyForUrl ? (
+                                <a href={o.whyForUrl} target="_blank" rel="noreferrer"
+                                  className="font-medium text-[#6941C6] hover:underline">{o.whyFor}</a>
+                              ) : (
+                                <span className="font-medium text-[#475467]">{o.whyFor}</span>
+                              )}
+                              {": "}
+                            </span>
+                          )}
                           {o.why.length > 240 ? `${o.why.slice(0, 240)}…` : o.why}
                         </p>
                       )}
-                      <p className="mt-1 text-[10.5px] text-[#98A2B3]">
-                        {o.people.slice(0, 4).map((pp, n) => (
-                          <span key={pp.name}>
-                            {n > 0 ? ", " : ""}
-                            {pp.url ? (
-                              <a href={pp.url} target="_blank" rel="noreferrer"
-                                className="text-[#6941C6] hover:underline">{pp.name}</a>
-                            ) : pp.name}
-                          </span>
-                        ))}
-                        {o.people.length > 4 ? ` +${o.people.length - 4}` : ""}
-                      </p>
                     </li>
                   ))}
                 </ul>
