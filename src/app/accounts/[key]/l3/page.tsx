@@ -17,7 +17,7 @@ export default async function L3Page({ params, searchParams }: {
   const sp = await searchParams;
   const aliases = (sp.alias ?? "").split(",").map((a) => a.trim()).filter(Boolean);
   const country = (sp.country ?? "").trim();
-  const v = await loadL3(user.orgId, key, key, aliases, country || undefined);
+  const v = await loadL3(user.orgId, key, key, aliases, country || undefined, (sp.focus ?? "").trim() || undefined);
   const focusRaw = (sp.focus ?? "").trim();
   const focus = focusRaw;
   const focusUnit = v.units.find((u) => u.unit.name.toLowerCase() === focus.toLowerCase());
@@ -283,8 +283,13 @@ export default async function L3Page({ params, searchParams }: {
 
           <div className="rounded-[10px] border border-[#EDEFF3] p-4">
             <div className="text-[11px] font-medium uppercase tracking-wide text-[#475467]">
-              LinkedIn, last 30 days
+              LinkedIn · {v.workforce.scope} · US
             </div>
+            <p className="mt-0.5 text-[11px] text-[#98A2B3]">
+              {v.workforce.from && v.workforce.to
+                ? `posts held ${v.workforce.from.toISOString().slice(0, 10)} → ${v.workforce.to.toISOString().slice(0, 10)}`
+                : "no dated posts held"}
+            </p>
             <dl className="mt-2.5 grid grid-cols-3 gap-2 text-center">
               {[
                 ["Arrivals", v.workforce.arrivals, "#027A48"],
@@ -300,9 +305,12 @@ export default async function L3Page({ params, searchParams }: {
               ))}
             </dl>
             <p className="mt-2.5 text-[11px] leading-snug text-[#98A2B3]">
-              Counted over {v.workforce.postsRead} stored posts. These are counts of POSTS
-              containing the language, never headcount — one person announcing a job is one
-              post, and so is a company announcing a restructure.
+              Counted over {v.workforce.postsRead} stored posts for this unit. Counts of POSTS
+              containing the language, never headcount. US means &ldquo;not shown to be
+              elsewhere&rdquo; — a post carries no location, so pages naming another market and
+              posts in another language are removed and the rest kept. LinkedIn&apos;s search
+              reaches back a month at most, so this window cannot be widened to meet the filing
+              date on the left; the two columns are years apart on purpose.
             </p>
           </div>
         </div>

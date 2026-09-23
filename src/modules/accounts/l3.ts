@@ -127,6 +127,14 @@ export interface WorkforceMovement {
   /** Posts using departure or layoff language. */
   exits: number;
   postsRead: number;
+  /** The unit these counts describe, and the span of posts they were taken
+   *  over. LinkedIn's post search accepts past_day, past_week or past_month and
+   *  nothing longer, so the window is whatever the scans could reach — never a
+   *  date a reader picked. Printing it stops "last 30 days" from being asserted
+   *  when it is not true. */
+  scope: string;
+  from: Date | null;
+  to: Date | null;
 }
 
 export interface L3View {
@@ -205,6 +213,9 @@ export async function loadL3(
    *  before author_country existed are null and are EXCLUDED rather than
    *  assumed — "we do not know where they are" is not "they are here". */
   country?: string,
+  /** Restrict the workforce counts to one unit — the whole account is the wrong
+   *  denominator when the question is about one of its businesses. */
+  focusUnit?: string,
 ): Promise<L3View> {
   const map = await loadAccountMap(orgId, key);
   const companyName = map?.name ?? nameHint ?? key;
@@ -562,14 +573,26 @@ export async function loadL3(
   const HIRING_RE = /\b(we are hiring|we're hiring|now hiring|#hiring|open role|open position|join our team|apply (here|now)|is looking for)\b/i;
   const EXIT_RE = /\b(last day|farewell|open to work|impacted by|role was eliminated|made redundant|laid off|layoffs?)\b/i;
 
+  const focusKey = focusUnit ? companyKey(focusUnit) : null;
+  const scopedLi = (focusKey ? allLi.filter((sg) => sg.signalKey === focusKey) : allLi)
+    // US only, as far as a post can show it. There is no location on a LinkedIn
+    // post, so this removes what is demonstrably elsewhere — an author line
+    // naming another market, or a post written in another language — and keeps
+    // the rest. That is "not shown to be elsewhere", not "proven American", and
+    // the panel says so rather than implying a precision it does not have.
+    .filter((sg) => isUsPost(sg.title, sg.body));
+  const dates = scopedLi.map((sg) => sg.publishedAt).filter((d): d is Date => Boolean(d));
   const workforce: WorkforceMovement = {
     filings: news
       .filter((sg) => sg.theme === "restructuring")
       .sort((a, b) => (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0)),
-    arrivals: allLi.filter((sg) => ARRIVAL_RE.test(sg.body ?? "")).length,
-    hiringPosts: allLi.filter((sg) => HIRING_RE.test(sg.body ?? "")).length,
-    exits: allLi.filter((sg) => EXIT_RE.test(sg.body ?? "")).length,
-    postsRead: allLi.length,
+    arrivals: scopedLi.filter((sg) => ARRIVAL_RE.test(sg.body ?? "")).length,
+    hiringPosts: scopedLi.filter((sg) => HIRING_RE.test(sg.body ?? "")).length,
+    exits: scopedLi.filter((sg) => EXIT_RE.test(sg.body ?? "")).length,
+    postsRead: scopedLi.length,
+    scope: focusUnit || companyName,
+    from: dates.length ? new Date(Math.min(...dates.map((d) => d.getTime()))) : null,
+    to: dates.length ? new Date(Math.max(...dates.map((d) => d.getTime()))) : null,
   };
 
   // Restructuring outranks recency. Sorted newest-first alone, a WARN filing
