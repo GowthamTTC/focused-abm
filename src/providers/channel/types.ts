@@ -20,6 +20,11 @@ export interface FetchedProfile {
   company: string | null;
   location: string | null;
   providerId: string | null;
+  /** Career history, when the provider returns the section. Newest first, as
+   *  LinkedIn orders it. For someone who has never written an About, this is
+   *  the only thing on the profile that says how long they have been in the
+   *  seat — which is most of what a seller wants to know. */
+  experience: { position: string | null; company: string | null; start: string | null; end: string | null }[];
 }
 
 export interface FetchedPost {

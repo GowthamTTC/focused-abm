@@ -545,29 +545,48 @@ export default async function L3Page({ params, searchParams }: {
                               {chosen.research.flag}
                             </p>
                           )}
-                          {([
-                            ["Who they are", chosen.research.aboutSummary],
-                            ["What they are measured on", chosen.research.priorities],
-                            ["Where we meet it", chosen.research.angle],
-                            ["What they post", chosen.research.postsSummary],
-                          ] as const).map(([label, body]) => body ? (
-                            <div key={label}>
-                              <div className="text-[10px] font-medium uppercase tracking-wide text-[#98A2B3]">
-                                {label}
-                              </div>
-                              <p className="mt-0.5 text-[12px] leading-relaxed text-[#344054]">{body}</p>
-                            </div>
-                          ) : null)}
-                          {chosen.research.evidence && (
-                            <p className="border-l-2 border-[#D9D6FE] pl-2.5 text-[12px] italic leading-relaxed text-[#475467]">
-                              &ldquo;{chosen.research.evidence}&rdquo;
+                          {chosen.research.offer && (
+                            <p className="rounded-[8px] bg-[#EEF4FF] px-2.5 py-2 text-[11.5px] leading-relaxed text-[#3538CD]">
+                              <b>{chosen.research.offer}</b>
+                              {chosen.research.offerWhy ? ` — ${chosen.research.offerWhy}` : ""}
                             </p>
                           )}
+
+                          <div className="grid gap-2.5 xl:grid-cols-2">
+                            <div className="rounded-[8px] border border-[#EDEFF3] p-2.5">
+                              <div className="text-[9.5px] font-medium uppercase tracking-wide text-[#98A2B3]">
+                                Observed
+                              </div>
+                              <p className="mt-1 text-[11.5px] leading-relaxed text-[#344054]">
+                                {chosen.research.observed}
+                              </p>
+                              {chosen.research.postsRead && (
+                                <p className="mt-2 text-[11px] leading-relaxed text-[#667085]">
+                                  {chosen.research.postsRead}
+                                </p>
+                              )}
+                              {chosen.research.evidence && (
+                                <p className="mt-2 border-l-2 border-[#D9D6FE] pl-2 text-[11.5px] italic leading-relaxed text-[#475467]">
+                                  &ldquo;{chosen.research.evidence}&rdquo;
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="rounded-[8px] border border-[#FDE9C9] bg-[#FFFCF5] p-2.5">
+                              <div className="text-[9.5px] font-medium uppercase tracking-wide text-[#B54708]">
+                                Inferred
+                              </div>
+                              <p className="mt-1 text-[11.5px] leading-relaxed text-[#344054]">
+                                {chosen.research.inferred}
+                              </p>
+                            </div>
+                          </div>
+
                           <p className="border-t border-[#F2F4F7] pt-2 text-[10.5px] leading-snug text-[#98A2B3]">
                             Read by {chosen.researchedBy ?? "an unnamed seat"}
                             {chosen.researchedAt ? ` on ${chosen.researchedAt.toISOString().slice(0, 10)}` : ""}.
-                            Everything above is drawn from their own profile and posts; where those
-                            were empty the note says so and reasons from the role instead.
+                            Observed is what their profile and posts say. Inferred is what follows
+                            from the role and the moment — useful, and not the same thing.
                           </p>
                         </div>
                       ) : (

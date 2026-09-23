@@ -50,7 +50,12 @@ const profileShape = z.object({
   headline: z.string().nullish(),
   summary: z.string().nullish(),
   location: z.string().nullish(),
-  work_experience: z.array(z.object({ company: z.string().nullish() }).passthrough()).nullish(),
+  work_experience: z.array(z.object({
+    company: z.string().nullish(),
+    position: z.string().nullish(),
+    start: z.string().nullish(),
+    end: z.string().nullish(),
+  }).passthrough()).nullish(),
 }).passthrough();
 
 const postItem = z.object({
@@ -175,7 +180,10 @@ export class UnipileChannelProvider implements ChannelProvider {
 
   async fetchProfile(input: { accountId: string; identifier: string }): Promise<FetchedProfile | null> {
     const p = profileShape.parse(
-      await uni(`/users/${encodeURIComponent(input.identifier)}?account_id=${input.accountId}`),
+      // linkedin_sections=* asks for the parts of a profile that are not on the
+      // public card. Without it the answer is a name, a headline and a photo —
+      // which is what "deep research" quietly became until this was noticed.
+      await uni(`/users/${encodeURIComponent(input.identifier)}?account_id=${input.accountId}&linkedin_sections=*`),
     );
     return {
       headline: p.headline ?? null,
@@ -183,6 +191,12 @@ export class UnipileChannelProvider implements ChannelProvider {
       company: p.work_experience?.[0]?.company ?? null,
       location: p.location ?? null,
       providerId: p.provider_id ?? null,
+      experience: (p.work_experience ?? []).map((w) => ({
+        position: w.position ?? null,
+        company: w.company ?? null,
+        start: w.start ?? null,
+        end: w.end ?? null,
+      })),
     };
   }
 

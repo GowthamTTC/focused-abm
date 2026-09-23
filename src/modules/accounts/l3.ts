@@ -138,10 +138,15 @@ export interface SignalContact {
    *  until a pass has run — a person with no research is a person nobody has
    *  read yet, which the page says rather than hides. */
   research: {
-    aboutSummary: string;
-    postsSummary: string;
-    priorities: string;
-    angle: string;
+    /** The offer this person opens, as a slug from the workspace catalogue,
+     *  and why that one rather than the nearest alternative. */
+    offer: string | null;
+    offerWhy: string | null;
+    /** What the fetched profile and posts say — facts, nothing else. */
+    observed: string;
+    /** What follows from role, company and moment, marked as reasoning. */
+    inferred: string;
+    postsRead: string;
     evidence: string | null;
     flag: string | null;
   } | null;
@@ -608,12 +613,16 @@ export async function loadL3(
     const fix = (d.levelOverride ?? "").trim() as SeniorityLevel;
     if (fix) levelFix.set(d.name.toLowerCase(), fix);
     const r = d.researchJson as Record<string, string | null> | null;
-    if (r && typeof r.about_summary === "string") {
+    // Two shapes live in this column: v2 splits observed from inferred, v1 wrote
+    // a summary and an angle. A row written by v1 is still a row someone can
+    // read, so it is mapped onto the same two halves rather than hidden.
+    if (r && (typeof r.observed === "string" || typeof r.about_summary === "string")) {
       researchByName.set(d.name.toLowerCase(), {
-        aboutSummary: r.about_summary ?? "",
-        postsSummary: r.posts_summary ?? "",
-        priorities: r.priorities ?? "",
-        angle: r.angle ?? "",
+        offer: r.offer ?? null,
+        offerWhy: r.offer_why ?? r.angle ?? null,
+        observed: r.observed ?? r.about_summary ?? "",
+        inferred: r.inferred ?? r.priorities ?? "",
+        postsRead: r.posts_read ?? r.posts_summary ?? "",
         evidence: r.evidence ?? null,
         flag: r.flag ?? null,
       });

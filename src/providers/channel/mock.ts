@@ -93,6 +93,10 @@ export class MockChannelProvider implements ChannelProvider {
       company: COS[(i * 7) % COS.length],
       location: relationAt(i).location,
       providerId: `mock:${i}`,
+      experience: [
+        { position: relationAt(i).headline, company: COS[(i * 7) % COS.length], start: "1/1/2022", end: null },
+        { position: "Marketing Manager", company: COS[(i * 11) % COS.length], start: "1/1/2018", end: "1/1/2022" },
+      ],
     };
   }
 

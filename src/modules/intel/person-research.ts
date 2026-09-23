@@ -17,12 +17,19 @@ import { db, accountPerson, channelAccount } from "@/db";
 import { complete } from "@/llm/client";
 import { getChannelProvider } from "@/providers/channel";
 import { getOrgSettings } from "@/modules/settings/org-settings";
+import { servicesDigest } from "@/modules/matching/service-fit";
+import { service } from "@/db";
 
 const researchOut = z.object({
-  about_summary: z.string(),
-  posts_summary: z.string(),
-  priorities: z.string(),
-  angle: z.string(),
+  /** A slug from the workspace's own catalogue, plus why that one and not the
+   *  nearest alternative. The reason is the useful half. */
+  offer: z.string(),
+  offer_why: z.string(),
+  /** Only what the fetched profile and posts say. */
+  observed: z.string(),
+  /** What follows from role, company and moment — marked as such. */
+  inferred: z.string(),
+  posts_read: z.string(),
   evidence: z.string().nullable(),
   flag: z.string().nullable(),
 });
@@ -75,6 +82,12 @@ export async function researchAccountPeople(
   const provider = getChannelProvider();
   const settings = await getOrgSettings(orgId);
   const sellerContext = settings.sellerContext?.trim() || DEFAULT_SELLER_CONTEXT;
+  // The catalogue is this workspace's own, so the offer named on a card is one
+  // the firm actually sells rather than a phrase the model liked.
+  const services = (await db.select().from(service).where(and(
+    eq(service.orgId, orgId), eq(service.status, "active"),
+  ))).map((x) => ({ slug: x.slug, name: x.name, icp: x.icpJson }));
+  const digest = servicesDigest(services, settings.catchAllSlug);
 
   const people = await db.select().from(accountPerson).where(and(
     eq(accountPerson.orgId, orgId),
@@ -94,23 +107,38 @@ export async function researchAccountPeople(
 
     let about: string | null = null;
     let headline = p.headline;
+    let experience: { position: string | null; company: string | null; start: string | null; end: string | null }[] = [];
+    // The posts endpoint wants LinkedIn's internal id, not the public slug it
+    // accepts everywhere else. Asking it for the slug returns 422 "recipient
+    // cannot be reached", which reads exactly like "this person never posts".
+    let postsId = identifier;
     try {
       const profile = await provider.fetchProfile({ accountId: seat.unipileAccountId, identifier });
       if (profile) {
         about = profile.about;
         headline = profile.headline ?? headline;
+        experience = profile.experience ?? [];
+        postsId = profile.providerId ?? identifier;
       }
     } catch { /* a profile LinkedIn will not serve is not a failed run */ }
 
     let posts: { text: string; postedAt: string | null; url: string | null }[] = [];
     try {
       const fetched = await provider.fetchRecentPosts({
-        accountId: seat.unipileAccountId, identifier, limit: 5,
+        accountId: seat.unipileAccountId, identifier: postsId, limit: 5,
       });
       posts = fetched.map((f) => ({ text: f.text, postedAt: f.postedAt, url: f.url }));
     } catch { /* posts stay empty, and the prompt is told that means something */ }
 
-    if (!about && posts.length === 0 && !headline) { out.unreachable += 1; continue; }
+    if (!about && posts.length === 0 && experience.length === 0 && !headline) {
+      out.unreachable += 1;
+      continue;
+    }
+
+    const experienceBlock = experience.length > 0
+      ? experience.slice(0, 6).map((e) =>
+          `- ${e.position ?? "?"} at ${e.company ?? "?"} (${e.start ?? "?"} → ${e.end ?? "present"})`).join("\n")
+      : "NONE";
 
     const postsBlock = posts.length > 0
       ? posts.map((x, n) => `[${n + 1}] (${x.postedAt ?? "undated"}) ${x.text.slice(0, 600)}`).join("\n\n")
@@ -119,6 +147,10 @@ export async function researchAccountPeople(
     const research = await complete({
       stage: "deepdive",
       prompt: "account-person-research",
+      // v2 splits observed from inferred. v1 is kept because rows written by it
+      // are still in the table and a reader should be able to see what produced
+      // them; nothing new is written with it.
+      version: "v2",
       vars: {
         seller_context: sellerContext,
         company_name: p.companyName,
@@ -127,14 +159,17 @@ export async function researchAccountPeople(
         location: p.location || "(not available)",
         linkedin_url: p.profileUrl || "(not available)",
         about: about || "(not available)",
+        experience_block: experienceBlock,
         posts_block: postsBlock,
       },
+      cachedContext: digest,
       schema: researchOut,
-      maxTokens: 1200,
+      maxTokens: 1400,
     });
 
     await db.update(accountPerson).set({
       about,
+      experienceJson: experience,
       headline,
       postsJson: posts,
       researchJson: research,

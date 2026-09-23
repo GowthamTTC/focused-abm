@@ -176,6 +176,13 @@
       "when": 1790152012845,
       "tag": "0024_wet_doctor_strange",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1790153957390,
+      "tag": "0025_watery_makkari",
+      "breakpoints": true
     }
   ]
 }

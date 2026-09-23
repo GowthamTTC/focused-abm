@@ -516,6 +516,10 @@ export const accountPerson = pgTable("account_person", {
   // ── Filled by a research pass; null until one runs ──
   /** The About section as LinkedIn returned it, verbatim. */
   about: text("about"),
+  /** Career history as the profile returned it, newest first. For the many
+   *  people who never wrote an About, this is the only thing on the profile
+   *  that says how long they have held the seat. */
+  experienceJson: jsonb("experience_json").$type<{ position: string | null; company: string | null; start: string | null; end: string | null }[]>(),
   /** Their recent posts as fetched, JSON — text, date, url. The evidence the
    *  summary below rests on, kept so a claim can be checked against it. */
   postsJson: jsonb("posts_json").$type<{ text: string; postedAt: string | null; url: string | null }[]>(),
