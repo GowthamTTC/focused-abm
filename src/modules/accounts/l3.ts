@@ -19,7 +19,7 @@ import { loadAccountMap, mapKeys, type AccountMapRow } from "@/modules/accounts/
 import { voiceOf } from "@/modules/intel/voice";
 import { isUsPost } from "@/modules/accounts/us-filter";
 import { bucketOf, BUCKET_LABELS, BUCKET_ORDER, type PostBucket } from "@/modules/accounts/post-buckets";
-import { buildNarratives, type Narrative } from "@/modules/accounts/narratives";
+import { buildNarratives, NARRATIVES, type Narrative } from "@/modules/accounts/narratives";
 import { scoreOpportunity, type OpportunityScore } from "@/modules/accounts/opportunity-score";
 import { competitorHits } from "@/modules/pulse/competitors";
 import { getOrgSettings } from "@/modules/settings/org-settings";
@@ -170,6 +170,23 @@ export interface SignalContact {
    *  whitespace at the level of a person rather than a function. */
   connected: boolean;
   connectionId: string | null;
+  /** Why this person is on the list at all, and how strongly. Seniority is one
+   *  component and not the answer: the people who matter are the ones closest
+   *  to the problem, not the ones highest on the chart. */
+  relevance: {
+    score: number;
+    /** Plain sentences, in the order they contributed. */
+    reasons: string[];
+    /** The opportunity they sit closest to, when one fits. */
+    opportunity: string | null;
+    /** Narratives their role intersects. */
+    narratives: string[];
+    /** Owner, influencer or sponsor — read off the title, and labelled as a
+     *  reading rather than a fact. */
+    buyingRole: string;
+    /** The one thing to establish about them before outreach. */
+    gap: string;
+  };
 }
 
 /** Movement in and out of the account, counted two different ways because the
@@ -641,7 +658,7 @@ export async function loadL3(
     ? allLi.filter((sg) => sg.signalKey === focusKey || (focusRe?.test(sg.title ?? "") ?? false))
     : [];
   const contactPool = unitLi.length ? unitLi : allLi;
-  const byPerson = new Map<string, Omit<SignalContact, "connected" | "connectionId">>();
+  const byPerson = new Map<string, Omit<SignalContact, "connected" | "connectionId" | "relevance"> & Partial<Pick<SignalContact, "relevance">>>();
   for (const sg of contactPool) {
     if (voiceOf(sg.title, sg.companyName ?? companyName, extraAliases) !== "employee") continue;
     // US only, and only the unit in question — the same two filters the
@@ -735,6 +752,7 @@ export async function loadL3(
       level: levelOf(headline),
       source: "search",
       profileUrl: d.profileUrl,
+      relevance: { score: 0, reasons: [], opportunity: null, narratives: [], buyingRole: "", gap: "" },
       research: null,
       researchedAt: null,
       researchedBy: null,
@@ -1165,6 +1183,64 @@ export async function loadL3(
     };
   }).sort((a, b) => b.strength.total - a.strength.total);
 
+  // ── Ranking the people ──────────────────────────────────────────────────
+  // Relevance to the opportunities, not height on the chart. An SVP with no
+  // connection to what is happening ranks below the training manager whose
+  // function is the narrative — that is the whole point of the layer, and the
+  // reasons are kept so a reader can disagree with the order.
+  const LEVEL_POINTS: Record<SeniorityLevel, number> = {
+    exec: 10, vp: 9, director: 7, trainer: 5, manager: 4, other: 2,
+  };
+  const ranked: SignalContact[] = contacts.map((c) => {
+    const reasons: string[] = [];
+    let score = 0;
+
+    const opp = opportunities.find((o) => o.offer === c.research?.offer) ?? null;
+    if (opp) {
+      const add = Math.round(opp.strength.total / 4);
+      score += add;
+      reasons.push(`Research put them against ${opp.offer}, the ${opp.strength.total}/100 opportunity.`);
+    }
+
+    const hitNarratives = NARRATIVES
+      .filter((n) => n.pressWords.test(c.role))
+      .map((n) => n.title);
+    if (hitNarratives.length > 0) {
+      score += Math.min(24, hitNarratives.length * 8);
+      reasons.push(`Their role sits inside ${hitNarratives.length} live narrative${hitNarratives.length === 1 ? "" : "s"}: ${hitNarratives.join("; ")}.`);
+    }
+
+    const isFunction = ICP_FUNCTION_RE.test(c.role);
+    if (isFunction) { score += 12; reasons.push("The role IS people development, not adjacent to it."); }
+
+    score += LEVEL_POINTS[c.level];
+
+    const fresh = c.lastPostAt && Date.now() - c.lastPostAt.getTime() < 30 * 86400000;
+    if (fresh) { score += 8; reasons.push("Posted in the last 30 days — there is something of theirs to open on."); }
+    if (c.amiEvent) { score += 6; reasons.push("Named in the Allergan Medical Institute programme."); }
+    if (c.newArrival) { score += 5; reasons.push("New in seat, by their own words — the window before habits set."); }
+    if (c.research) score += 3;
+    if (c.connected) { score += 10; reasons.push("Already connected to someone in this workspace."); }
+
+    const buyingRole = isFunction
+      ? (c.level === "exec" || c.level === "vp" || c.level === "director"
+          ? "Likely problem owner" : "Practitioner, likely influencer")
+      : (c.level === "exec" || c.level === "vp"
+          ? "Likely sponsor or budget holder" : "Possible influencer");
+
+    const gap = c.research?.flag
+      ? c.research.flag
+      : !c.research
+        ? "Not read yet — their relevance is a guess until they are."
+        : /no posts/i.test(c.research.postsRead)
+          ? "Writes nothing in public: confirm their remit before assuming it."
+          : !c.connected
+            ? "No route in from this workspace — find one before outreach."
+            : "Confirm whether the budget for this sits with them.";
+
+    return { ...c, relevance: { score, reasons, opportunity: opp?.offer ?? null, narratives: hitNarratives, buyingRole, gap } };
+  }).sort((a, b) => b.relevance.score - a.relevance.score || a.name.localeCompare(b.name));
+
   // ── Unknowns ────────────────────────────────────────────────────────────
   // Assembled from what the page cannot answer, not from a list somebody typed.
   // Each one is a question whose answer would change how this account is
@@ -1299,7 +1375,7 @@ export async function loadL3(
     postMixTotal: mixSource.length,
     focusApplied: busiest,
     geo,
-    contacts,
+    contacts: ranked,
     triggerScore,
     voicePosts,
     queries,

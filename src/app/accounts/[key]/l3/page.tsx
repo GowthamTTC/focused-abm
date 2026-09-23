@@ -636,6 +636,9 @@ export default async function L3Page({ params, searchParams }: {
                         className={`block px-3.5 py-2.5 hover:bg-[#F9FAFB] ${
                           chosen && c.name === chosen.name ? "bg-[#EEF4FF]" : ""}`}>
                         <div className="flex flex-wrap items-baseline gap-2">
+                          <span className="w-5 shrink-0 text-right font-mono text-[10px] text-[#98A2B3]">
+                            {shown.indexOf(c) + 1}
+                          </span>
                           <span className="text-[12.5px] font-medium text-[#101828]">{c.name}</span>
                           {c.newArrival && (
                             <span className="rounded-[5px] bg-[#ECFDF3] px-1.5 py-0.5 text-[10px] font-medium text-[#027A48]">
@@ -685,6 +688,32 @@ export default async function L3Page({ params, searchParams }: {
                               className="text-[#4F46E5] hover:underline">profile ↗</a>
                           )}
                         </span>
+                      </div>
+
+                      <div className="mt-2.5 rounded-[8px] border border-[#EDEFF3] bg-[#FCFCFD] p-2.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-[5px] bg-[#101828] px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                            relevance {chosen.relevance.score}
+                          </span>
+                          <span className="rounded-[5px] bg-[#EEF4FF] px-1.5 py-0.5 text-[10px] font-medium text-[#3538CD]">
+                            {chosen.relevance.buyingRole}
+                          </span>
+                          <span className={`rounded-[5px] px-1.5 py-0.5 text-[10px] font-medium ${
+                            chosen.connected ? "bg-[#ECFDF3] text-[#027A48]" : "bg-[#FEF3F2] text-[#B42318]"}`}>
+                            {chosen.connected ? "Connected" : "No relationship"}
+                          </span>
+                        </div>
+                        {chosen.relevance.reasons.length > 0 && (
+                          <ul className="mt-2 space-y-1">
+                            {chosen.relevance.reasons.map((r) => (
+                              <li key={r} className="text-[11.5px] leading-snug text-[#475467]">— {r}</li>
+                            ))}
+                          </ul>
+                        )}
+                        <p className="mt-2 text-[11px] leading-snug text-[#B54708]">
+                          <span className="font-medium uppercase tracking-wide">Gap · </span>
+                          {chosen.relevance.gap}
+                        </p>
                       </div>
 
                       {chosen.research ? (
