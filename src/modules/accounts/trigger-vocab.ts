@@ -41,7 +41,7 @@ export interface TriggerSignal {
 export const DEFAULT_TRIGGERS: TriggerSignal[] = [
   {
     phrase: "restructuring", label: "Restructuring", weight: 5,
-    offer: "leadership-communication-development-ingo",
+    offer: "leadership-communication-development",
     why: "A reorganisation is announced once and lived with for a year. The people who stay need their leaders to explain it credibly and repeatedly, and that is the work — not the announcement, the eighteen months after it.",
   },
   {
@@ -51,7 +51,7 @@ export const DEFAULT_TRIGGERS: TriggerSignal[] = [
   },
   {
     phrase: "layoffs", label: "Layoffs", weight: 4,
-    offer: "leadership-communication-development-ingo",
+    offer: "leadership-communication-development",
     why: "Survivors watch how it was handled and decide what the company is. Managers carrying that conversation are usually doing it for the first time.",
   },
   {
@@ -61,7 +61,7 @@ export const DEFAULT_TRIGGERS: TriggerSignal[] = [
   },
   {
     phrase: "new president", label: "New unit leader", weight: 5,
-    offer: "leadership-communication-development-ingo",
+    offer: "leadership-communication-development",
     why: "A leader arriving over an existing team spends the first year explaining a direction nobody there chose. What that costs is decided in how it is said, not in the strategy deck.",
   },
   {
@@ -81,12 +81,12 @@ export const DEFAULT_TRIGGERS: TriggerSignal[] = [
   },
   {
     phrase: "town hall", label: "Town hall / all-hands", weight: 4,
-    offer: "leadership-communication-development-ingo",
+    offer: "leadership-communication-development",
     why: "Town halls are where leaders are believed, or are not. Presence under scrutiny is learnable, and internal communications owns both the moment and the budget.",
   },
   {
     phrase: "leadership development", label: "Leadership development", weight: 4,
-    offer: "leadership-communication-development-ingo",
+    offer: "leadership-communication-development",
     why: "Our category, named by them. Someone already owns a programme and a calendar, so the conversation starts at fit rather than at why this matters.",
   },
   {
@@ -116,7 +116,7 @@ export const DEFAULT_TRIGGERS: TriggerSignal[] = [
   },
   {
     phrase: "employee engagement", label: "Employee engagement", weight: 3,
-    offer: "leadership-communication-development-ingo",
+    offer: "leadership-communication-development",
     why: "Engagement is a leadership-communication problem in a survey's clothing. The spend follows within a quarter.",
   },
   {

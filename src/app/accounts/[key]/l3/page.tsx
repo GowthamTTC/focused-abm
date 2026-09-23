@@ -164,7 +164,7 @@ export default async function L3Page({ params, searchParams }: {
 
           <div className="mt-2.5 flex flex-wrap gap-x-6 gap-y-1.5">
             {([
-              ["Evidence strength", `${v.exec.stats.independentEvents} independent events`],
+              ["Evidence", `${v.exec.stats.sources} distinct sources · ${v.exec.stats.narratives} narratives`],
               ["Functions involved", String(v.exec.stats.functions)],
               ["Relevant people", String(v.exec.stats.people)],
               ["Latest signal", v.exec.stats.latest ? v.exec.stats.latest.toISOString().slice(0, 10) : "—"],

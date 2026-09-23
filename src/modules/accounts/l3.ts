@@ -271,7 +271,18 @@ export interface L3View {
     /** What the account looks like at a glance, in the four numbers the
      *  framework asks for: how much independent evidence, how many functions
      *  it touches, how many people it reaches, and how fresh it is. */
-    stats: { independentEvents: number; functions: number; people: number; latest: Date | null };
+    stats: {
+      /** DISTINCT pieces of evidence across the narratives. A press item that
+       *  supports two narratives is one source, not two, and a trigger that
+       *  matched eight posts is one source too — the number answers "how many
+       *  different things point this way", which is the only version of it a
+       *  reader can check. */
+      sources: number;
+      narratives: number;
+      functions: number;
+      people: number;
+      latest: Date | null;
+    };
     /** Kept apart on purpose. The first is what the company did; the second is
      *  what we think it implies, and the page never blends them. */
     observed: string;
@@ -1312,13 +1323,14 @@ export async function loadL3(
   const exec = topSignal || topOpp
     ? {
         stats: {
-          independentEvents: narratives.reduce((t, n) => t + n.strands, 0),
+          sources: new Set(narratives.flatMap((n) => n.evidence.map((e) => e.url ?? e.label))).size,
+          narratives: narratives.length,
           functions: functionsTouched,
           people: contacts.length,
           latest: latestSignal.length ? new Date(Math.max(...latestSignal)) : null,
         },
         observed: narratives.length > 0
-          ? `${busiest ?? companyName} ${narratives.map((n) => n.title.replace(/^The /, "").toLowerCase()).slice(0, 3).join(", ")} — recorded across ${narratives.reduce((t, n) => t + n.strands, 0)} independent pieces of evidence.`
+          ? `${busiest ?? companyName} ${narratives.map((n) => n.title.replace(/^The /, "").toLowerCase()).slice(0, 3).join(", ")} — recorded across ${new Set(narratives.flatMap((n) => n.evidence.map((e) => e.url ?? e.label))).size} distinct sources.`
           : "Nothing has been recorded from more than one source yet.",
         inferred: topOpp
           ? `These may create a need around ${topOpp.offer.replace(/-/g, " ")}, and the page treats that as a hypothesis until someone at the account says otherwise.`

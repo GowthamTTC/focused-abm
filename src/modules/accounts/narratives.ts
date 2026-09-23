@@ -43,7 +43,7 @@ export const NARRATIVES: NarrativeDef[] = [
     relevance: "Leadership alignment and manager communication. A reorganisation is announced once and explained for a year.",
     phrases: ["restructuring", "reorganization", "layoffs", "new president", "town hall", "succession"],
     pressWords: /\b(reorganization|reorganisation|restructur|layoff|warn notice|new president|appointed)\b/i,
-    offer: "leadership-communication-development-ingo",
+    offer: "leadership-communication-development",
   },
   {
     key: "customer-reset",

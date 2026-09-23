@@ -21,7 +21,7 @@ import { servicesDigest } from "../src/modules/matching/service-fit";
 import type { IcpJson } from "../src/db/schema";
 
 const EMAIL = process.env.WORKSPACE_EMAIL ?? "apingel@arielgroup.com";
-const CATCH_ALL = process.env.CATCH_ALL ?? "leadership-communication-development-ingo";
+const CATCH_ALL = process.env.CATCH_ALL ?? "leadership-communication-development";
 const SAMPLE = Number(process.env.SAMPLE ?? 150);
 const BATCH = 25;
 
