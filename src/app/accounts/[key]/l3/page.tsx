@@ -125,7 +125,7 @@ export default async function L3Page({ params, searchParams }: {
 
       {/* ── intelligence overview ── */}
       {(v.overview.pains.length > 0 || v.overview.pitch.length > 0) && (
-        <section className={`${CARD} mt-4 p-5`}>
+        <section className="mt-4 rounded-[14px] border border-[#DDD6FE] bg-gradient-to-br from-[#F6F4FF] via-white to-[#EEF4FF] p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <h2 className="text-[15px] font-semibold">Intelligence overview</h2>
           <p className="mt-1 max-w-3xl text-[12px] text-[#667085]">
             Assembled from the sections below, not written over them — every line here points
@@ -144,7 +144,7 @@ export default async function L3Page({ params, searchParams }: {
               ) : (
                 <ul className="mt-2 space-y-2.5">
                   {v.overview.pains.map((p) => (
-                    <li key={p.title} className="rounded-[8px] border border-[#EDEFF3] p-2.5">
+                    <li key={p.title} className="rounded-[8px] border border-white/70 bg-white/70 p-2.5 backdrop-blur-[2px]">
                       <div className="flex flex-wrap items-baseline justify-between gap-2">
                         <span className="text-[12.5px] font-medium text-[#101828]">{p.title}</span>
                         <span className="shrink-0 text-[10.5px] text-[#98A2B3]">{p.source}</span>
@@ -171,7 +171,7 @@ export default async function L3Page({ params, searchParams }: {
               ) : (
                 <ul className="mt-2 space-y-2.5">
                   {v.overview.pitch.map((o) => (
-                    <li key={o.offer} className="rounded-[8px] border border-[#EDEFF3] p-2.5">
+                    <li key={o.offer} className="rounded-[8px] border border-white/70 bg-white/70 p-2.5 backdrop-blur-[2px]">
                       <div className="flex flex-wrap items-baseline justify-between gap-2">
                         <span className="text-[12.5px] font-medium text-[#101828]">{o.offer}</span>
                         <span className="shrink-0 text-[10.5px] text-[#98A2B3]">
@@ -187,7 +187,15 @@ export default async function L3Page({ params, searchParams }: {
                         </p>
                       )}
                       <p className="mt-1 text-[10.5px] text-[#98A2B3]">
-                        {o.people.slice(0, 4).join(", ")}
+                        {o.people.slice(0, 4).map((pp, n) => (
+                          <span key={pp.name}>
+                            {n > 0 ? ", " : ""}
+                            {pp.url ? (
+                              <a href={pp.url} target="_blank" rel="noreferrer"
+                                className="text-[#6941C6] hover:underline">{pp.name}</a>
+                            ) : pp.name}
+                          </span>
+                        ))}
                         {o.people.length > 4 ? ` +${o.people.length - 4}` : ""}
                       </p>
                     </li>
@@ -203,7 +211,14 @@ export default async function L3Page({ params, searchParams }: {
                   <ul className="mt-1.5 space-y-1">
                     {v.overview.entry.map((e) => (
                       <li key={e.name} className="text-[11.5px] leading-snug text-[#475467]">
-                        <span className="font-medium text-[#101828]">{e.name}</span>
+                        {e.url ? (
+                          <a href={e.url} target="_blank" rel="noreferrer"
+                            className="font-medium text-[#101828] hover:text-[#6941C6] hover:underline">
+                            {e.name} ↗
+                          </a>
+                        ) : (
+                          <span className="font-medium text-[#101828]">{e.name}</span>
+                        )}
                         {e.role ? ` — ${e.role.slice(0, 70)}` : ""}
                       </li>
                     ))}

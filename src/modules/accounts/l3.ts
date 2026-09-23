@@ -240,9 +240,9 @@ export interface L3View {
    *  below it rather than being a paragraph somebody wrote once. */
   overview: {
     pains: { title: string; detail: string; source: string }[];
-    pitch: { offer: string; people: string[]; why: string | null; whyFor: string | null }[];
+    pitch: { offer: string; people: { name: string; url: string | null }[]; why: string | null; whyFor: string | null }[];
     /** Named seats to open on, most senior first. */
-    entry: { name: string; role: string; why: string | null }[];
+    entry: { name: string; role: string; url: string | null; why: string | null }[];
   };
   /** Press about the business, newest first — the releases that carry the
    *  unit's own numbers and decisions, which its LinkedIn page does not. */
@@ -1032,7 +1032,11 @@ export async function loadL3(
 
   // Which offer the research kept landing on, and for whom. An offer named
   // once is an opinion; an offer named for six people is a route in.
-  const byOffer = new Map<string, { people: string[]; why: string | null; whyFor: string | null }>();
+  const byOffer = new Map<string, {
+    people: { name: string; url: string | null }[];
+    why: string | null;
+    whyFor: string | null;
+  }>();
   for (const c of contacts) {
     const slug = c.research?.offer?.trim();
     if (!slug) continue;
@@ -1041,7 +1045,7 @@ export async function loadL3(
     // statement about eleven.
     const row = byOffer.get(slug)
       ?? { people: [], why: c.research?.offerWhy ?? null, whyFor: c.name };
-    row.people.push(c.name);
+    row.people.push({ name: c.name, url: c.profileUrl });
     byOffer.set(slug, row);
   }
   const pitch = [...byOffer.entries()]
@@ -1054,7 +1058,7 @@ export async function loadL3(
     .filter((c) => c.research && !c.research.flag)
     .sort((a, b) => ENTRY_ORDER.indexOf(a.level) - ENTRY_ORDER.indexOf(b.level))
     .slice(0, 3)
-    .map((c) => ({ name: c.name, role: c.role, why: c.research?.offerWhy ?? null }));
+    .map((c) => ({ name: c.name, role: c.role, url: c.profileUrl, why: c.research?.offerWhy ?? null }));
 
   const overview = { pains: pains.slice(0, 4), pitch, entry };
 
