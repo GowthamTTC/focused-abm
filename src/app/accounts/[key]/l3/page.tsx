@@ -153,15 +153,7 @@ export default async function L3Page({ params, searchParams }: {
             <div className="flex flex-wrap items-start justify-between gap-2">
               <h2 className="text-[13px] font-semibold">Org-chart whitespace map</h2>
             </div>
-            <p className="mt-1 text-[11.5px] text-[#667085]">
-              Entities with their own public website — correct it in the{" "}
-              <Link href={`/accounts/${encodeURIComponent(key)}`} className="text-[#4F46E5] hover:underline">map editor</Link>.
-            </p>
             <OrgTree root={v.companyName} nodes={treeNodes} />
-            <p className="mt-3 text-center text-[11px] text-[#98A2B3]">
-              {siteUnits.length} of {v.counts.mapped} mapped units have their own website ·{" "}
-              {v.counts.whitespace} of {v.counts.mapped} have no engagement
-            </p>
           </div>
         </div>
       </section>
@@ -314,37 +306,6 @@ export default async function L3Page({ params, searchParams }: {
             </p>
           </div>
         </div>
-      </section>
-
-      {/* ── how it was searched ── */}
-      <section className={`${CARD} mt-4 p-5`}>
-        {v.queries.length > 0 && (
-        <div className="mt-4 border-t border-[#F2F4F7] pt-3.5">
-          <h3 className="text-[13px] font-semibold">How these were found</h3>
-          <p className="mt-1 text-[11.5px] text-[#667085]">
-            Every phrase this account has been searched with. The ones that returned
-            nothing are listed too — a search that finds no restructuring is a finding,
-            not a gap.
-          </p>
-          <ul className="mt-2.5 flex flex-wrap gap-1.5">
-            {v.queries.map((q) => (
-              <li key={q.keywords + String(q.at)}
-                className={`rounded-[7px] border px-2 py-1 text-[11px] ${
-                  q.stored > 0
-                    ? "border-[#ABEFC6] bg-[#F6FEF9] text-[#027A48]"
-                    : "border-[#E4E7EC] bg-[#FAFBFC] text-[#98A2B3]"
-                }`}>
-                {q.keywords}
-                <span className="ml-1.5 opacity-70">{q.stored}/{q.seen}</span>
-              </li>
-            ))}
-          </ul>
-          <p className="mt-2 text-[10.5px] text-[#98A2B3]">
-            kept / returned. A post is kept only when it names the company, so a large
-            gap between the two is the guard doing its job.
-          </p>
-        </div>
-      )}
       </section>
 
       {/* ── decision-makers ── */}
