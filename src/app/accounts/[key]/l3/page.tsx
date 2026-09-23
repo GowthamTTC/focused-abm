@@ -78,11 +78,7 @@ export default async function L3Page({ params, searchParams }: {
             {focusUnit && <>{" › "}<span className="font-medium text-[#4F46E5]">{focusUnit.unit.name}</span></>}
           </p>
           <h1 className="mt-1.5 text-[26px] font-semibold tracking-[-.01em]">L3 Account Intelligence</h1>
-          <p className="mt-1 max-w-2xl text-[13.5px] text-[#475467]">
-            Map <span className="font-semibold text-[#101828]">whitespace</span>, read what the
-            account is saying and who is moving, and see who still has to be identified before
-            an expansion play is real.
-          </p>
+
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Link href={`/accounts/${encodeURIComponent(key)}`} className={BTN_GHOST}>Edit the org map</Link>
@@ -125,6 +121,98 @@ export default async function L3Page({ params, searchParams }: {
         <p className="mt-3 rounded-[8px] bg-[#EEF4FF] px-3 py-2 text-[13px] text-[#4F46E5]">
           Scan queued — refresh in a minute.
         </p>
+      )}
+
+      {/* ── intelligence overview ── */}
+      {(v.overview.pains.length > 0 || v.overview.pitch.length > 0) && (
+        <section className={`${CARD} mt-4 p-5`}>
+          <h2 className="text-[15px] font-semibold">Intelligence overview</h2>
+          <p className="mt-1 max-w-3xl text-[12px] text-[#667085]">
+            Assembled from the sections below, not written over them — every line here points
+            at a filing, a scored signal or a researched name you can open.
+          </p>
+
+          <div className="mt-3.5 grid gap-4 lg:grid-cols-2">
+            <div>
+              <div className="text-[10.5px] font-medium uppercase tracking-wide text-[#B42318]">
+                Where it hurts
+              </div>
+              {v.overview.pains.length === 0 ? (
+                <p className="mt-2 text-[12px] text-[#667085]">
+                  Nothing filed and no signal fired in the window.
+                </p>
+              ) : (
+                <ul className="mt-2 space-y-2.5">
+                  {v.overview.pains.map((p) => (
+                    <li key={p.title} className="rounded-[8px] border border-[#EDEFF3] p-2.5">
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <span className="text-[12.5px] font-medium text-[#101828]">{p.title}</span>
+                        <span className="shrink-0 text-[10.5px] text-[#98A2B3]">{p.source}</span>
+                      </div>
+                      {p.detail && (
+                        <p className="mt-1 text-[11.5px] leading-relaxed text-[#475467]">
+                          {p.detail.length > 260 ? `${p.detail.slice(0, 260)}…` : p.detail}
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div>
+              <div className="text-[10.5px] font-medium uppercase tracking-wide text-[#027A48]">
+                How to pitch it
+              </div>
+              {v.overview.pitch.length === 0 ? (
+                <p className="mt-2 text-[12px] text-[#667085]">
+                  No offer has been landed on yet — research the people first.
+                </p>
+              ) : (
+                <ul className="mt-2 space-y-2.5">
+                  {v.overview.pitch.map((o) => (
+                    <li key={o.offer} className="rounded-[8px] border border-[#EDEFF3] p-2.5">
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <span className="text-[12.5px] font-medium text-[#101828]">{o.offer}</span>
+                        <span className="shrink-0 text-[10.5px] text-[#98A2B3]">
+                          fits {o.people.length} {o.people.length === 1 ? "person" : "people"}
+                        </span>
+                      </div>
+                      {o.why && (
+                        <p className="mt-1 text-[11.5px] leading-relaxed text-[#475467]">
+                          <span className="text-[#98A2B3]">
+                            {o.whyFor ? `why, for ${o.whyFor}: ` : ""}
+                          </span>
+                          {o.why.length > 240 ? `${o.why.slice(0, 240)}…` : o.why}
+                        </p>
+                      )}
+                      <p className="mt-1 text-[10.5px] text-[#98A2B3]">
+                        {o.people.slice(0, 4).join(", ")}
+                        {o.people.length > 4 ? ` +${o.people.length - 4}` : ""}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {v.overview.entry.length > 0 && (
+                <div className="mt-3">
+                  <div className="text-[10.5px] font-medium uppercase tracking-wide text-[#475467]">
+                    Open on
+                  </div>
+                  <ul className="mt-1.5 space-y-1">
+                    {v.overview.entry.map((e) => (
+                      <li key={e.name} className="text-[11.5px] leading-snug text-[#475467]">
+                        <span className="font-medium text-[#101828]">{e.name}</span>
+                        {e.role ? ` — ${e.role.slice(0, 70)}` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
       )}
 
       {/* ── account card ── */}

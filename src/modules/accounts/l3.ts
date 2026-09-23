@@ -234,6 +234,16 @@ export interface L3View {
    *  newsroom publishes investor calendar; its LinkedIn page publishes what the
    *  business is actually doing, which is the thing a seller wants. */
   companyUpdates: VoicePost[];
+  /** The account in one screen: what hurts, and what to open with. Assembled
+   *  from what is already on the page — the filing, the signals that fired, the
+   *  offers the research kept landing on — so every line traces to a section
+   *  below it rather than being a paragraph somebody wrote once. */
+  overview: {
+    pains: { title: string; detail: string; source: string }[];
+    pitch: { offer: string; people: string[]; why: string | null; whyFor: string | null }[];
+    /** Named seats to open on, most senior first. */
+    entry: { name: string; role: string; why: string | null }[];
+  };
   /** Press about the business, newest first — the releases that carry the
    *  unit's own numbers and decisions, which its LinkedIn page does not. */
   announcements: PressNote[];
@@ -978,6 +988,76 @@ export async function loadL3(
     })
     .sort((a, b) => b.stored - a.stored || b.seen - a.seen);
 
+  // ── The overview ────────────────────────────────────────────────────────
+  // Assembled, not written. Every line points at something else on the page:
+  // a filing you can open, a signal that fired with its points, an offer the
+  // research landed on for named people. Nothing here is a claim the sections
+  // below cannot support.
+  const pains: L3View["overview"]["pains"] = [];
+  // The unit's own filings first, decided by the key the row is stored under —
+  // not by reading the text. Newest-first put AbbVie's EYE CARE notice at the
+  // top of an Allergan Aesthetics page, and a text test kept it there, because
+  // the body of that notice says the words "Allergan Aesthetics" in the course
+  // of explaining that it is not about Allergan Aesthetics.
+  const painFilings = pressRows
+    .filter((r) => r.kind === "filing" && r.theme === "restructuring")
+    .sort((a, b) => {
+      const mine = (x: typeof a) => (focusKey && x.signalKey === focusKey ? 0 : 1);
+      return mine(a) - mine(b)
+        || (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0);
+    });
+  for (const f of painFilings.slice(0, 2)) {
+    pains.push({
+      title: (f.title ?? "").replace(/ \(WARN notice\)$/, ""),
+      detail: (f.body ?? "").replace(/\s+/g, " ").slice(0, 200),
+      source: f.publishedAt ? `filed ${f.publishedAt.toISOString().slice(0, 10)}` : "filing",
+    });
+  }
+  for (const hit of triggerScore.fired.slice(0, 3)) {
+    pains.push({
+      title: hit.trigger.label,
+      detail: hit.trigger.why ?? "",
+      source: `${hit.hits} post${hit.hits === 1 ? "" : "s"} · ${Math.round(hit.points)} pts`,
+    });
+  }
+  for (const a of announcements.slice(0, 2)) {
+    const t = a.matchedTriggers[0];
+    if (!t) continue;
+    pains.push({
+      title: a.title ?? t.label,
+      detail: t.why ?? "",
+      source: a.publishedAt ? a.publishedAt.toISOString().slice(0, 10) : "press",
+    });
+  }
+
+  // Which offer the research kept landing on, and for whom. An offer named
+  // once is an opinion; an offer named for six people is a route in.
+  const byOffer = new Map<string, { people: string[]; why: string | null; whyFor: string | null }>();
+  for (const c of contacts) {
+    const slug = c.research?.offer?.trim();
+    if (!slug) continue;
+    // The reason shown is one person's, because that is how it was written —
+    // the card names whose, so nobody reads a sentence about one manager as a
+    // statement about eleven.
+    const row = byOffer.get(slug)
+      ?? { people: [], why: c.research?.offerWhy ?? null, whyFor: c.name };
+    row.people.push(c.name);
+    byOffer.set(slug, row);
+  }
+  const pitch = [...byOffer.entries()]
+    .map(([offer, r]) => ({ offer, people: r.people, why: r.why, whyFor: r.whyFor }))
+    .sort((a, b) => b.people.length - a.people.length)
+    .slice(0, 3);
+
+  const ENTRY_ORDER: SeniorityLevel[] = ["exec", "vp", "director", "manager", "trainer", "other"];
+  const entry = [...contacts]
+    .filter((c) => c.research && !c.research.flag)
+    .sort((a, b) => ENTRY_ORDER.indexOf(a.level) - ENTRY_ORDER.indexOf(b.level))
+    .slice(0, 3)
+    .map((c) => ({ name: c.name, role: c.role, why: c.research?.offerWhy ?? null }));
+
+  const overview = { pains: pains.slice(0, 4), pitch, entry };
+
   return {
     companyKey: key,
     companyName,
@@ -997,6 +1077,7 @@ export async function loadL3(
     workforce,
     companyUpdates,
     announcements,
+    overview,
     geo,
     contacts,
     triggerScore,
