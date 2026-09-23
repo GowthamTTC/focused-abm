@@ -479,6 +479,35 @@ export const accountSignal = pgTable("account_signal", {
   index("account_signal_org_key_idx").on(t.orgId, t.companyKey, t.publishedAt),
 ]);
 
+/** People found at an account by searching LinkedIn for them, as opposed to
+ *  waiting for them to post. The post feed only ever shows the fraction of an
+ *  organisation that writes in public; an account plan needs the ones who do
+ *  the job quietly too. Rows are what LinkedIn's own people search returned —
+ *  a name, a headline and a profile — and nothing is inferred beyond that. */
+export const accountPerson = pgTable("account_person", {
+  id: id(),
+  orgId: text("org_id").notNull().references(() => org.id),
+  companyKey: text("company_key").notNull(),
+  companyName: text("company_name").notNull(),
+  name: text("name").notNull(),
+  headline: text("headline"),
+  location: text("location"),
+  country: text("country"),
+  profileUrl: text("profile_url"),
+  /** LinkedIn's own ids, kept so a later enrich can find the same person. */
+  publicIdentifier: text("public_identifier"),
+  memberId: text("member_id"),
+  /** "2" or "3" — how far this person is from the seat that searched. */
+  networkDistance: text("network_distance"),
+  /** The search phrase that surfaced them. Provenance, same as signals. */
+  capturedBy: text("captured_by"),
+  createdAt: ts("created_at").notNull().defaultNow(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("account_person_uq").on(t.orgId, t.companyKey, t.profileUrl),
+  index("account_person_org_key_idx").on(t.orgId, t.companyKey),
+]);
+
 export const networkSnapshot = pgTable("network_snapshot", {
   id: id(),
   orgId: text("org_id").notNull().references(() => org.id),

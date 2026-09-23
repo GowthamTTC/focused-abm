@@ -155,6 +155,13 @@
       "when": 1790069812576,
       "tag": "0021_sloppy_energizer",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1790145836732,
+      "tag": "0022_wise_the_enforcers",
+      "breakpoints": true
     }
   ]
 }

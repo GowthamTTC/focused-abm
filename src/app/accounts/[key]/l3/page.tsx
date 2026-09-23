@@ -424,9 +424,10 @@ export default async function L3Page({ params, searchParams }: {
             <div>
               <h2 className="text-[15px] font-semibold">People who match the ICP</h2>
               <p className="mt-1 max-w-3xl text-[12px] text-[#667085]">
-                From posts already stored, US only, headline says they work here — kept only
-                where the role buys leadership and communication development or owns a team it
-                would be bought for.
+                Everyone whose LinkedIn headline puts them at this unit, US only — from posts
+                we hold and from searching LinkedIn for the roles themselves. Kept only where the
+                role buys leadership and communication development, or owns a team it is bought
+                for.
               </p>
             </div>
             <span className="rounded-full bg-[#F2F4F7] px-2.5 py-1 text-[10.5px] text-[#475467]">
@@ -439,9 +440,9 @@ export default async function L3Page({ params, searchParams }: {
               No US employee-voice posts stored for this account match the ICP yet.
             </p>
           ) : (
-            <ul className="mt-3.5 max-h-[26rem] divide-y divide-[#F2F4F7] overflow-y-auto rounded-[10px] border border-[#EDEFF3]">
+            <ul className="mt-3.5 grid max-h-[30rem] grid-cols-1 gap-x-4 overflow-y-auto rounded-[10px] border border-[#EDEFF3] p-1 lg:grid-cols-2">
               {v.contacts.map((c) => (
-                <li key={c.name} className="px-3.5 py-2.5">
+                <li key={c.name} className="border-b border-[#F2F4F7] px-3 py-2.5">
                   <div className="flex flex-wrap items-baseline gap-2">
                     <span className="text-[13px] font-medium text-[#101828]">{c.name}</span>
                     {c.newArrival && (
@@ -454,24 +455,32 @@ export default async function L3Page({ params, searchParams }: {
                         AMI
                       </span>
                     )}
-                    {c.url && (
-                      <a href={c.url} target="_blank" rel="noreferrer"
-                        className="ml-auto shrink-0 text-[10.5px] text-[#4F46E5] hover:underline">
-                        open their post ↗
-                      </a>
-                    )}
+                    <span className="ml-auto shrink-0 text-[10.5px]">
+                      {c.source === "post" && c.url ? (
+                        <a href={c.url} target="_blank" rel="noreferrer"
+                          className="text-[#4F46E5] hover:underline">their post ↗</a>
+                      ) : c.profileUrl ? (
+                        <a href={c.profileUrl} target="_blank" rel="noreferrer"
+                          className="text-[#4F46E5] hover:underline">profile ↗</a>
+                      ) : null}
+                    </span>
                   </div>
                   {c.role && (
-                    <div className="mt-0.5 text-[11.5px] leading-snug text-[#667085]">{c.role}</div>
+                    <div className="mt-0.5 text-[11.5px] leading-snug text-[#667085]">
+                      {c.role.length > 110 ? `${c.role.slice(0, 110)}…` : c.role}
+                    </div>
                   )}
                 </li>
               ))}
             </ul>
           )}
           <p className="mt-2 text-[11px] leading-snug text-[#98A2B3]">
-            {v.contacts.length} {v.contacts.length === 1 ? "person" : "people"}. New arrival reads
-            the post&apos;s own words and excludes tenure anniversaries, which use the same
-            language. AMI means the post names the Allergan Medical Institute.
+            {v.contacts.length} {v.contacts.length === 1 ? "person" : "people"} ·{" "}
+            {v.contacts.filter((c) => c.source === "post").length} found by what they posted,{" "}
+            {v.contacts.filter((c) => c.source === "search").length} by searching LinkedIn for the
+            roles. New arrival reads the post&apos;s own words and excludes tenure anniversaries,
+            which use the same language. AMI means the headline or post names the Allergan
+            Medical Institute.
           </p>
         </section>
       </div>

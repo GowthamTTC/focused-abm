@@ -12,7 +12,7 @@
  * fastest way to lose a room that asks how it was calculated.
  */
 import { and, eq, inArray } from "drizzle-orm";
-import { db, accountSignal, connection, job } from "@/db";
+import { db, accountSignal, accountPerson, connection, job } from "@/db";
 import { companyKey } from "@/modules/radar/score";
 import { meanSentiment, type Band, type Trigger } from "@/modules/pulse/types";
 import { loadAccountMap, mapKeys, type AccountMapRow } from "@/modules/accounts/org-map";
@@ -120,6 +120,12 @@ export interface QueryRun {
 export interface SignalContact {
   name: string;
   role: string;
+  /** Where this person came from. "post" means they wrote something we hold;
+   *  "search" means LinkedIn's people search returned them and they have said
+   *  nothing in the window. The second kind is most of any organisation. */
+  source: "post" | "search";
+  /** Their LinkedIn profile, when we have it. */
+  profileUrl: string | null;
   lastPostAt: Date | null;
   url: string | null;
   theme: string | null;
@@ -503,6 +509,8 @@ export async function loadL3(
     byPerson.set(name.toLowerCase(), {
       name,
       role: rest.join(" \u2014 ").trim(),
+      source: "post",
+      profileUrl: sg.authorProfileUrl,
       lastPostAt: sg.publishedAt,
       url: sg.url,
       theme: sg.theme,
@@ -511,6 +519,43 @@ export async function loadL3(
       excerpt: (sg.body ?? "").replace(/\s+/g, " ").trim().slice(0, 150),
     });
   }
+  // The people LinkedIn's own search found at the unit, whether or not they
+  // have posted. A post feed is a list of the people who write in public; this
+  // is a list of the people who work there, and the second one is the account.
+  const directory = await db.select({
+    name: accountPerson.name,
+    headline: accountPerson.headline,
+    profileUrl: accountPerson.profileUrl,
+    companyKey: accountPerson.companyKey,
+  }).from(accountPerson).where(and(
+    eq(accountPerson.orgId, orgId),
+    inArray(accountPerson.companyKey, [...unitKeys]),
+  ));
+  for (const d of directory) {
+    const headline = (d.headline ?? "").trim();
+    if (focusKey && d.companyKey !== focusKey && !(focusRe?.test(headline) ?? false)) continue;
+    const key = d.name.toLowerCase();
+    const prev = byPerson.get(key);
+    if (prev) {
+      // Already known from a post. Keep the post — it carries a date and words
+      // — and take only the profile link the search added.
+      if (!prev.profileUrl && d.profileUrl) prev.profileUrl = d.profileUrl;
+      continue;
+    }
+    byPerson.set(key, {
+      name: d.name,
+      role: headline,
+      source: "search",
+      profileUrl: d.profileUrl,
+      lastPostAt: null,
+      url: null,
+      theme: null,
+      newArrival: false,
+      amiEvent: AMI_RE.test(headline),
+      excerpt: "",
+    });
+  }
+
   // Do we already know any of them? Matched on normalised full name against
   // this workspace's own connections. A name match is not proof of identity,
   // so the page says "connected" rather than asserting it is the same person.
@@ -532,7 +577,14 @@ export async function loadL3(
       const id = knownByName.get(n) ?? null;
       return { ...c, connected: Boolean(id), connectionId: id };
     })
-    .sort((a, b) => (b.lastPostAt?.getTime() ?? 0) - (a.lastPostAt?.getTime() ?? 0));
+    .sort((a, b) => {
+      // Anyone who said something recently leads, because there is something to
+      // open on. The rest follow in name order, which is the only honest order
+      // for people we know a headline about and nothing else.
+      if (a.source !== b.source) return a.source === "post" ? -1 : 1;
+      if (a.source === "post") return (b.lastPostAt?.getTime() ?? 0) - (a.lastPostAt?.getTime() ?? 0);
+      return a.name.localeCompare(b.name);
+    });
 
   // Leadership and company voices only. The market half of the feed is
   // practitioners talking about products, and it is not what an account plan
