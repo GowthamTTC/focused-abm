@@ -1,0 +1,11 @@
+# Chromium, for the PDF export.
+#
+# The export renders the real page rather than drawing a second version of it,
+# so the host needs a browser. aptPkgs rather than nixPkgs on purpose: nixPkgs
+# replaces the auto-detected toolchain and would take the Node version with it.
+#
+# If this package ever fails to install, nothing breaks: the export route falls
+# back to a drawn PDF with the same content and the same links, and the audit
+# line records which mode produced the file.
+[phases.setup]
+aptPkgs = ["chromium", "fonts-liberation", "libnss3", "libatk-bridge2.0-0", "libgbm1", "libasound2"]

@@ -1,6 +1,6 @@
 {
   "name": "focused-abm",
-  "version": "2.76.0",
+  "version": "2.77.0",
   "private": true,
   "engines": {
     "node": ">=22"
@@ -26,6 +26,7 @@
     "openai": "^4.77.0",
     "pdfkit": "^0.15.2",
     "pg": "^8",
+    "puppeteer-core": "^23.11.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "tsx": "^4",

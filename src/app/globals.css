@@ -367,12 +367,23 @@ html[data-nav="collapsed"] #app-sidebar {
     background: #fff !important;
   }
 
-  /* Release every scroll box — lists of people, research panes, post details. */
+  /* Release every scroll box AND the shell that holds them. The app column is
+     h-screen with overflow hidden, which on paper means the export is exactly
+     one viewport tall — a single page, with everything below the fold simply
+     gone. Height and overflow both have to be let go, or the PDF lies by
+     omission. */
   [class*="max-h-"],
   [class*="overflow-y-auto"],
-  [class*="overflow-hidden"] {
+  [class*="overflow-hidden"],
+  [class*="h-screen"] {
     max-height: none !important;
+    height: auto !important;
     overflow: visible !important;
+  }
+
+  main, .pane-scroll {
+    overflow: visible !important;
+    height: auto !important;
   }
 
   /* Cards should not be split down the middle by a page break. */
