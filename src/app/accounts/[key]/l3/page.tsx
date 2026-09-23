@@ -188,7 +188,12 @@ export default async function L3Page({ params, searchParams }: {
       <div className="mt-4">
         <section className={`${CARD} p-5`}>
             <div className="flex items-baseline justify-between gap-2">
-              <h2 className="text-[13px] font-semibold">From their US LinkedIn pages · 30 days</h2>
+              <div>
+                <h2 className="text-[13px] font-semibold">From their US LinkedIn pages · 30 days</h2>
+                <p className="mt-0.5 text-[11.5px] text-[#667085]">
+                  What they posted, and why it is an opening for this workspace.
+                </p>
+              </div>
               <span className="text-[11px] text-[#98A2B3]">
                 {v.companyUpdates.length > 0
                   ? `${v.companyUpdates.length} post${v.companyUpdates.length === 1 ? "" : "s"}`
@@ -203,32 +208,45 @@ export default async function L3Page({ params, searchParams }: {
             ) : (
               <ul className="mt-2.5 divide-y divide-[#F2F4F7]">
                 {v.companyUpdates.map((n) => (
-                  <li key={n.id} className="py-2 first:pt-0">
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="text-[12.5px] font-medium leading-snug text-[#101828]">
-                        {(n.body ?? "").replace(/\s+/g, " ").slice(0, 118)}…
-                      </span>
-                      <span className="shrink-0 text-[10.5px] text-[#98A2B3]">
-                        {n.publishedAt ? n.publishedAt.toISOString().slice(5, 10) : ""}
-                      </span>
+                  <li key={n.id} className="grid gap-4 py-3 first:pt-0 lg:grid-cols-[1.35fr_1fr]">
+                    <div>
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="text-[12.5px] font-medium leading-snug text-[#101828]">
+                          {(n.body ?? "").replace(/\s+/g, " ").slice(0, 150)}…
+                        </span>
+                        <span className="shrink-0 text-[10.5px] text-[#98A2B3]">
+                          {n.publishedAt ? n.publishedAt.toISOString().slice(5, 10) : ""}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-[11px] text-[#667085]">
+                        {n.who}
+                        {n.url && (
+                          <> · <a href={n.url} target="_blank" rel="noreferrer"
+                            className="text-[#4F46E5] hover:underline">open on LinkedIn ↗</a></>
+                        )}
+                      </p>
                     </div>
-                    <p className="mt-0.5 text-[11px] text-[#667085]">
-                      {n.who}
-                      {n.url && (
-                        <> · <a href={n.url} target="_blank" rel="noreferrer"
-                          className="text-[#4F46E5] hover:underline">open on LinkedIn ↗</a></>
+
+                    <div className="lg:border-l lg:border-[#F2F4F7] lg:pl-4">
+                      {n.matchedTriggers.length === 0 ? (
+                        <p className="text-[11.5px] leading-snug text-[#98A2B3]">
+                          No buying signal. Product marketing — nothing here to open on.
+                        </p>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {n.matchedTriggers.map((t) => (
+                            <div key={t.phrase}>
+                              <span className="rounded-[6px] border border-[#D9D6FE] bg-[#FAFAFF] px-1.5 py-0.5 text-[10.5px] font-medium text-[#4F46E5]">
+                                {t.label} · {t.weight} pts
+                              </span>
+                              {t.why && (
+                                <p className="mt-1 text-[11.5px] leading-snug text-[#475467]">{t.why}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
                       )}
-                    </p>
-                    {n.matchedTriggers.length > 0 && (
-                      <ul className="mt-1.5 flex flex-wrap gap-1.5">
-                        {n.matchedTriggers.map((t) => (
-                          <li key={t.phrase}
-                            className="rounded-[6px] border border-[#D9D6FE] bg-[#FAFAFF] px-1.5 py-0.5 text-[10.5px] font-medium text-[#4F46E5]">
-                            {t.label} · {t.weight} pts
-                          </li>
-                        ))}
-                      </ul>
-                    )}
+                    </div>
                   </li>
                 ))}
               </ul>
