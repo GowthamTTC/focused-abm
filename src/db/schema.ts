@@ -52,6 +52,11 @@ export interface OrgSettings {
    *  modules/accounts/trigger-vocab.ts. Undefined uses the built-in
    *  vocabulary; [] switches the band off. */
   triggerSignals?: { phrase: string; label: string; weight: number }[];
+  /** People this workspace has said are not the buyer, by full name. The ICP
+   *  test reads a headline, and a headline cannot say that a Finance Director
+   *  is out of scope or that a trainer is a customer rather than staff. A
+   *  reader who knows the account can say so, and the account list obeys it. */
+  icpHidden?: string[];
   /** Max people ONE day of post scanning may touch in this workspace. Lower it
    *  for a fresh or fragile LinkedIn seat without redeploying. */
   postScanDailyCap?: number;

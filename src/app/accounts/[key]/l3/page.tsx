@@ -430,7 +430,7 @@ export default async function L3Page({ params, searchParams }: {
             </p>
           ) : (() => {
             const BANDS: { key: string; label: string }[] = [
-              { key: "all", label: "Everyone" },
+              { key: "all", label: "All" },
               { key: "exec", label: "C-level / SVP" },
               { key: "vp", label: "VP / Head of" },
               { key: "director", label: "Director" },

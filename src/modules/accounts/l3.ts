@@ -511,6 +511,12 @@ export async function loadL3(
     if (ICP_FUNCTION_RE.test(r)) return true;
     return ICP_SENIORITY_RE.test(r) && !ICP_OFF_FUNCTION_RE.test(r);
   };
+  const orgSettings = await getOrgSettings(orgId);
+  const vocab = orgSettings.triggerSignals ?? DEFAULT_TRIGGERS;
+  /** Names the workspace has taken out of account lists, normalised. */
+  const nameKey = (n: string) => n.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const hidden = new Set((orgSettings.icpHidden ?? []).map(nameKey));
+
   const focusKey = focusUnit ? companyKey(focusUnit) : null;
   // Scoped to the unit in focus when there is one. An Allergan Aesthetics page
   // that lists AbbVie's recruiters and Parkinson's directors is an AbbVie page.
@@ -616,6 +622,8 @@ export async function loadL3(
 
   const contacts = [...byPerson.values()]
     .filter((c) => matchesIcp(c.role))
+    // Taken out by hand. A headline cannot say "this one is not the buyer".
+    .filter((c) => !hidden.has(nameKey(c.name)))
     .map((c) => ({ ...c, level: levelFix.get(c.name.toLowerCase()) ?? c.level }))
     .map((c) => {
       const n = c.name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -636,9 +644,6 @@ export async function loadL3(
   // is arguing from.
   // Buying signals, scored. The vocabulary is the workspace's own when it has
   // one; undefined falls back to the built-in list, and [] switches it off.
-  const orgSettings = await getOrgSettings(orgId);
-  const vocab = orgSettings.triggerSignals ?? DEFAULT_TRIGGERS;
-
   // Press, newest first. WARN filings are excluded: they are already the left
   // column of workforce movement, and a filing shown twice reads as two events.
   // Scoped to the unit in focus, so the parent's investor calendar — "AbbVie to

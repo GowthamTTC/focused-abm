@@ -41,6 +41,9 @@ const settingsSchema = z.object({
    *  time so a bad entry is rejected when it is saved, not silently skipped on
    *  every run afterwards. */
   pulseDomains: z.array(z.string().max(120)).max(50).optional(),
+  /** Full names the workspace has taken out of account ICP lists. Bounded so
+   *  a stray write cannot grow the settings blob without limit. */
+  icpHidden: z.array(z.string().max(120)).max(500).optional(),
   voiceProfile: z.string().optional(),
   voiceSampledAt: z.string().optional(),
   pickN: z.number().int().positive().max(80).optional(),
